@@ -52,7 +52,7 @@ library
     prelude-edsl,
     process,
     syntactic >= 3.2.1,
-    time
+    time >= 1.5
 
   hs-source-dirs: src
 
