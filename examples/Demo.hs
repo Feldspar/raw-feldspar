@@ -40,6 +40,11 @@ printSum_def = [cedecl|
     }
     |]
 
+-- Compiling and running:
+
+comp_sumInput = icompile sumInput
+run_sumInput  = compileAndRun [] sumInput []
+
 
 
 ------------------------------------------------------------
