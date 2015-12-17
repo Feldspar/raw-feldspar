@@ -537,9 +537,7 @@ store :: Storable a => a -> Program a
 store = castStore
 
 -- | Memory location
-data Store a
-  where
-    Store :: StoreRep a -> Store a
+newtype Store a = Store { unStore :: StoreRep a }
   -- The reason for this type and its associated interface is to improve type
   -- inference over the methods in the `Storable` class. The problem with those
   -- methods is that they involve type families.
@@ -550,11 +548,11 @@ initStore = fmap Store . initStoreRep
 
 -- | Read from a memory store
 readStore :: Storable a => Store a -> Program a
-readStore (Store s) = readStoreRep s
+readStore = readStoreRep . unStore
 
 -- | Write to a memory store
 writeStore :: Storable a => Store a -> a -> Program ()
-writeStore (Store s) = writeStoreRep s
+writeStore = writeStoreRep . unStore
 
 inplace :: Storable a => Store a -> (a -> a) -> Program ()
 inplace store f = writeStore store . f =<< readStore store
