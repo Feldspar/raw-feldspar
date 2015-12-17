@@ -487,44 +487,67 @@ addr = Imp.addr
 -- | Storable types
 class Storable a
   where
-    -- | Memory location
-    type Loc a
-    -- | Store a value to a fresh memory location
-    initLoc  :: a -> Program (Loc a)
-    -- | Read from a memory location
-    readLoc  :: Loc a -> Program a
-    -- | Write to a memory location
-    writeLoc :: Loc a -> a -> Program ()
+    -- | Memory representation
+    type StoreRep a
+    -- | Store a value to a fresh memory location. It is usually better to use
+    -- 'initStore' instead of this function as it improves type inference.
+    initStoreRep  :: a -> Program (StoreRep a)
+    -- | Read from a memory store. It is usually better to use 'readStore'
+    -- instead of this function as it improves type inference.
+    readStoreRep  :: StoreRep a -> Program a
+    -- | Write to a memory store. It is usually better to use 'writeStore'
+    -- instead of this function as it improves type inference.
+    writeStoreRep :: StoreRep a -> a -> Program ()
 
 instance SmallType a => Storable (Data a)
   where
-    type Loc (Data a) = Ref a
-    initLoc  = initRef
-    readLoc  = getRef
-    writeLoc = setRef
+    type StoreRep (Data a) = Ref a
+    initStoreRep  = initRef
+    readStoreRep  = getRef
+    writeStoreRep = setRef
 
 instance (Storable a, Storable b) => Storable (a,b)
   where
-    type Loc (a,b) = (Loc a, Loc b)
-    initLoc (a,b)          = (,) <$> initLoc a <*> initLoc b
-    readLoc (la,lb)        = (,) <$> readLoc la <*> readLoc lb
-    writeLoc (la,lb) (a,b) = writeLoc la a >> writeLoc lb b
+    type StoreRep (a,b) = (StoreRep a, StoreRep b)
+    initStoreRep (a,b)          = (,) <$> initStoreRep a <*> initStoreRep b
+    readStoreRep (la,lb)        = (,) <$> readStoreRep la <*> readStoreRep lb
+    writeStoreRep (la,lb) (a,b) = writeStoreRep la a >> writeStoreRep lb b
 
 instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
   where
-    type Loc (a,b,c) = (Loc a, Loc b, Loc c)
-    initLoc (a,b,c)             = (,,) <$> initLoc a <*> initLoc b <*> initLoc c
-    readLoc (la,lb,lc)          = (,,) <$> readLoc la <*> readLoc lb <*> readLoc lc
-    writeLoc (la,lb,lc) (a,b,c) = writeLoc la a >> writeLoc lb b >> writeLoc lc c
+    type StoreRep (a,b,c) = (StoreRep a, StoreRep b, StoreRep c)
+    initStoreRep (a,b,c)             = (,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c
+    readStoreRep (la,lb,lc)          = (,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc
+    writeStoreRep (la,lb,lc) (a,b,c) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c
 
 instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
   where
-    type Loc (a,b,c,d) = (Loc a, Loc b, Loc c, Loc d)
-    initLoc (a,b,c,d)                = (,,,) <$> initLoc a <*> initLoc b <*> initLoc c <*> initLoc d
-    readLoc (la,lb,lc,ld)            = (,,,) <$> readLoc la <*> readLoc lb <*> readLoc lc <*> readLoc ld
-    writeLoc (la,lb,lc,ld) (a,b,c,d) = writeLoc la a >> writeLoc lb b >> writeLoc lc c >> writeLoc ld d
+    type StoreRep (a,b,c,d) = (StoreRep a, StoreRep b, StoreRep c, StoreRep d)
+    initStoreRep (a,b,c,d)                = (,,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c <*> initStoreRep d
+    readStoreRep (la,lb,lc,ld)            = (,,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc <*> readStoreRep ld
+    writeStoreRep (la,lb,lc,ld) (a,b,c,d) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c >> writeStoreRep ld d
 
 -- | Store a value to memory and read it back
 store :: Storable a => a -> Program a
-store v = initLoc v >>= readLoc
+store v = initStoreRep v >>= readStoreRep
+
+-- | Memory location
+data Store a
+  where
+    Store :: StoreRep a -> Store a
+  -- The reason for this type and its associated interface is to improve type
+  -- inference over the methods in the `Storable` class. The problem with those
+  -- methods is that they involve type families.
+
+-- | Store a value to a fresh memory location
+initStore :: Storable a => a -> Program (Store a)
+initStore = fmap Store . initStoreRep
+
+-- | Read from a memory store
+readStore :: Storable a => Store a -> Program a
+readStore (Store s) = readStoreRep s
+
+-- | Write to a memory store
+writeStore :: Storable a => Store a -> a -> Program ()
+writeStore (Store s) = writeStoreRep s
 
