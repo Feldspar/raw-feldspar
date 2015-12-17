@@ -551,3 +551,6 @@ readStore (Store s) = readStoreRep s
 writeStore :: Storable a => Store a -> a -> Program ()
 writeStore (Store s) = writeStoreRep s
 
+inplace :: Storable a => Store a -> (a -> a) -> Program ()
+inplace store f = writeStore store . f =<< readStore store
+
