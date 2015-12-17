@@ -105,9 +105,7 @@ lookAlias v = do
     env <- ask
     return $ case Map.lookup v env of
         Nothing | Right Dict <- pwit pCType tr
-               -> -- error $  "lookAlias: variable " ++ show v ++ " not in scope"
-                  let v' = 'v' :  show v
-                  in  Actual (CExp (Sym (T (Var v'))) :: CExp a)
+               -> error $  "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case gcast pFeldTypes e of
             Left msg -> error $ "lookAlias: " ++ msg
             Right e' -> e'
