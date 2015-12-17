@@ -4,12 +4,13 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, error, (=<<), sequence_, reverse)
+import Prelude (Integral, error, reverse)
 import Prelude.EDSL
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
+import Control.Monad
 
 import Data.Proxy
 
@@ -527,9 +528,13 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
     readStoreRep (la,lb,lc,ld)            = (,,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc <*> readStoreRep ld
     writeStoreRep (la,lb,lc,ld) (a,b,c,d) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c >> writeStoreRep ld d
 
+-- | Cast between 'Storable' types that have the same memory representation
+castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Program b
+castStore = initStoreRep >=> readStoreRep
+
 -- | Store a value to memory and read it back
 store :: Storable a => a -> Program a
-store v = initStoreRep v >>= readStoreRep
+store = castStore
 
 -- | Memory location
 data Store a
