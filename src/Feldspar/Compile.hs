@@ -13,11 +13,6 @@ import Control.Applicative
 import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Time (getCurrentTime, formatTime, defaultTimeLocale)
-import System.Directory (getTemporaryDirectory)
-import System.Exit (ExitCode (..))
-import System.IO
-import System.Process (system)
 
 import qualified Control.Monad.Operational.Higher as Imp
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
@@ -343,50 +338,19 @@ compile = Imp.compile . lowerTop
 icompile :: Feld.Program a -> IO ()
 icompile = putStrLn . compile
 
--- | Generate C code and use GCC to compile it
-compileC
-    :: [String]        -- ^ GCC flags (e.g. @["-Ipath"]@)
-    -> Feld.Program a  -- ^ Program to compile
-    -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
-    -> IO FilePath     -- ^ Path to the generated executable
-compileC flags prog postFlags = do
-    tmp <- getTemporaryDirectory
-    t   <- fmap (formatTime defaultTimeLocale "%a-%H-%M-%S_") getCurrentTime
-    (exeFile,exeh) <- openTempFile tmp ("feldspar_" ++ t)
-    hClose exeh
-    let cFile = exeFile ++ ".c"
-    writeFile cFile $ compile prog
-    putStrLn $ "Created temporary file: " ++ cFile
-    let compileCMD = unwords
-          $  ["gcc", "-std=c99"]
-          ++ flags
-          ++ [cFile, "-o", exeFile]
-          ++ postFlags
-    putStrLn compileCMD
-    exit <- system compileCMD
-    case exit of
-      ExitSuccess -> return exeFile
-      err -> error $ show err
-
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck
     :: [String]        -- ^ GCC flags (e.g. @["-Ipath"]@)
     -> Feld.Program a  -- ^ Program to compile
     -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
-    -> IO FilePath
-compileAndCheck flags = compileC ("-c":flags)
+    -> IO ()
+compileAndCheck flags = Imp.compileAndCheck flags . unProgram
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-compileAndRun
+runCompiled
     :: [String]        -- ^ GCC flags (e.g. @["-Ipath"]@)
     -> Feld.Program a  -- ^ Program to run
     -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
     -> IO ()
-compileAndRun flags prog postFlags = do
-    exe <- compileC flags prog postFlags
-    putStrLn ""
-    putStrLn "#### Now running:"
-    putStrLn exe
-    system exe
-    return ()
+runCompiled flags = Imp.runCompiled flags . unProgram
 

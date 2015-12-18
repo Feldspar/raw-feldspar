@@ -22,7 +22,7 @@ module Feldspar
   , compile
   , icompile
   , compileAndCheck
-  , compileAndRun
+  , runCompiled
   ) where
 
 import Prelude.EDSL
