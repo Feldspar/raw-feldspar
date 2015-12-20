@@ -189,10 +189,6 @@ instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
 type instance VarPred Data = SmallType
 
-instance CompExp Data
-  where
-    varExp = sugarSymTR . VarT . fromInteger
-
 
 
 --------------------------------------------------------------------------------
