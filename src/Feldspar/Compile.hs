@@ -344,7 +344,7 @@ compileAndCheck
     -> Feld.Program a  -- ^ Program to compile
     -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
     -> IO ()
-compileAndCheck flags = Imp.compileAndCheck flags . unProgram
+compileAndCheck flags = Imp.compileAndCheck flags . lowerTop
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
 runCompiled
@@ -352,5 +352,5 @@ runCompiled
     -> Feld.Program a  -- ^ Program to run
     -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
     -> IO ()
-runCompiled flags = Imp.runCompiled flags . unProgram
+runCompiled flags = Imp.runCompiled flags . lowerTop
 
