@@ -6,7 +6,7 @@
 module Feldspar.Representation where
 
 
-
+import Control.Applicative
 import Data.Word
 
 import Language.Syntactic

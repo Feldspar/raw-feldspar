@@ -13,25 +13,24 @@ before_cache:
 
 matrix:
   include:
-    - env: CABALVER=1.16 GHCVER=7.6.3
-      compiler: ": #GHC 7.6.3"
-      addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,alex-3.1.6,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=1.18 GHCVER=7.8.4
       compiler: ": #GHC 7.8.4"
-      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,alex-3.1.6,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,alex-3.1.4,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=1.22 GHCVER=7.10.3
       compiler: ": #GHC 7.10.3"
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,alex-3.1.6,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,alex-3.1.4,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=head GHCVER=head
       compiler: ": #GHC head"
-      addons: {apt: {packages: [cabal-install-head,ghc-head,alex-3.1.6,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-head,ghc-head,alex-3.1.4,happy-1.19.5], sources: [hvr-ghc]}}
 
   allow_failures:
+    - env: CABALVER=1.18 GHCVER=7.8.4
     - env: CABALVER=head GHCVER=head
 
 before_install:
  - unset CC
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+ - export PATH=/opt/happy/1.19.5/bin:/opt/alex/3.1.4/bin:$PATH
 
 install:
  - cabal --version
@@ -43,8 +42,7 @@ install:
    fi
  - travis_retry cabal update -v
  - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
- - git clone https://github.com/emilaxelsson/imperative-edsl
- - cabal install imperative-edsl/ --only-dependencies --enable-tests --enable-benchmarks --dry -v > installplan.txt
+ - cabal install --only-dependencies --enable-tests --enable-benchmarks --dry -v > installplan.txt
  - sed -i -e '1,/^Resolving /d' installplan.txt; cat installplan.txt
 
 # check whether current requested install-plan matches cached package-db snapshot
@@ -58,7 +56,7 @@ install:
      echo "cabal build-cache MISS";
      rm -rf $HOME/.cabsnap;
      mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     cabal install imperative-edsl/ --only-dependencies --enable-tests --enable-benchmarks;
+     cabal install --only-dependencies --enable-tests --enable-benchmarks;
    fi
 
 # snapshot package-db on cache miss
