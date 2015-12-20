@@ -2,6 +2,8 @@
 
 module Demo where
 
+
+
 import Prelude ()
 import Control.Applicative ((<$>))
 
@@ -75,4 +77,15 @@ map_inplace = do
     inplace svec $ map (*33)
     vec <- readStore svec
     printf "result: %d\n" $ sum vec
+
+
+
+------------------------------------------------------------
+
+testAll = do
+    compileAndCheck [] sumInput     []
+    compileAndCheck [] printFib     []
+    runCompiled     [] test_scProd1 []
+    runCompiled     [] test_scProd2 []
+    runCompiled     [] map_inplace  []
 

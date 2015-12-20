@@ -53,3 +53,19 @@ library
 
   hs-source-dirs: src
 
+test-suite Examples
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: tests examples
+
+  main-is: Examples.hs
+
+  default-language: Haskell2010
+
+  default-extensions:
+    NoMonomorphismRestriction
+
+  build-depends:
+    base,
+    raw-feldspar
+
