@@ -189,7 +189,7 @@ transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
 transFunArgs = mapM $ mapMArg predCast translateSmallExp
   where
     predCast :: VarPredCast Data CExp
-    predCast _ = id
+    predCast _ a = a
 
 instance Lower (CallCMD Data)
   where
