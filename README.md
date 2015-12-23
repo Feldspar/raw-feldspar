@@ -17,6 +17,6 @@ Here is a suggested incantation:
     git clone git@github.com:emilaxelsson/raw-feldspar
     cd raw-feldspar
     cabal sandbox init
-    cabal add-source ../imperative-edsl
+    cabal sandbox add-source ../imperative-edsl
     cabal install --constraint="language-c-quote -full-haskell-antiquotes"
 
