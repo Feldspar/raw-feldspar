@@ -129,6 +129,7 @@ instance Lower (RefCMD Data)
     lowerInstr (SetRef r a) = do
         Actual a' <- translateExp a
         lift $ setRef r a'
+    lowerInstr (UnsafeFreezeRef r) = fmap liftVar $ lift $ unsafeFreezeRef r
 
 instance Lower (ArrCMD Data)
   where
@@ -158,10 +159,10 @@ instance Lower (ControlCMD Data)
                 return c'
             )
             (flip runReaderT env body)
-    lowerInstr (For lo hi body) = do
+    lowerInstr (For (lo,step,hi) body) = do
         Actual lo' <- translateExp lo
-        Actual hi' <- translateExp hi
-        ReaderT $ \env -> for lo' hi' (flip runReaderT env . body . liftVar)
+        hi' <- traverse (fmap (\(Actual c) -> c) . translateExp) hi
+        ReaderT $ \env -> for (lo',step,hi') (flip runReaderT env . body . liftVar)
     lowerInstr Break = lift Imp.break
 
 instance Lower (FileCMD Data)
@@ -281,7 +282,7 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         , Just (LamT sv) <- prj lams
         = do Actual len' <- transAST len
              state <- initRefV =<< transAST init
-             ReaderT $ \env -> for 0 (len'-1) $ \i -> flip runReaderT env $ do
+             ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
                 s <- getRefV state
                        -- TODO Use unsafeGetRefV for non-compound states
                 s' <- localAlias iv (Actual i) $
@@ -339,18 +340,18 @@ icompile :: Feld.Program a -> IO ()
 icompile = putStrLn . compile
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck
-    :: [String]        -- ^ GCC flags (e.g. @["-Ipath"]@)
-    -> Feld.Program a  -- ^ Program to compile
-    -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
-    -> IO ()
-compileAndCheck flags = Imp.compileAndCheck flags . lowerTop
+compileAndCheck' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
+compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
+
+-- | Generate C code and use GCC to check that it compiles (no linking)
+compileAndCheck :: Feld.Program a -> IO ()
+compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled
-    :: [String]        -- ^ GCC flags (e.g. @["-Ipath"]@)
-    -> Feld.Program a  -- ^ Program to run
-    -> [String]        -- ^ GCC flags after C source (e.g. @["-lm","-lpthread"]@)
-    -> IO ()
-runCompiled flags = Imp.runCompiled flags . lowerTop
+runCompiled' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
+runCompiled' opts = Imp.runCompiled' opts . lowerTop
+
+-- | Generate C code, use GCC to compile it, and run the resulting executable
+runCompiled :: Feld.Program a -> IO ()
+runCompiled = runCompiled' mempty
 

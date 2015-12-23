@@ -45,7 +45,7 @@ printSum_def = [cedecl|
 -- Compiling and running:
 
 comp_sumInput = icompile sumInput
-run_sumInput  = runCompiled [] sumInput []
+run_sumInput  = runCompiled sumInput
 
 
 
@@ -83,9 +83,9 @@ map_inplace = do
 ------------------------------------------------------------
 
 testAll = do
-    compileAndCheck [] sumInput     []
-    compileAndCheck [] printFib     []
-    runCompiled     [] test_scProd1 []
-    runCompiled     [] test_scProd2 []
-    runCompiled     [] map_inplace  []
+    compileAndCheck sumInput
+    compileAndCheck printFib
+    runCompiled     test_scProd1
+    runCompiled     test_scProd2
+    runCompiled     map_inplace
 

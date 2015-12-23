@@ -27,7 +27,7 @@ instance Type a => Storable (Vector (Data a))
     readStoreRep = return . uncurry freezeVec
     writeStoreRep (len,arr) (Indexed l ixf) =
       -- TODO assert l <= len
-      for 0 (l-1) $ \i -> setArr i (ixf i) arr
+      for (0, 1, Excl l) $ \i -> setArr i (ixf i) arr
 
 length :: Vector a -> Data Length
 length (Indexed len _) = len

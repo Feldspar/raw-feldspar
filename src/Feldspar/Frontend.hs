@@ -1,6 +1,9 @@
 {-# LANGUAGE CPP #-}
 
-module Feldspar.Frontend where
+module Feldspar.Frontend
+  ( module Feldspar.Frontend
+  , ExternalCompilerOpts (..)
+  ) where
 
 
 
@@ -24,6 +27,7 @@ import qualified Control.Monad.Operational.Higher as Imp
 import qualified Language.Embedded.Imperative as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 import Data.VirtualContainer
 import Feldspar.Representation
@@ -192,11 +196,7 @@ modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 -- | Freeze the contents of reference (only safe if the reference is never
 -- written to after the first action that makes use of the resulting expression)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
-unsafeFreezeRef =
-    fmap desugar . mapVirtualM (Program . return . unsFreeze) . unRef
-  where
-    unsFreeze :: SmallType b => Imp.Ref b -> Data b
-    unsFreeze (Imp.RefComp r) = sugarSymTR (FreeVar ('v' : show r))
+unsafeFreezeRef = fmap desugar . mapVirtualM (Program . Imp.unsafeFreezeRef) . unRef
 
 -- | Compute and share a value. Like 'share' but using the 'Program' monad
 -- instead of a higher-order interface.
@@ -266,11 +266,10 @@ while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
 
 -- | For loop
 for :: (Integral n, SmallType n)
-    => Data n                  -- ^ Start index
-    -> Data n                  -- ^ Stop index
+    => IxRange (Data n)        -- ^ Index range
     -> (Data n -> Program ())  -- ^ Loop body
     -> Program ()
-for lo hi body = Program $ Imp.for lo hi (unProgram . body)
+for range body = Program $ Imp.for range (unProgram . body)
 
 -- | Break out from a loop
 break :: Program ()

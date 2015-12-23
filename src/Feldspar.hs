@@ -21,7 +21,9 @@ module Feldspar
   , runIO
   , compile
   , icompile
+  , compileAndCheck'
   , compileAndCheck
+  , runCompiled'
   , runCompiled
   ) where
 
