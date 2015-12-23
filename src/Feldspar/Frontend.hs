@@ -264,16 +264,6 @@ while
     -> Program ()
 while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
 
--- | While loop that returns an expression
-whileE :: Type a
-    => Program (Data Bool)  -- ^ Continue condition
-    -> Program (Data a)     -- ^ Loop body
-    -> Program (Data a)
-whileE cont body = do
-    res <- newRef
-    while cont (body >>= setRef res)
-    unsafeFreezeRef res
-
 -- | For loop
 for :: (Integral n, SmallType n)
     => Data n                  -- ^ Start index
@@ -281,17 +271,6 @@ for :: (Integral n, SmallType n)
     -> (Data n -> Program ())  -- ^ Loop body
     -> Program ()
 for lo hi body = Program $ Imp.for lo hi (unProgram . body)
-
--- | For loop
-forE :: (Integral n, SmallType n, Type a)
-    => Data n                        -- ^ Start index
-    -> Data n                        -- ^ Stop index
-    -> (Data n -> Program (Data a))  -- ^ Loop body
-    -> Program (Data a)
-forE lo hi body = do
-    res <- newRef
-    for lo hi $ \i -> body i >>= setRef res
-    getRef res
 
 -- | Break out from a loop
 break :: Program ()
