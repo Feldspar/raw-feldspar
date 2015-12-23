@@ -13,14 +13,10 @@ See the [examples](examples/) directory.
 
 Here is a suggested incantation:
 
-    git clone git@github.com:emilaxelsson/language-c-quote.git --branch no-haskell-src-meta
     git clone git@github.com:emilaxelsson/imperative-edsl
     git clone git@github.com:emilaxelsson/raw-feldspar
     cd raw-feldspar
     cabal sandbox init
-    cabal install -f-full-haskell-antiquotes ../language-c-quote
     cabal add-source ../imperative-edsl
-    cabal install
-
-You can skip the cloning and installation of `language-c-quote`, but that will lead to longer installation time.
+    cabal install --constraint="language-c-quote -full-haskell-antiquotes"
 
