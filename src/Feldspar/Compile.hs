@@ -170,7 +170,7 @@ instance Lower (FileCMD Data)
     lowerInstr (FOpen file mode)   = lift $ fopen file mode
     lowerInstr (FClose h)          = lift $ fclose h
     lowerInstr (FEof h)            = fmap liftVar $ lift $ feof h
-    lowerInstr (FPrintf h form as) = lift . fprf h form =<< transPrintfArgs as
+    lowerInstr (FPrintf h form as) = lift . fprf h form . reverse =<< transPrintfArgs as
     lowerInstr (FGet h)            = fmap liftVar $ lift $ fget h
 
 transPrintfArgs :: [PrintfArg Data] -> Target [PrintfArg CExp]
