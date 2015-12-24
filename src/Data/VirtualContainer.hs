@@ -104,6 +104,27 @@ data Virtual p con a
            -> Virtual p con m -> Virtual p con n -> Virtual p con o
            -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o)
 
+-- | Select from a 'Virtual' structure
+vsel1 :: Virtual p c tup -> Virtual p c (Sel1 tup)
+vsel1 (VTup2  a _)     = a
+vsel1 (VTup3  a _ _)   = a
+vsel1 (VTup4  a _ _ _) = a
+
+-- | Select from a 'Virtual' structure
+vsel2 :: Virtual p c tup -> Virtual p c (Sel2 tup)
+vsel2 (VTup2  _ b)     = b
+vsel2 (VTup3  _ b _)   = b
+vsel2 (VTup4  _ b _ _) = b
+
+-- | Select from a 'Virtual' structure
+vsel3 :: Virtual p c tup -> Virtual p c (Sel3 tup)
+vsel3 (VTup3  _ _ c)   = c
+vsel3 (VTup4  _ _ c _) = c
+
+-- | Select from a 'Virtual' structure
+vsel4 :: Virtual p c tup -> Virtual p c (Sel4 tup)
+vsel4 (VTup4  _ _ _ d) = d
+
 -- | Representation of the structure of a 'Virtual' container
 type VirtualRep pred = Virtual pred Proxy
 

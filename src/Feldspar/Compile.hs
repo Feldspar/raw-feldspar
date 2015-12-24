@@ -250,13 +250,10 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
     go t tup (a :* b :* c :* d :* Nil)
         | Just Tup4 <- prj tup = VTup4 <$> transAST a <*> transAST b <*> transAST c <*> transAST d
     go t sel (a :* Nil)
-        | Just Sel1 <- prj sel = do
-            VTup2 a1 a2 <- transAST a
-            return a1
-    go t sel (a :* Nil)
-        | Just Sel2 <- prj sel = do
-            VTup2 a1 a2 <- transAST a
-            return a2
+        | Just Sel1 <- prj sel = fmap vsel1 $ transAST a
+        | Just Sel2 <- prj sel = fmap vsel2 $ transAST a
+        | Just Sel3 <- prj sel = fmap vsel3 $ transAST a
+        | Just Sel4 <- prj sel = fmap vsel4 $ transAST a
     go t op (a :* Nil)
         | Just I2N <- prj op = liftVirt i2n  <$> transAST a
         | Just Not <- prj op = liftVirt not_ <$> transAST a
