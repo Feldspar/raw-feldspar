@@ -8,6 +8,8 @@ module Feldspar.Compile where
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+import Data.Monoid
+import Data.Traversable (traverse)
 #endif
 
 import Control.Monad.Reader
