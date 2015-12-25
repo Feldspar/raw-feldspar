@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 #ifndef MIN_VERSION_GLASGOW_HASKELL
@@ -28,6 +29,8 @@ import Data.TypeRep.Representation
 import Data.TypeRep.Types.Tuple
 import Language.Syntactic.TypeRep.TupleConversion
 
+import Data.VirtualContainer.TH
+
 
 
 --------------------------------------------------------------------------------
@@ -40,90 +43,10 @@ import Language.Syntactic.TypeRep.TupleConversion
 -- the type index @a@ uniquely determines the constructor used. This assumption
 -- is used by 'zipVirtual' which is only total if it is impossible for 'Actual'
 -- to return the same type as the other constructors.
-data Virtual p con a
-  where
-    -- An actual container
-    Actual :: p a => con a -> Virtual p con a
-    -- A pair of virtual containers
-    VTup2  :: Virtual p con a -> Virtual p con b
-           -> Virtual p con (a,b)
-    VTup3  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con (a,b,c)
-    VTup4  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d
-           -> Virtual p con (a,b,c,d)
-    VTup5  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e
-           -> Virtual p con (a,b,c,d,e)
-    VTup6  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con (a,b,c,d,e,f)
-    VTup7  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g
-           -> Virtual p con (a,b,c,d,e,f,g)
-    VTup8  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h
-           -> Virtual p con (a,b,c,d,e,f,g,h)
-    VTup9  :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con (a,b,c,d,e,f,g,h,i)
-    VTup10 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j)
-    VTup11 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j -> Virtual p con k
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k)
-    VTup12 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j -> Virtual p con k -> Virtual p con l
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k,l)
-    VTup13 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j -> Virtual p con k -> Virtual p con l
-           -> Virtual p con m
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k,l,m)
-    VTup14 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j -> Virtual p con k -> Virtual p con l
-           -> Virtual p con m -> Virtual p con n
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k,l,m,n)
-    VTup15 :: Virtual p con a -> Virtual p con b -> Virtual p con c
-           -> Virtual p con d -> Virtual p con e -> Virtual p con f
-           -> Virtual p con g -> Virtual p con h -> Virtual p con i
-           -> Virtual p con j -> Virtual p con k -> Virtual p con l
-           -> Virtual p con m -> Virtual p con n -> Virtual p con o
-           -> Virtual p con (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o)
 
--- | Select from a 'Virtual' structure
-vsel1 :: Virtual p c tup -> Virtual p c (Sel1 tup)
-vsel1 (VTup2  a _)     = a
-vsel1 (VTup3  a _ _)   = a
-vsel1 (VTup4  a _ _ _) = a
+mkVirtualType 15
 
--- | Select from a 'Virtual' structure
-vsel2 :: Virtual p c tup -> Virtual p c (Sel2 tup)
-vsel2 (VTup2  _ b)     = b
-vsel2 (VTup3  _ b _)   = b
-vsel2 (VTup4  _ b _ _) = b
-
--- | Select from a 'Virtual' structure
-vsel3 :: Virtual p c tup -> Virtual p c (Sel3 tup)
-vsel3 (VTup3  _ _ c)   = c
-vsel3 (VTup4  _ _ c _) = c
-
--- | Select from a 'Virtual' structure
-vsel4 :: Virtual p c tup -> Virtual p c (Sel4 tup)
-vsel4 (VTup4  _ _ _ d) = d
+mkVSel 15
 
 -- | Representation of the structure of a 'Virtual' container
 type VirtualRep pred = Virtual pred Proxy

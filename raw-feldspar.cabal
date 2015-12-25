@@ -26,6 +26,9 @@ library
     Feldspar.Vector
     Feldspar.Compile
 
+  other-modules:
+    Data.VirtualContainer.TH
+
   default-language: Haskell2010
 
   default-extensions:
@@ -49,7 +52,8 @@ library
     open-typerep >= 0.4,
     operational-alacarte,
     prelude-edsl,
-    syntactic >= 3.2.1
+    syntactic >= 3.2.1,
+    template-haskell
 
   hs-source-dirs: src
 
