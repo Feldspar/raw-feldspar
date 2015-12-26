@@ -18,8 +18,12 @@ module Data.VirtualContainer where
 
 
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 import Control.Monad
 import Data.Proxy
+import Language.Haskell.TH
 
 import Language.Syntactic
 import Language.Syntactic.Functional.Tuple
@@ -213,16 +217,44 @@ instance (Tuple :<: sym, TupleType :<: t, PWitness pred t t) =>
     type Domain   (Virtual pred (ASTFull (sym :&: TypeRep t)) a) = (sym :&: TypeRep t)
     type Internal (Virtual pred (ASTFull (sym :&: TypeRep t)) a) = a
 
-    desugar (Actual a)      = unASTFull a
-    desugar (VTup2 a b)     = tup2 (desugar a) (desugar b)
-    desugar (VTup3 a b c)   = tup3 (desugar a) (desugar b) (desugar c)
-    desugar (VTup4 a b c d) = tup4 (desugar a) (desugar b) (desugar c) (desugar d)
+    desugar (Actual a) = unASTFull a
+    -- desugar tup = case tup of
+    --   VTup2 a b -> tup2 (desugar a) (desugar b)
+    --   ...
+    desugar tup =
+      $( virtualCases 15 (VarE 'tup)
+          (\w -> foldl AppE (VarE (mkName ("tup" ++ show w)))
+               . map (AppE (VarE 'desugar))
+          )
+       )
 
-    sugar a = case unTypeRep $ getDecor a of
-        Sym tup :$ ta :$ tb             | Just Tup2_t <- prj tup -> VTup2 (sugar $ sel1 a) (sugar $ sel2 a)
-        Sym tup :$ ta :$ tb :$ tc       | Just Tup3_t <- prj tup -> VTup3 (sugar $ sel1 a) (sugar $ sel2 a) (sugar $ sel3 a)
-        Sym tup :$ ta :$ tb :$ tc :$ td | Just Tup4_t <- prj tup -> VTup4 (sugar $ sel1 a) (sugar $ sel2 a) (sugar $ sel3 a) (sugar $ sel4 a)
-        t | Right Dict <- pwit (Proxy :: Proxy pred) (TypeRep t) -> Actual $ sugar a
+    sugar a = simpleMatch (go t) $ unTypeRep t
+      where
+        t = getDecor a
+        go :: (DenResult sig ~ a)
+           => TypeRep t a
+           -> t sig
+           -> Args (AST t) sig
+           -> Virtual pred (ASTFull (sym :&: TypeRep t)) a
+        go _ tup _
+          | Just tupType <- prj tup = case tupType of
+              -- Tup2_t -> VTup2 (sugar (sel1 a)) (sugar (sel2 a))
+              -- ...
+              Tup2_t  -> $(applyN 2  (ConE 'VTup2)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup3_t  -> $(applyN 3  (ConE 'VTup3)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup4_t  -> $(applyN 4  (ConE 'VTup4)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup5_t  -> $(applyN 5  (ConE 'VTup5)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup6_t  -> $(applyN 6  (ConE 'VTup6)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup7_t  -> $(applyN 7  (ConE 'VTup7)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup8_t  -> $(applyN 8  (ConE 'VTup8)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup9_t  -> $(applyN 9  (ConE 'VTup9)  (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup10_t -> $(applyN 10 (ConE 'VTup10) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup11_t -> $(applyN 11 (ConE 'VTup11) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup12_t -> $(applyN 12 (ConE 'VTup12) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup13_t -> $(applyN 13 (ConE 'VTup13) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup14_t -> $(applyN 14 (ConE 'VTup14) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+              Tup15_t -> $(applyN 15 (ConE 'VTup15) (\i -> AppE (VarE 'sugar) (AppE (VarE (mkName ("sel" ++ show i))) (VarE 'a))))
+        go t _ _ | Right Dict <- pwit (Proxy :: Proxy pred) t = Actual $ sugar a
 
 
 
@@ -231,26 +263,43 @@ instance (Tuple :<: sym, TupleType :<: t, PWitness pred t t) =>
 --------------------------------------------------------------------------------
 
 -- | Map over a 'Virtual' structure
-mapVirtual :: forall pred c1 c2 b .
-    (forall a . pred a => c1 a -> c2 a) -> Virtual pred c1 b -> Virtual pred c2 b
+mapVirtual :: forall pred c1 c2 b
+    .  (forall a . pred a => c1 a -> c2 a)
+    -> Virtual pred c1 b
+    -> Virtual pred c2 b
 mapVirtual f = go
   where
     go :: Virtual pred c1 a -> Virtual pred c2 a
-    go (Actual a)          = Actual (f a)
-    go (VTup2 v1 v2)       = VTup2 (go v1) (go v2)
-    go (VTup3 v1 v2 v3)    = VTup3 (go v1) (go v2) (go v3)
-    go (VTup4 v1 v2 v3 v4) = VTup4 (go v1) (go v2) (go v3) (go v4)
+    go (Actual a) = Actual (f a)
+    -- go tup = case tup of
+    --   VTup2 a b -> VTup2 (go a) (go b)
+    --   ...
+    go tup =
+      $( virtualCases 15 (VarE 'tup)
+          (\w -> foldl AppE (ConE (mkName ("VTup" ++ show w)))
+               . map (AppE (VarE (mkName "go")))
+          )
+       )
 
 -- | Monadic map over a 'Virtual' structure
-mapVirtualM :: forall m pred c1 c2 b . Monad m =>
-    (forall a . pred a => c1 a -> m (c2 a)) -> Virtual pred c1 b -> m (Virtual pred c2 b)
+mapVirtualM :: forall m pred c1 c2 b . Monad m
+    => (forall a . pred a => c1 a -> m (c2 a))
+    -> Virtual pred c1 b -> m (Virtual pred c2 b)
 mapVirtualM f = go
   where
     go :: Virtual pred c1 a -> m (Virtual pred c2 a)
-    go (Actual a)          = liftM Actual (f a)
-    go (VTup2 v1 v2)       = liftM2 VTup2 (go v1) (go v2)
-    go (VTup3 v1 v2 v3)    = liftM3 VTup3 (go v1) (go v2) (go v3)
-    go (VTup4 v1 v2 v3 v4) = liftM4 VTup4 (go v1) (go v2) (go v3) (go v4)
+    go (Actual a) = liftM Actual (f a)
+    -- go tup = case tup of
+    --   VTup2 a b -> pure VTup2 <*> go a <*> go b
+    --   ...
+    go tup =
+      $( virtualCases 15 (VarE 'tup)
+          (\w -> foldl
+                   (\a b -> foldl1 AppE [VarE '(<*>), a, b])
+                   (AppE (VarE 'pure) (ConE (mkName ("VTup" ++ show w))))
+               . map (AppE (VarE (mkName "go")))
+          )
+       )
 
 -- | Map over a 'Virtual' structure
 mapVirtualM_ :: forall m pred cont b . Monad m =>
@@ -258,10 +307,16 @@ mapVirtualM_ :: forall m pred cont b . Monad m =>
 mapVirtualM_ f = go
   where
     go :: Virtual pred cont a -> m ()
-    go (Actual a)          = f a
-    go (VTup2 v1 v2)       = go v1 >> go v2
-    go (VTup3 v1 v2 v3)    = go v1 >> go v2 >> go v3
-    go (VTup4 v1 v2 v3 v4) = go v1 >> go v2 >> go v3 >> go v4
+    go (Actual a) = f a
+    -- go tup = case tup of
+    --   VTup2 a b -> go a >> go b
+    --   ...
+    go tup =
+      $( virtualCases 15 (VarE 'tup)
+          (\_ -> foldr1 (\a b -> foldl1 AppE [VarE '(>>), a, b])
+               . map (AppE (VarE (mkName "go")))
+          )
+       )
 
 -- This doesn't work for some reason, only if `pred` is constrained to a
 -- concrete type. (On the other hand, using `listVirtual` is probably less
@@ -277,10 +332,16 @@ listVirtual :: forall pred cont b c .
 listVirtual f = go
   where
     go :: Virtual pred cont a -> [c]
-    go (Actual a)          = [f a]
-    go (VTup2 v1 v2)       = go v1 ++ go v2
-    go (VTup3 v1 v2 v3)    = go v1 ++ go v2 ++ go v3
-    go (VTup4 v1 v2 v3 v4) = go v1 ++ go v2 ++ go v3 ++ go v4
+    go (Actual a) = [f a]
+    -- go tup = case tup of
+    --   VTup2 a b -> go a ++ go b
+    --   ...
+    go tup =
+      $( virtualCases 15 (VarE 'tup)
+          (\_ -> foldr1 (\a b -> foldl1 AppE [VarE '(++), a, b])
+               . map (AppE (VarE (mkName "go")))
+          )
+       )
 
 -- | Zip two 'Virtual' structures
 --
@@ -294,10 +355,20 @@ zipVirtual :: forall pred c1 c2 c3 b
 zipVirtual f = go
   where
     go :: Virtual pred c1 a -> Virtual pred c2 a -> Virtual pred c3 a
-    go (Actual a)          (Actual b)          = Actual (f a b)
-    go (VTup2 u1 u2)       (VTup2 v1 v2)       = VTup2 (go u1 v1) (go u2 v2)
-    go (VTup3 u1 u2 u3)    (VTup3 v1 v2 v3)    = VTup3 (go u1 v1) (go u2 v2) (go u3 v3)
-    go (VTup4 u1 u2 u3 u4) (VTup4 v1 v2 v3 v4) = VTup4 (go u1 v1) (go u2 v2) (go u3 v3) (go u4 v4)
+    go (Actual a) (Actual b) = Actual (f a b)
+    -- go tup1 tup2 = case (tup1,tup2) of
+    --   (VTup2 a b, VTup2 c d) -> VTup2 (go a c) (go b d)
+    --   ...
+    go tup1 tup2 =
+      $( virtualCases2 15 (VarE 'tup1, VarE 'tup2)
+          ( \w (sub1,sub2)
+              -> foldl AppE (ConE (mkName ("VTup" ++ show w)))
+                   ( map (\(s1,s2) -> foldl1 AppE [VarE (mkName "go"), s1, s2])
+                      (zip sub1 sub2)
+                   )
+          )
+          Nothing
+       )
 
 -- | Zip two 'Virtual' structures to a list
 --
@@ -311,10 +382,20 @@ zipListVirtual :: forall pred c1 c2 b r
 zipListVirtual f = go
   where
     go :: Virtual pred c1 a -> Virtual pred c2 a -> [r]
-    go (Actual a)          (Actual b)          = [f a b]
-    go (VTup2 u1 u2)       (VTup2 v1 v2)       = go u1 v1 ++ go u2 v2
-    go (VTup3 u1 u2 u3)    (VTup3 v1 v2 v3)    = go u1 v1 ++ go u2 v2 ++ go u3 v3
-    go (VTup4 u1 u2 u3 u4) (VTup4 v1 v2 v3 v4) = go u1 v1 ++ go u2 v2 ++ go u3 v3 ++ go u4 v4
+    go (Actual a) (Actual b) = [f a b]
+    -- go tup1 tup2 = case (tup1,tup2) of
+    --   (VTup2 a b, VTup2 c d) -> go a c ++ go b d
+    --   ...
+    go tup1 tup2 =
+      $( virtualCases2 15 (VarE 'tup1, VarE 'tup2)
+          ( \w (sub1,sub2)
+              -> foldr1 (\a b -> foldl1 AppE [VarE '(++), a, b])
+                   ( map (\(s1,s2) -> foldl1 AppE [VarE (mkName "go"), s1, s2])
+                      (zip sub1 sub2)
+                   )
+          )
+          Nothing
+       )
 
 -- | Compare two 'Virtual' structures using a function that compares the
 -- 'Actual' elements. If the structures don't match, 'False' is returned.
@@ -326,11 +407,20 @@ compareVirtual :: forall pred c1 c2 c d
 compareVirtual f = go
   where
     go :: Virtual pred c1 a -> Virtual pred c2 b -> Bool
-    go (Actual a)          (Actual b)          = f a b
-    go (VTup2 u1 u2)       (VTup2 v1 v2)       = go u1 v1 && go u2 v2
-    go (VTup3 u1 u2 u3)    (VTup3 v1 v2 v3)    = go u1 v1 && go u2 v2 && go u3 v3
-    go (VTup4 u1 u2 u3 u4) (VTup4 v1 v2 v3 v4) = go u1 v1 && go u2 v2 && go u3 v3 && go u4 v4
-    go _ _ = False
+    go (Actual a) (Actual b) = f a b
+    -- go tup1 tup2 = case (tup1,tup2) of
+    --   (VTup2 a b, VTup2 c d) -> go a c && go b d
+    --   ...
+    go tup1 tup2 =
+      $( virtualCases2 15 (VarE 'tup1, VarE 'tup2)
+          ( \w (sub1,sub2)
+              -> foldr1 (\a b -> foldl1 AppE [VarE '(&&), a, b])
+                   ( map (\(s1,s2) -> foldl1 AppE [VarE (mkName "go"), s1, s2])
+                      (zip sub1 sub2)
+                   )
+          )
+          (Just (ConE 'False))
+       )
 
 -- | Lift a function operating on containers @con@ to a function operating on
 -- virtual containers. It is assumed that @pred@ excludes tuples, so that the

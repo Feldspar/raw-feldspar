@@ -97,3 +97,42 @@ mkVSel n = return $ concatMap mkVSelS [1..n]
           ]
       ]
 
+applyN
+    :: Int           -- ^ Arity
+    -> Exp           -- ^ N-ary function
+    -> (Int -> Exp)  -- ^ Argument constructor
+    -> ExpQ
+applyN n fun mkArg = return $ foldl AppE fun $ map mkArg [1..n]
+
+virtualCases
+    :: Int                    -- ^ Max tuple width
+    -> Exp                    -- ^ Virtual structure to examine
+    -> (Int -> [Exp] -> Exp)  -- ^ Result (arg #1 is the tuple width; arg #2 is the sub-structures)
+    -> Q Exp
+virtualCases n tup body = return $ CaseE tup
+    [ Match lhs (NormalB rhs) []
+      | w <- [2..n]
+      , let lhs = ConP (mkName ("VTup" ++ show w)) $ map VarP $ take w varSupply
+      , let rhs = body w $ map VarE $ take w varSupply
+    ]
+
+virtualCases2
+    :: Int                            -- ^ Max tuple width
+    -> (Exp,Exp)                      -- ^ Virtual structures to examine
+    -> (Int -> ([Exp],[Exp]) -> Exp)  -- ^ Result (arg #1 is the tuple width; arg #2 is the sub-structures)
+    -> Maybe Exp                      -- ^ Fall through case
+    -> Q Exp
+virtualCases2 n (tup1,tup2) body fall = return $ CaseE (TupE [tup1,tup2]) $
+    [ Match (TupP [lhs1,lhs2]) (NormalB rhs) []
+      | w <- [2..n]
+      , let vars1 = take w varSupply
+      , let vars2 = take w $ drop w varSupply
+      , let lhs1 = ConP (mkName ("VTup" ++ show w)) $ map VarP vars1
+      , let lhs2 = ConP (mkName ("VTup" ++ show w)) $ map VarP vars2
+      , let rhs = body w (map VarE vars1, map VarE vars2)
+    ] ++ fallThrough
+  where
+    fallThrough = case fall of
+        Just e -> [Match WildP (NormalB e) []]
+        _ -> []
+
