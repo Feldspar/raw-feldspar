@@ -250,10 +250,21 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
     go t tup (a :* b :* c :* d :* Nil)
         | Just Tup4 <- prj tup = VTup4 <$> transAST a <*> transAST b <*> transAST c <*> transAST d
     go t sel (a :* Nil)
-        | Just Sel1 <- prj sel = fmap vsel1 $ transAST a
-        | Just Sel2 <- prj sel = fmap vsel2 $ transAST a
-        | Just Sel3 <- prj sel = fmap vsel3 $ transAST a
-        | Just Sel4 <- prj sel = fmap vsel4 $ transAST a
+        | Just Sel1  <- prj sel = fmap vsel1  $ transAST a
+        | Just Sel2  <- prj sel = fmap vsel2  $ transAST a
+        | Just Sel3  <- prj sel = fmap vsel3  $ transAST a
+        | Just Sel4  <- prj sel = fmap vsel4  $ transAST a
+        | Just Sel5  <- prj sel = fmap vsel5  $ transAST a
+        | Just Sel6  <- prj sel = fmap vsel6  $ transAST a
+        | Just Sel7  <- prj sel = fmap vsel7  $ transAST a
+        | Just Sel8  <- prj sel = fmap vsel8  $ transAST a
+        | Just Sel9  <- prj sel = fmap vsel9  $ transAST a
+        | Just Sel10 <- prj sel = fmap vsel10 $ transAST a
+        | Just Sel11 <- prj sel = fmap vsel11 $ transAST a
+        | Just Sel12 <- prj sel = fmap vsel12 $ transAST a
+        | Just Sel13 <- prj sel = fmap vsel13 $ transAST a
+        | Just Sel14 <- prj sel = fmap vsel14 $ transAST a
+        | Just Sel15 <- prj sel = fmap vsel15 $ transAST a
     go t op (a :* Nil)
         | Just I2N <- prj op = liftVirt i2n  <$> transAST a
         | Just Not <- prj op = liftVirt not_ <$> transAST a
