@@ -28,12 +28,12 @@ mkVirtualType n = return
         ( concat
             [ [ ForallC
                   []
-                  [AppT (VarT (mkName "p")) (VarT (mkName "res"))]
+                  [classPred (mkName "p") [VarT (mkName "res")]]
                   (NormalC (mkName "Actual") [(NotStrict, AppT (VarT (mkName "con")) (VarT (mkName "res")))])
               ]
             , [ ForallC
                   (map PlainTV $ take w varSupply)
-                  [foldl1 AppT [EqualityT, VarT (mkName "res"), foldl AppT (TupleT w) (map VarT $ take w varSupply)]]
+                  [eqPred (VarT (mkName "res")) (foldl AppT (TupleT w) (map VarT $ take w varSupply))]
                   ( NormalC
                       (mkName ("VTup" ++ show w))
                       [ ( NotStrict
@@ -70,7 +70,7 @@ mkVSel n = return $ concatMap mkVSelS [1..n]
           (mkName ("vsel" ++ show s))
           ( ForallT
               (map (PlainTV . mkName) ["p","c","tup"])
-              [AppT (ConT (mkName ("Select" ++ show s))) (VarT (mkName "tup"))]
+              [classPred (mkName ("Select" ++ show s)) [VarT (mkName "tup")]]
               (foldl1 AppT
                   [ ArrowT
                   , foldl1 AppT
