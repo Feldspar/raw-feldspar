@@ -49,10 +49,10 @@ library
     containers,
     imperative-edsl,
     mtl,
-    open-typerep >= 0.4,
+    open-typerep >= 0.5,
     operational-alacarte,
     prelude-edsl,
-    syntactic >= 3.2.1,
+    syntactic >= 3.3,
     template-haskell
 
   hs-source-dirs: src
