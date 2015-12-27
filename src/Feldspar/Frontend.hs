@@ -172,15 +172,15 @@ resugar = Syntactic.resugar
 
 -- | Create an uninitialized reference
 newRef :: Type a => Program (Ref a)
-newRef = fmap Ref $ mapVirtualM (const (Program Imp.newRef)) virtRep
+newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
 
 -- | Create an initialized reference
 initRef :: forall a . Type a => Data a -> Program (Ref a)
-initRef = fmap Ref . mapVirtualM (Program . Imp.initRef) . sugar
+initRef = fmap Ref . mapVirtualA (Program . Imp.initRef) . sugar
 
 -- | Get the contents of a reference
 getRef :: Type a => Ref a -> Program (Data a)
-getRef = fmap desugar . mapVirtualM (Program . Imp.getRef) . unRef
+getRef = fmap desugar . mapVirtualA (Program . Imp.getRef) . unRef
 
 -- | Set the contents of a reference
 setRef :: Type a => Ref a -> Data a -> Program ()
@@ -196,7 +196,7 @@ modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 -- | Freeze the contents of reference (only safe if the reference is never
 -- written to after the first action that makes use of the resulting expression)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
-unsafeFreezeRef = fmap desugar . mapVirtualM (Program . Imp.unsafeFreezeRef) . unRef
+unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
 
 -- | Compute and share a value. Like 'share' but using the 'Program' monad
 -- instead of a higher-order interface.
@@ -211,19 +211,19 @@ shareVal a = initRef a >>= unsafeFreezeRef
 
 -- | Create an uninitialized array
 newArr_ :: forall a . Type a => Program (Arr a)
-newArr_ = fmap Arr $ mapVirtualM (const (Program Imp.newArr_)) rep
+newArr_ = fmap Arr $ mapVirtualA (const (Program Imp.newArr_)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Create an uninitialized array of unknown size
 newArr :: forall a . Type a => Data Length -> Program (Arr a)
-newArr l = fmap Arr $ mapVirtualM (const (Program $ Imp.newArr l)) rep
+newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArr l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Get an element of an array
 getArr :: Type a => Data Index -> Arr a -> Program (Data a)
-getArr i = fmap desugar . mapVirtualM (Program . Imp.getArr i) . unArr
+getArr i = fmap desugar . mapVirtualA (Program . Imp.getArr i) . unArr
 
 -- | Set an element of an array
 setArr :: forall a . Type a => Data Index -> Data a -> Arr a -> Program ()

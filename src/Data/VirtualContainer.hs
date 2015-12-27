@@ -21,7 +21,6 @@ module Data.VirtualContainer where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
-import Control.Monad
 import Data.Proxy
 import Language.Haskell.TH
 
@@ -282,13 +281,13 @@ mapVirtual f = go
        )
 
 -- | Monadic map over a 'Virtual' structure
-mapVirtualM :: forall m pred c1 c2 b . Monad m
+mapVirtualA :: forall m pred c1 c2 b . Applicative m
     => (forall a . pred a => c1 a -> m (c2 a))
     -> Virtual pred c1 b -> m (Virtual pred c2 b)
-mapVirtualM f = go
+mapVirtualA f = go
   where
     go :: Virtual pred c1 a -> m (Virtual pred c2 a)
-    go (Actual a) = liftM Actual (f a)
+    go (Actual a) = Actual <$> (f a)
     -- go tup = case tup of
     --   VTup2 a b -> pure VTup2 <*> go a <*> go b
     --   ...
@@ -302,18 +301,18 @@ mapVirtualM f = go
        )
 
 -- | Map over a 'Virtual' structure
-mapVirtualM_ :: forall m pred cont b . Monad m =>
+mapVirtualA_ :: forall m pred cont b . Applicative m =>
     (forall a . pred a => cont a -> m ()) -> Virtual pred cont b -> m ()
-mapVirtualM_ f = go
+mapVirtualA_ f = go
   where
     go :: Virtual pred cont a -> m ()
     go (Actual a) = f a
     -- go tup = case tup of
-    --   VTup2 a b -> go a >> go b
+    --   VTup2 a b -> go a *> go b
     --   ...
     go tup =
       $( virtualCases 15 (VarE 'tup)
-          (\_ -> foldr1 (\a b -> foldl1 AppE [VarE '(>>), a, b])
+          (\_ -> foldr1 (\a b -> foldl1 AppE [VarE '(*>), a, b])
                . map (AppE (VarE (mkName "go")))
           )
        )

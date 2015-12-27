@@ -43,15 +43,15 @@ import qualified Feldspar.Frontend as Feld
 --------------------------------------------------------------------------------
 
 newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Ref a)
-newRefV = lift $ mapVirtualM (const newRef) virtRep
+newRefV = lift $ mapVirtualA (const newRef) virtRep
 
 initRefV :: VirtualType SmallType a =>
     VExp a -> Target (Virtual SmallType Imp.Ref a)
-initRefV = lift . mapVirtualM initRef
+initRefV = lift . mapVirtualA initRef
 
 getRefV :: VirtualType SmallType a =>
     Virtual SmallType Imp.Ref a -> Target (VExp a)
-getRefV = lift . mapVirtualM getRef
+getRefV = lift . mapVirtualA getRef
 
 setRefV :: VirtualType SmallType a =>
     Virtual SmallType Imp.Ref a -> VExp a -> Target ()
@@ -59,7 +59,7 @@ setRefV r = lift . sequence_ . zipListVirtual setRef r
 
 unsafeFreezeRefV :: VirtualType SmallType a =>
     Virtual SmallType Imp.Ref a -> Target (VExp a)
-unsafeFreezeRefV = lift . mapVirtualM unsafeFreezeRef
+unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
 
 
 
