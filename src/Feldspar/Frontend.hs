@@ -481,15 +481,26 @@ class Storable a
   where
     -- | Memory representation
     type StoreRep a
-    -- | Store a value to a fresh memory location. It is usually better to use
+
+    -- | Store a value to a fresh memory store. It is usually better to use
     -- 'initStore' instead of this function as it improves type inference.
     initStoreRep  :: a -> Program (StoreRep a)
+
     -- | Read from a memory store. It is usually better to use 'readStore'
     -- instead of this function as it improves type inference.
     readStoreRep  :: StoreRep a -> Program a
+
     -- | Write to a memory store. It is usually better to use 'writeStore'
     -- instead of this function as it improves type inference.
     writeStoreRep :: StoreRep a -> a -> Program ()
+
+    -- | Copy the contents of a store to another store. It is usually better to
+    -- use 'copyStore' instead of this function as it improves type inference.
+    copyStoreRep
+        :: proxy a
+        -> StoreRep a  -- ^ Destination
+        -> StoreRep a  -- ^ Source
+        -> Program ()
 
 instance SmallType a => Storable (Data a)
   where
@@ -497,6 +508,7 @@ instance SmallType a => Storable (Data a)
     initStoreRep  = initRef
     readStoreRep  = getRef
     writeStoreRep = setRef
+    copyStoreRep _ dst src = setRef src =<< unsafeFreezeRef dst
 
 instance (Storable a, Storable b) => Storable (a,b)
   where
@@ -504,6 +516,9 @@ instance (Storable a, Storable b) => Storable (a,b)
     initStoreRep (a,b)          = (,) <$> initStoreRep a <*> initStoreRep b
     readStoreRep (la,lb)        = (,) <$> readStoreRep la <*> readStoreRep lb
     writeStoreRep (la,lb) (a,b) = writeStoreRep la a >> writeStoreRep lb b
+    copyStoreRep _ (la1,lb1) (la2,lb2) = do
+        copyStoreRep (Proxy :: Proxy a) la1 la2
+        copyStoreRep (Proxy :: Proxy b) lb1 lb2
 
 instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
   where
@@ -511,6 +526,10 @@ instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
     initStoreRep (a,b,c)             = (,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c
     readStoreRep (la,lb,lc)          = (,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc
     writeStoreRep (la,lb,lc) (a,b,c) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c
+    copyStoreRep _ (la1,lb1,lc1) (la2,lb2,lc2) = do
+        copyStoreRep (Proxy :: Proxy a) la1 la2
+        copyStoreRep (Proxy :: Proxy b) lb1 lb2
+        copyStoreRep (Proxy :: Proxy c) lc1 lc2
 
 instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
   where
@@ -518,6 +537,11 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
     initStoreRep (a,b,c,d)                = (,,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c <*> initStoreRep d
     readStoreRep (la,lb,lc,ld)            = (,,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc <*> readStoreRep ld
     writeStoreRep (la,lb,lc,ld) (a,b,c,d) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c >> writeStoreRep ld d
+    copyStoreRep _ (la1,lb1,lc1,ld1) (la2,lb2,lc2,ld2) = do
+        copyStoreRep (Proxy :: Proxy a) la1 la2
+        copyStoreRep (Proxy :: Proxy b) lb1 lb2
+        copyStoreRep (Proxy :: Proxy c) lc1 lc2
+        copyStoreRep (Proxy :: Proxy d) ld1 ld2
 
 -- | Cast between 'Storable' types that have the same memory representation
 castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Program b
@@ -533,17 +557,25 @@ newtype Store a = Store { unStore :: StoreRep a }
   -- inference over the methods in the `Storable` class. The problem with those
   -- methods is that they involve type families.
 
--- | Store a value to a fresh memory location
+-- | Store a value to a fresh memory 'Store'
 initStore :: Storable a => a -> Program (Store a)
 initStore = fmap Store . initStoreRep
 
--- | Read from a memory store
+-- | Read from a memory 'Store'
 readStore :: Storable a => Store a -> Program a
 readStore = readStoreRep . unStore
 
--- | Write to a memory store
+-- | Write to a memory 'Store'
 writeStore :: Storable a => Store a -> a -> Program ()
 writeStore = writeStoreRep . unStore
+
+-- | Copy the contents of a 'Store' to another 'Store'. The size of the data in
+-- the source must not exceed the allocated size of the destination store.
+copyStore :: Storable a
+    => Store a  -- ^ Destination
+    -> Store a  -- ^ Source
+    -> Program ()
+copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 
 inplace :: Storable a => Store a -> (a -> a) -> Program ()
 inplace store f = writeStore store . f =<< readStore store
