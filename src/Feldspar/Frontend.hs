@@ -265,13 +265,6 @@ ifE c t f = do
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
 
--- | While loop
-while
-    :: Program (Data Bool)  -- ^ Continue condition
-    -> Program ()           -- ^ Loop body
-    -> Program ()
-while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
-
 -- | For loop
 for :: (Integral n, SmallType n)
     => IxRange (Data n)        -- ^ Index range
@@ -279,9 +272,23 @@ for :: (Integral n, SmallType n)
     -> Program ()
 for range body = Program $ Imp.for range (unProgram . body)
 
+-- | While loop
+while
+    :: Program (Data Bool)  -- ^ Continue condition
+    -> Program ()           -- ^ Loop body
+    -> Program ()
+while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
+
 -- | Break out from a loop
 break :: Program ()
 break = Program Imp.break
+
+-- | Assertion
+assert
+    :: Data Bool  -- ^ Expression that should be true
+    -> String     -- ^ Message in case of failure
+    -> Program ()
+assert cond msg = Program $ Imp.assert cond msg
 
 
 
