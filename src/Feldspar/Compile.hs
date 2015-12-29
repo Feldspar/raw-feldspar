@@ -140,6 +140,8 @@ instance Lower (ArrCMD Data)
         i' <- translateSmallExp i
         a' <- translateSmallExp a
         lift $ setArr i' a' arr
+    lowerInstr (CopyArr dst src n) =
+        lift . copyArr dst src =<< translateSmallExp n
 
 instance Lower (ControlCMD Data)
   where
@@ -156,6 +158,9 @@ instance Lower (ControlCMD Data)
         lo' <- translateSmallExp lo
         hi' <- traverse translateSmallExp hi
         ReaderT $ \env -> for (lo',step,hi') (flip runReaderT env . body . liftVar)
+    lowerInstr (Assert cond msg) = do
+        cond' <- translateSmallExp cond
+        lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
 
 instance Lower (FileCMD Data)
