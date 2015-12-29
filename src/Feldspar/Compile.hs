@@ -281,7 +281,7 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         | Just Condition <- prj cond = do
             Actual c' <- transAST c
             res <- newRefV
-            reader $ \env -> iff c'
+            ReaderT $ \env -> iff c'
                 (flip runReaderT env $ transAST t >>= setRefV res)
                 (flip runReaderT env $ transAST f >>= setRefV res)
             getRefV res
