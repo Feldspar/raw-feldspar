@@ -554,7 +554,7 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
 
 -- | Cast between 'Storable' types that have the same memory representation
 castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Program b
-castStore = initStoreRep >=> readStoreRep
+castStore = initStoreRep >=> unsafeFreezeStoreRep
 
 -- | Store a value to memory and read it back
 store :: Storable a => a -> Program a
@@ -593,5 +593,5 @@ copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 
 -- | Update a 'Store' in-place
 inplace :: Storable a => Store a -> (a -> a) -> Program ()
-inplace store f = writeStore store . f =<< readStore store
+inplace store f = writeStore store . f =<< unsafeFreezeStore store
 
