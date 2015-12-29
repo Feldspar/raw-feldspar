@@ -123,47 +123,38 @@ liftVar (CExp (Sym (T (Fun _ a)))) = Feld.value a
 
 instance Lower (RefCMD Data)
   where
-    lowerInstr NewRef      = lift newRef
-    lowerInstr (InitRef a) = do
-        Actual a' <- translateExp a
-        lift $ initRef a'
+    lowerInstr NewRef       = lift newRef
+    lowerInstr (InitRef a)  = lift . initRef =<< translateSmallExp a
     lowerInstr (GetRef r)   = fmap liftVar $ lift $ getRef r
-    lowerInstr (SetRef r a) = do
-        Actual a' <- translateExp a
-        lift $ setRef r a'
+    lowerInstr (SetRef r a) = lift . setRef r =<< translateSmallExp a
     lowerInstr (UnsafeFreezeRef r) = fmap liftVar $ lift $ unsafeFreezeRef r
 
 instance Lower (ArrCMD Data)
   where
-    lowerInstr (NewArr n) = do
-        Actual n' <- translateExp n
-        lift $ newArr n'
-    lowerInstr NewArr_ = lift newArr_
+    lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
+    lowerInstr NewArr_        = lift newArr_
     lowerInstr (GetArr i arr) = do
-        Actual i' <- translateExp i
+        i' <- translateSmallExp i
         fmap liftVar $ lift $ getArr i' arr
     lowerInstr (SetArr i a arr) = do
-        Actual i' <- translateExp i
-        Actual a' <- translateExp a
+        i' <- translateSmallExp i
+        a' <- translateSmallExp a
         lift $ setArr i' a' arr
 
 instance Lower (ControlCMD Data)
   where
     lowerInstr (If c t f) = do
-        Actual c' <- translateExp c
+        c' <- translateSmallExp c
         ReaderT $ \env -> iff c'
             (flip runReaderT env t)
             (flip runReaderT env f)
     lowerInstr (While cont body) = do
         ReaderT $ \env -> while
-            (flip runReaderT env $ do
-                Actual c' <- translateExp =<< cont
-                return c'
-            )
+            (flip runReaderT env $ translateSmallExp =<< cont)
             (flip runReaderT env body)
     lowerInstr (For (lo,step,hi) body) = do
-        Actual lo' <- translateExp lo
-        hi' <- traverse (fmap (\(Actual c) -> c) . translateExp) hi
+        lo' <- translateSmallExp lo
+        hi' <- traverse translateSmallExp hi
         ReaderT $ \env -> for (lo',step,hi') (flip runReaderT env . body . liftVar)
     lowerInstr Break = lift Imp.break
 
@@ -176,9 +167,7 @@ instance Lower (FileCMD Data)
     lowerInstr (FGet h)            = fmap liftVar $ lift $ fget h
 
 transPrintfArgs :: [PrintfArg Data] -> Target [PrintfArg CExp]
-transPrintfArgs = mapM $ \(PrintfArg a) -> do
-    Actual a' <- translateExp a
-    return $ PrintfArg a'
+transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
 
 instance Lower (ObjectCMD Data)
   where
@@ -284,10 +273,10 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
               _ | Imp.Return (Actual t') <- Imp.view $ flip runReaderT env $ transAST t
                 , Imp.Return (Actual f') <- Imp.view $ flip runReaderT env $ transAST f
                 -> do
-                    Actual c' <- transAST c
+                    c' <- transSmallAST c
                     return $ Actual (c' ? t' $ f')
               _ -> do
-                    Actual c' <- transAST c
+                    c'  <- transSmallAST c
                     res <- newRefV
                     ReaderT $ \env -> iff c'
                         (flip runReaderT env $ transAST t >>= setRefV res)
@@ -297,7 +286,7 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
         , Just (LamT sv) <- prj lams
-        = do Actual len' <- transAST len
+        = do len'  <- transSmallAST len
              state <- initRefV =<< transAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
                 s <- case pwit pSmallType t of
@@ -312,7 +301,7 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         | Just (FreeVar v) <- prj free = return $ Actual $ variable v
     go t arrIx (i :* Nil)
         | Just (UnsafeArrIx arr) <- prj arrIx = do
-            Actual i' <- transAST i
+            i' <- transSmallAST i
             fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
@@ -323,15 +312,17 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
             lower (unProgram prog)
             return a'
 
+-- | Translate a Feldspar expression that can be represented as a simple 'CExp'
+transSmallAST :: SmallType a => ASTF FeldDomain a -> Target (CExp a)
+transSmallAST = fmap viewActual . transAST
+
 -- | Translate a Feldspar expression
 translateExp :: Data a -> Target (VExp a)
 translateExp = transAST . unData
 
 -- | Translate a Feldspar expression that can be represented as a simple 'CExp'
 translateSmallExp :: SmallType a => Data a -> Target (CExp a)
-translateSmallExp a = do
-    Actual a <- translateExp a
-    return a
+translateSmallExp = transSmallAST . unData
 
 
 

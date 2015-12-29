@@ -458,11 +458,11 @@ valArg = Imp.valArg
 
 -- | Reference argument
 refArg :: SmallType a => Ref a -> FunArg Data
-refArg (Ref (Actual r)) = Imp.refArg r
+refArg (Ref r) = Imp.refArg (viewActual r)
 
 -- | Array argument
 arrArg :: SmallType a => Arr a -> FunArg Data
-arrArg (Arr (Actual a)) = Imp.arrArg a
+arrArg (Arr a) = Imp.arrArg (viewActual a)
 
 -- | Abstract object argument
 objArg :: Object -> FunArg Data

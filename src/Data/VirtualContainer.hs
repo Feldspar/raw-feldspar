@@ -44,10 +44,19 @@ import Data.VirtualContainer.TH
 --
 -- It makes sense for the predicate @p@ to exclude tuple types. That way the
 -- the type index @a@ uniquely determines the constructor used. This assumption
--- is used by 'zipVirtual' which is only total if it is impossible for 'Actual'
--- to return the same type as the other constructors.
+-- is used by e.g. 'viewActual' and 'zipVirtual' which are only total if it is
+-- impossible for 'Actual' to return the same type as the other constructors.
 
 mkVirtualType 15
+
+-- | Get the content of a 'Virtual' leaf
+--
+-- This function is only total if tuples are excluded by the predicate @pred@.
+viewActual :: pred a => Virtual pred con a -> con a
+viewActual (Actual c) = c
+  -- Note that this function is well-typed even without the contraint, but then
+  -- the constraint is needed to guarantee totality (under the assumption that
+  -- tuples are excluded by @pred@).
 
 mkVSel 15
 
