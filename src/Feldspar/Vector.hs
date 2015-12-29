@@ -28,6 +28,9 @@ instance Type a => Storable (Vector (Data a))
     readStoreRep (lenRef,arr) = do
         len <- unsafeFreezeRef lenRef
         return $ freezeVec len arr
+    unsafeFreezeStoreRep (lenRef,arr) = do
+        len <- unsafeFreezeRef lenRef
+        return $ freezeVec len arr
     writeStoreRep (lenRef,arr) (Indexed l ixf) =
         for (0, 1, Excl l) $ \i -> setArr i (ixf i) arr
     copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do

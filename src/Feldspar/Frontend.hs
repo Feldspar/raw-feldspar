@@ -490,6 +490,11 @@ class Storable a
     -- instead of this function as it improves type inference.
     readStoreRep  :: StoreRep a -> Program a
 
+    -- | Unsafe freezing of a memory store. It is usually better to use
+    -- 'unsafeFreezeStore' instead of this function as it improves type
+    -- inference.
+    unsafeFreezeStoreRep :: StoreRep a -> Program a
+
     -- | Write to a memory store. It is usually better to use 'writeStore'
     -- instead of this function as it improves type inference.
     writeStoreRep :: StoreRep a -> a -> Program ()
@@ -505,17 +510,19 @@ class Storable a
 instance SmallType a => Storable (Data a)
   where
     type StoreRep (Data a) = Ref a
-    initStoreRep  = initRef
-    readStoreRep  = getRef
-    writeStoreRep = setRef
+    initStoreRep         = initRef
+    readStoreRep         = getRef
+    unsafeFreezeStoreRep = getRef
+    writeStoreRep        = setRef
     copyStoreRep _ dst src = setRef src =<< unsafeFreezeRef dst
 
 instance (Storable a, Storable b) => Storable (a,b)
   where
     type StoreRep (a,b) = (StoreRep a, StoreRep b)
-    initStoreRep (a,b)          = (,) <$> initStoreRep a <*> initStoreRep b
-    readStoreRep (la,lb)        = (,) <$> readStoreRep la <*> readStoreRep lb
-    writeStoreRep (la,lb) (a,b) = writeStoreRep la a >> writeStoreRep lb b
+    initStoreRep (a,b)           = (,) <$> initStoreRep a <*> initStoreRep b
+    readStoreRep (la,lb)         = (,) <$> readStoreRep la <*> readStoreRep lb
+    unsafeFreezeStoreRep (la,lb) = (,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb
+    writeStoreRep (la,lb) (a,b)  = writeStoreRep la a >> writeStoreRep lb b
     copyStoreRep _ (la1,lb1) (la2,lb2) = do
         copyStoreRep (Proxy :: Proxy a) la1 la2
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
@@ -525,6 +532,7 @@ instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
     type StoreRep (a,b,c) = (StoreRep a, StoreRep b, StoreRep c)
     initStoreRep (a,b,c)             = (,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c
     readStoreRep (la,lb,lc)          = (,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc
+    unsafeFreezeStoreRep (la,lb,lc)  = (,,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb <*> unsafeFreezeStoreRep lc
     writeStoreRep (la,lb,lc) (a,b,c) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c
     copyStoreRep _ (la1,lb1,lc1) (la2,lb2,lc2) = do
         copyStoreRep (Proxy :: Proxy a) la1 la2
@@ -536,6 +544,7 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
     type StoreRep (a,b,c,d) = (StoreRep a, StoreRep b, StoreRep c, StoreRep d)
     initStoreRep (a,b,c,d)                = (,,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c <*> initStoreRep d
     readStoreRep (la,lb,lc,ld)            = (,,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc <*> readStoreRep ld
+    unsafeFreezeStoreRep (la,lb,lc,ld)    = (,,,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb <*> unsafeFreezeStoreRep lc <*> unsafeFreezeStoreRep ld
     writeStoreRep (la,lb,lc,ld) (a,b,c,d) = writeStoreRep la a >> writeStoreRep lb b >> writeStoreRep lc c >> writeStoreRep ld d
     copyStoreRep _ (la1,lb1,lc1,ld1) (la2,lb2,lc2,ld2) = do
         copyStoreRep (Proxy :: Proxy a) la1 la2
@@ -564,6 +573,11 @@ initStore = fmap Store . initStoreRep
 -- | Read from a 'Store'
 readStore :: Storable a => Store a -> Program a
 readStore = readStoreRep . unStore
+
+-- | Unsafe freezeing of a 'Store'. This operation is only safe if the 'Store'
+-- is not updated as long as the resulting value is alive.
+unsafeFreezeStore :: Storable a => Store a -> Program a
+unsafeFreezeStore = unsafeFreezeStoreRep . unStore
 
 -- | Write to a 'Store'
 writeStore :: Storable a => Store a -> a -> Program ()
