@@ -198,11 +198,6 @@ modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
 unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
 
--- | Compute and share a value. Like 'share' but using the 'Program' monad
--- instead of a higher-order interface.
-shareVal :: Type a => Data a -> Program (Data a)
-shareVal a = initRef a >>= unsafeFreezeRef
-
 
 
 ----------------------------------------
