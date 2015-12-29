@@ -292,7 +292,7 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
                     ReaderT $ \env -> iff c'
                         (flip runReaderT env $ transAST t >>= setRefV res)
                         (flip runReaderT env $ transAST f >>= setRefV res)
-                    getRefV res
+                    unsafeFreezeRefV res
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
@@ -300,8 +300,9 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         = do Actual len' <- transAST len
              state <- initRefV =<< transAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
-                s <- getRefV state
-                       -- TODO Use unsafeGetRefV for non-compound states
+                s <- case pwit pSmallType t of
+                    Right Dict -> unsafeFreezeRefV state  -- For non-compound states
+                    _          -> getRefV state
                 s' <- localAlias iv (Actual i) $
                         localAlias sv s $
                           transAST body
