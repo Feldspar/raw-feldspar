@@ -232,6 +232,19 @@ setArr i a arr = sequence_ $
   where
     aS = sugar a :: Virtual SmallType Data a
 
+-- | Copy the contents of an array to another array. The number of elements to
+-- copy must not be greater than the number of allocated elements in either
+-- array.
+copyArr :: Type a
+    => Arr a        -- ^ Destination
+    -> Arr a        -- ^ Source
+    -> Data Length  -- ^ Number of elements
+    -> Program ()
+copyArr arr1 arr2 len = sequence_ $
+    zipListVirtual (\a1 a2 -> Program $ Imp.copyArr a1 a2 len)
+      (unArr arr1)
+      (unArr arr2)
+
 
 
 ----------------------------------------
