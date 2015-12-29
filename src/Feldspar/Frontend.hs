@@ -193,8 +193,8 @@ setRef r
 modifyRef :: Type a => Ref a -> (Data a -> Data a) -> Program ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 
--- | Freeze the contents of reference (only safe if the reference is never
--- written to after the first action that makes use of the resulting expression)
+-- | Freeze the contents of reference (only safe if the reference is not updated
+-- as long as the resulting value is alive)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
 unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
 
