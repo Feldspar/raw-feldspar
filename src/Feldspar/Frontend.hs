@@ -115,16 +115,16 @@ not = sugarSymTR Not
 (==) = sugarSymTR Eq
 
 (<) :: SmallType a => Data a -> Data a -> Data Bool
-(<) = sugarSymTR Eq
+(<) = sugarSymTR Lt
 
 (>) :: SmallType a => Data a -> Data a -> Data Bool
-(>) = sugarSymTR Eq
+(>) = sugarSymTR Gt
 
 (<=) :: SmallType a => Data a -> Data a -> Data Bool
-(<=) = sugarSymTR Eq
+(<=) = sugarSymTR Le
 
 (>=) :: SmallType a => Data a -> Data a -> Data Bool
-(>=) = sugarSymTR Eq
+(>=) = sugarSymTR Ge
 
 min :: SmallType a => Data a -> Data a -> Data a
 min a b = a<=b ? a $ b
