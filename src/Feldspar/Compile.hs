@@ -277,15 +277,22 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         | Just Gt  <- prj op = liftVirt2 (#>)  <$> transAST a <*> transAST b
         | Just Le  <- prj op = liftVirt2 (#<=) <$> transAST a <*> transAST b
         | Just Ge  <- prj op = liftVirt2 (#>=) <$> transAST a <*> transAST b
-    go _ cond (c :* t :* f :* Nil)
+    go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
-            Actual c' <- transAST c
-            res <- newRefV
-            ReaderT $ \env -> iff c'
-                (flip runReaderT env $ transAST t >>= setRefV res)
-                (flip runReaderT env $ transAST f >>= setRefV res)
-            getRefV res
-              -- TODO Use ? for simple types
+            env <- ask
+            case () of
+              _ | Imp.Return (Actual t') <- Imp.view $ flip runReaderT env $ transAST t
+                , Imp.Return (Actual f') <- Imp.view $ flip runReaderT env $ transAST f
+                -> do
+                    Actual c' <- transAST c
+                    return $ Actual (c' ? t' $ f')
+              _ -> do
+                    Actual c' <- transAST c
+                    res <- newRefV
+                    ReaderT $ \env -> iff c'
+                        (flip runReaderT env $ transAST t >>= setRefV res)
+                        (flip runReaderT env $ transAST f >>= setRefV res)
+                    getRefV res
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
