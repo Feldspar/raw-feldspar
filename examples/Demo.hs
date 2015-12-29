@@ -4,7 +4,7 @@ module Demo where
 
 
 
-import Prelude ()
+import qualified Prelude
 import Control.Applicative ((<$>))
 
 import Feldspar
@@ -83,8 +83,8 @@ map_inplace = do
 ------------------------------------------------------------
 
 testAll = do
-    compileAndCheck sumInput
-    compileAndCheck printFib
+    compareCompiled sumInput (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
+    compareCompiled printFib "7\n"
     runCompiled     test_scProd1
     runCompiled     test_scProd2
     runCompiled     map_inplace

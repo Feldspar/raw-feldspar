@@ -25,6 +25,10 @@ module Feldspar
   , compileAndCheck
   , runCompiled'
   , runCompiled
+  , captureCompiled'
+  , captureCompiled
+  , compareCompiled'
+  , compareCompiled
   ) where
 
 import Prelude.EDSL

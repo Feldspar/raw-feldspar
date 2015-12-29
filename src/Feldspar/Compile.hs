@@ -365,3 +365,37 @@ runCompiled' opts = Imp.runCompiled' opts . lowerTop
 runCompiled :: Feld.Program a -> IO ()
 runCompiled = runCompiled' mempty
 
+-- | Like 'runCompiled'' but with explicit input/output connected to
+-- @stdin@/@stdout@
+captureCompiled'
+    :: Feld.ExternalCompilerOpts
+    -> Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO String       -- ^ Result from @stdout@
+captureCompiled' opts = Imp.captureCompiled' opts . lowerTop
+
+-- | Like 'runCompiled' but with explicit input/output connected to
+-- @stdin@/@stdout@
+captureCompiled
+    :: Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO String       -- ^ Result from @stdout@
+captureCompiled = captureCompiled' mempty
+
+-- | Compare the content written to 'stdout' from interpretation in 'IO' and
+-- from running the compiled C code
+compareCompiled'
+    :: Feld.ExternalCompilerOpts
+    -> Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO ()
+compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
+
+-- | Compare the content written to 'stdout' from interpretation in 'IO' and
+-- from running the compiled C code
+compareCompiled
+    :: Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO ()
+compareCompiled = compareCompiled' mempty
+
