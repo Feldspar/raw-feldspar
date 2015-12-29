@@ -17,15 +17,18 @@ data Vector a
 
 instance Type a => Storable (Vector (Data a))
   where
-    type StoreRep (Vector (Data a)) = (Data Length, Arr a)
+    type StoreRep (Vector (Data a))  = (Ref Length, Arr a)
     initStoreRep vec = do
         arr <- newArr len
-        writeStoreRep (len,arr) vec
-        return (len,arr)
+        lenRef <- initRef len
+        writeStoreRep (lenRef,arr) vec
+        return (lenRef,arr)
       where
         len = length vec
-    readStoreRep = return . uncurry freezeVec
-    writeStoreRep (len,arr) (Indexed l ixf) =
+    readStoreRep (lenRef,arr) = do
+        len <- unsafeFreezeRef lenRef
+        return $ freezeVec len arr
+    writeStoreRep (lenRef,arr) (Indexed l ixf) =
       -- TODO assert l <= len
       for (0, 1, Excl l) $ \i -> setArr i (ixf i) arr
 
