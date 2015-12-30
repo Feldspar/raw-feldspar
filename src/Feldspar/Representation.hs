@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -6,7 +7,9 @@
 module Feldspar.Representation where
 
 
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 import Data.Word
 
 import Language.Syntactic
@@ -22,7 +25,6 @@ import Data.TypeRep.Types.Tuple
 import Data.TypeRep.Types.Tuple.Typeable ()
 import Data.TypeRep.Types.IntWord
 import Data.TypeRep.Types.IntWord.Typeable ()
-import Language.Syntactic.TypeRep
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
