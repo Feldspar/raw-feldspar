@@ -1,12 +1,9 @@
 module Feldspar
   ( module Prelude.EDSL
   , module Control.Monad
+    -- * Types
   , module Data.Int
   , module Data.Word
-    -- * Front end
-  , module Feldspar.Frontend
-  , module Language.Embedded.Imperative.Frontend.General
-    -- * Types
   , Internal
   , Type
   , SmallType
@@ -17,6 +14,11 @@ module Feldspar
   , Data
   , Syntax
   , Program
+    -- * Front end
+  , module Feldspar.Frontend
+  , module Language.Embedded.Imperative.Frontend.General
+    -- * Storable types
+  , module Feldspar.Storable
     -- * Back ends
   , runIO
   , compile
@@ -45,4 +47,5 @@ import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
 import Feldspar.Representation
 import Feldspar.Compile
 import Feldspar.Frontend
+import Feldspar.Storable
 
