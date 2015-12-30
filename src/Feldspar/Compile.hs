@@ -33,6 +33,7 @@ import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation hiding (Program)
+import Feldspar.Optimize
 import qualified Feldspar.Representation as Feld
 import qualified Feldspar.Frontend as Feld
 

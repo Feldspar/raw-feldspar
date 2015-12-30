@@ -22,6 +22,7 @@ library
     Feldspar
     Data.VirtualContainer
     Feldspar.Representation
+    Feldspar.Optimize
     Feldspar.Frontend
     Feldspar.Storable
     Feldspar.Vector
