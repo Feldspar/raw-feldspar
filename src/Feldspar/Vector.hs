@@ -68,6 +68,8 @@ reverse = permute $ \len i -> len-i-1
 (...) :: Data Index -> Data Index -> Vector (Data Index)
 l ... h = Indexed (h-l+1) (+l)
 
+infix 3 ...
+
 map :: (a -> b) -> Vector a -> Vector b
 map f (Indexed len ixf) = Indexed len (f . ixf)
 
