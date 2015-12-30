@@ -7,11 +7,13 @@ module Feldspar.Representation where
 
 
 import Control.Applicative
+import qualified Data.Typeable as Typeable
 import Data.Word
 
 import Language.Syntactic
 import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
+import Language.Syntactic.Functional.Sharing
 import Language.Syntactic.TH
 
 import Data.TypeRep
@@ -36,7 +38,7 @@ import Data.VirtualContainer
 
 
 --------------------------------------------------------------------------------
--- * Types
+-- * Object-language types
 --------------------------------------------------------------------------------
 
 type FeldTypes
@@ -188,6 +190,45 @@ class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
 type instance VarPred Data = SmallType
+
+-- | Interface for controlling code motion
+cmInterface :: CodeMotionInterface FeldDomain
+cmInterface = defaultInterfaceDecor
+    typeEq
+    funType
+    (\t   -> case wit pTypeable t of Dict -> VarT)
+    (\t _ -> case wit pTypeable t of Dict -> LamT)
+    sharable
+    (const True)
+  where
+    pTypeable :: Proxy Typeable.Typeable
+    pTypeable = Proxy
+
+    sharable :: ASTF FeldDomain a -> ASTF FeldDomain b -> Bool
+    sharable (Sym _) _ = False
+      -- Simple expressions not shared
+    sharable (lam :$ _) _
+        | Just _ <- prLam lam = False
+      -- Lambdas not shared
+    sharable _ (lam :$ _)
+        | Just _ <- prLam lam = False
+      -- Don't place let bindings over lambdas. This ensures that function
+      -- arguments of higher-order constructs such as `ForLoop` are always
+      -- lambdas.
+    sharable (sel :$ _) _
+        | Just s <- prj sel, isSelector s = False
+            -- Any unary `Tuple` symbol must be a selector (because there are no
+            -- 1-tuples.
+      where
+        isSelector = const True :: Tuple sig -> Bool
+      -- Tuple selection not shared
+    sharable (arrIx :$ _) _
+        | Just (UnsafeArrIx _) <- prj arrIx = False
+      -- Array length not shared
+    sharable _ _ = True
+
+optimize :: ASTF FeldDomain a -> ASTF FeldDomain a
+optimize = codeMotion cmInterface
 
 
 

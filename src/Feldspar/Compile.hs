@@ -217,9 +217,15 @@ lowerTop = flip runReaderT Map.empty . lower . unProgram
 -- * Translation of expressions
 --------------------------------------------------------------------------------
 
-transAST :: forall a . ASTF FeldDomain a -> Target (VExp a)
-transAST a = simpleMatch (\(s :&: t) -> go t s) a
+transAST :: ASTF FeldDomain a -> Target (VExp a)
+transAST = goAST . optimize
   where
+    goAST :: ASTF FeldDomain a -> Target (VExp a)
+    goAST = simpleMatch (\(s :&: t) -> go t s)
+
+    goSmallAST :: SmallType a => ASTF FeldDomain a -> Target (CExp a)
+    goSmallAST = fmap viewActual . goAST
+
     go :: TypeRep FeldTypes (DenResult sig) -> FeldConstructs sig
        -> Args (AST FeldDomain) sig -> Target (VExp (DenResult sig))
     go t lit Nil
@@ -234,92 +240,88 @@ transAST a = simpleMatch (\(s :&: t) -> go t s) a
         | Just Let      <- prj lt
         , Just (LamT v) <- prj lam
         , Right Dict    <- pwit pType (getDecor a)
-        = do r  <- initRefV =<< transAST a
+        = do r  <- initRefV =<< goAST a
              a' <- unsafeFreezeRefV r
-             localAlias v a' $ transAST body
+             localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
-        | Just Tup2 <- prj tup = VTup2 <$> transAST a <*> transAST b
+        | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
     go t tup (a :* b :* c :* Nil)
-        | Just Tup3 <- prj tup = VTup3 <$> transAST a <*> transAST b <*> transAST c
+        | Just Tup3 <- prj tup = VTup3 <$> goAST a <*> goAST b <*> goAST c
     go t tup (a :* b :* c :* d :* Nil)
-        | Just Tup4 <- prj tup = VTup4 <$> transAST a <*> transAST b <*> transAST c <*> transAST d
+        | Just Tup4 <- prj tup = VTup4 <$> goAST a <*> goAST b <*> goAST c <*> goAST d
     go t sel (a :* Nil)
-        | Just Sel1  <- prj sel = fmap vsel1  $ transAST a
-        | Just Sel2  <- prj sel = fmap vsel2  $ transAST a
-        | Just Sel3  <- prj sel = fmap vsel3  $ transAST a
-        | Just Sel4  <- prj sel = fmap vsel4  $ transAST a
-        | Just Sel5  <- prj sel = fmap vsel5  $ transAST a
-        | Just Sel6  <- prj sel = fmap vsel6  $ transAST a
-        | Just Sel7  <- prj sel = fmap vsel7  $ transAST a
-        | Just Sel8  <- prj sel = fmap vsel8  $ transAST a
-        | Just Sel9  <- prj sel = fmap vsel9  $ transAST a
-        | Just Sel10 <- prj sel = fmap vsel10 $ transAST a
-        | Just Sel11 <- prj sel = fmap vsel11 $ transAST a
-        | Just Sel12 <- prj sel = fmap vsel12 $ transAST a
-        | Just Sel13 <- prj sel = fmap vsel13 $ transAST a
-        | Just Sel14 <- prj sel = fmap vsel14 $ transAST a
-        | Just Sel15 <- prj sel = fmap vsel15 $ transAST a
+        | Just Sel1  <- prj sel = fmap vsel1  $ goAST a
+        | Just Sel2  <- prj sel = fmap vsel2  $ goAST a
+        | Just Sel3  <- prj sel = fmap vsel3  $ goAST a
+        | Just Sel4  <- prj sel = fmap vsel4  $ goAST a
+        | Just Sel5  <- prj sel = fmap vsel5  $ goAST a
+        | Just Sel6  <- prj sel = fmap vsel6  $ goAST a
+        | Just Sel7  <- prj sel = fmap vsel7  $ goAST a
+        | Just Sel8  <- prj sel = fmap vsel8  $ goAST a
+        | Just Sel9  <- prj sel = fmap vsel9  $ goAST a
+        | Just Sel10 <- prj sel = fmap vsel10 $ goAST a
+        | Just Sel11 <- prj sel = fmap vsel11 $ goAST a
+        | Just Sel12 <- prj sel = fmap vsel12 $ goAST a
+        | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
+        | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
+        | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
     go t op (a :* Nil)
-        | Just I2N <- prj op = liftVirt i2n  <$> transAST a
-        | Just Not <- prj op = liftVirt not_ <$> transAST a
+        | Just I2N <- prj op = liftVirt i2n  <$> goAST a
+        | Just Not <- prj op = liftVirt not_ <$> goAST a
     go t op (a :* b :* Nil)
-        | Just Add <- prj op = liftVirt2 (+)   <$> transAST a <*> transAST b
-        | Just Sub <- prj op = liftVirt2 (-)   <$> transAST a <*> transAST b
-        | Just Mul <- prj op = liftVirt2 (*)   <$> transAST a <*> transAST b
-        | Just Eq  <- prj op = liftVirt2 (#==) <$> transAST a <*> transAST b
-        | Just Lt  <- prj op = liftVirt2 (#<)  <$> transAST a <*> transAST b
-        | Just Gt  <- prj op = liftVirt2 (#>)  <$> transAST a <*> transAST b
-        | Just Le  <- prj op = liftVirt2 (#<=) <$> transAST a <*> transAST b
-        | Just Ge  <- prj op = liftVirt2 (#>=) <$> transAST a <*> transAST b
+        | Just Add <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
+        | Just Sub <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
+        | Just Mul <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
+        | Just Eq  <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
+        | Just Lt  <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
+        | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
+        | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
+        | Just Ge  <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
             case () of
-              _ | Imp.Return (Actual t') <- Imp.view $ flip runReaderT env $ transAST t
-                , Imp.Return (Actual f') <- Imp.view $ flip runReaderT env $ transAST f
+              _ | Imp.Return (Actual t') <- Imp.view $ flip runReaderT env $ goAST t
+                , Imp.Return (Actual f') <- Imp.view $ flip runReaderT env $ goAST f
                 -> do
-                    c' <- transSmallAST c
+                    c' <- goSmallAST c
                     return $ Actual (c' ? t' $ f')
               _ -> do
-                    c'  <- transSmallAST c
+                    c'  <- goSmallAST c
                     res <- newRefV
                     ReaderT $ \env -> iff c'
-                        (flip runReaderT env $ transAST t >>= setRefV res)
-                        (flip runReaderT env $ transAST f >>= setRefV res)
+                        (flip runReaderT env $ goAST t >>= setRefV res)
+                        (flip runReaderT env $ goAST f >>= setRefV res)
                     unsafeFreezeRefV res
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
         , Just (LamT sv) <- prj lams
-        = do len'  <- transSmallAST len
-             state <- initRefV =<< transAST init
+        = do len'  <- goSmallAST len
+             state <- initRefV =<< goAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
                 s <- case pwit pSmallType t of
                     Right Dict -> unsafeFreezeRefV state  -- For non-compound states
                     _          -> getRefV state
                 s' <- localAlias iv (Actual i) $
                         localAlias sv s $
-                          transAST body
+                          goAST body
                 setRefV state s'
              unsafeFreezeRefV state
     go t free Nil
         | Just (FreeVar v) <- prj free = return $ Actual $ variable v
     go t arrIx (i :* Nil)
         | Just (UnsafeArrIx arr) <- prj arrIx = do
-            i' <- transSmallAST i
+            i' <- goSmallAST i
             fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unProgram prog)
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
-            a' <- transAST a
+            a' <- goAST a
             lower (unProgram prog)
             return a'
-
--- | Translate a Feldspar expression that can be represented as a simple 'CExp'
-transSmallAST :: SmallType a => ASTF FeldDomain a -> Target (CExp a)
-transSmallAST = fmap viewActual . transAST
 
 -- | Translate a Feldspar expression
 translateExp :: Data a -> Target (VExp a)
@@ -327,7 +329,7 @@ translateExp = transAST . unData
 
 -- | Translate a Feldspar expression that can be represented as a simple 'CExp'
 translateSmallExp :: SmallType a => Data a -> Target (CExp a)
-translateSmallExp = transSmallAST . unData
+translateSmallExp = fmap viewActual . translateExp
 
 
 
