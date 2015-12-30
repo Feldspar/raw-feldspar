@@ -64,8 +64,10 @@ printFib = do
 
 ------------------------------------------------------------
 
-test_scProd1 = printf "result: %.3f\n" $
-    scProd (map i2n (0...19)) (map i2n (2...21))
+test_scProd1 = do
+    n <- fget stdin
+    printf "result: %.3f\n" $
+      scProd (map i2n (0 ... n-1)) (map i2n (2 ... n+1))
 
 test_scProd2 = do
     v1 <- store $ map i2n (0...19)
@@ -85,7 +87,7 @@ map_inplace = do
 testAll = do
     compareCompiled sumInput (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
     compareCompiled printFib "7\n"
-    compareCompiled test_scProd1 ""
+    compareCompiled test_scProd1 "20\n"
     compareCompiled test_scProd2 ""
     compareCompiled map_inplace ""
 
