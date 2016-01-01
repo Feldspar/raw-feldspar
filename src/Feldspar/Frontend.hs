@@ -95,10 +95,11 @@ true = value True
 instance (SmallType a, Num a) => Num (Data a)
   where
     fromInteger = value . fromInteger
-    (+) = sugarSymTR Add
-    (-) = sugarSymTR Sub
-    (*) = sugarSymTR Mul
-    abs = error "abs not yet defined for Data"
+    (+)         = sugarSymTR Add
+    (-)         = sugarSymTR Sub
+    (*)         = sugarSymTR Mul
+    negate      = sugarSymTR Neg
+    abs    = error "abs not yet defined for Data"
     signum = error "signum not yet defined for Data"
 
 -- | Integral type casting

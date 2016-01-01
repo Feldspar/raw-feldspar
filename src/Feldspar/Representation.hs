@@ -90,6 +90,7 @@ data Primitive sig
     Add :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
+    Neg :: (SmallType a, Num a) => Primitive (a :-> Full a)
     I2N :: (SmallType a, SmallType b,
             Integral a, Num b)  => Primitive (a :-> Full b)
     Not ::                         Primitive (Bool :-> Full Bool)
@@ -104,6 +105,7 @@ instance Render Primitive
     renderSym Add = "(+)"
     renderSym Sub = "(-)"
     renderSym Mul = "(*)"
+    renderSym Neg = "Neg"
     renderSym I2N = "I2N"
     renderSym Not = "Not"
     renderSym Eq  = "(==)"
