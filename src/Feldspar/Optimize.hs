@@ -49,6 +49,9 @@ cmInterface = defaultInterfaceDecor
       where
         isSelector = const True :: Tuple sig -> Bool
       -- Tuple selection not shared
+    sharable (i2n :$ _) _
+        | Just I2N <- prj i2n = False
+      -- Type casts not shared
     sharable (arrIx :$ _) _
         | Just (UnsafeArrIx _) <- prj arrIx = False
       -- Array length not shared
