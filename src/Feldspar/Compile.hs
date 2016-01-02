@@ -120,7 +120,7 @@ class Lower instr
 -- 'Language.Embedded.Expression.varExp'
 liftVar :: SmallType a => CExp a -> Data a
 liftVar (CExp (Sym (T (Var v))))   = Data $ Sym $ (inj (FreeVar v) :&: typeRep)
-liftVar (CExp (Sym (T (Fun _ a)))) = Feld.value a
+liftVar (CExp (Sym (T (Lit _ a)))) = Feld.value a
 
 instance Lower (RefCMD Data)
   where
