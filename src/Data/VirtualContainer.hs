@@ -21,6 +21,7 @@ module Data.VirtualContainer where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
+import Control.Monad.Identity
 import Data.Proxy
 import Language.Haskell.TH
 
@@ -214,6 +215,70 @@ instance {-# OVERLAPS #-}
 -- | Virtualizable types
 class    VirtualType_ pred a => VirtualType pred a
 instance VirtualType_ pred a => VirtualType pred a
+
+-- | Create a 'Virtual' container from a value of a virtualizable type
+toVirtual :: forall p a . VirtualType p a => a -> Virtual p Identity a
+toVirtual = go (virtRep :: VirtualRep p a) . Identity
+  where
+    go :: VirtualRep p b -> Identity b -> Virtual p Identity b
+    go (Actual _) i = Actual i
+    go (VTup2 ra rb) (Identity (a,b)) = VTup2 (go ra (Identity a)) (go rb (Identity b))
+    go (VTup3 ra rb rc) (Identity (a,b,c)) = VTup3
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+    go (VTup4 ra rb rc rd) (Identity (a,b,c,d)) = VTup4
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d))
+    go (VTup5 ra rb rc rd re) (Identity (a,b,c,d,e)) = VTup5
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e))
+    go (VTup6 ra rb rc rd re rf) (Identity (a,b,c,d,e,f)) = VTup6
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+    go (VTup7 ra rb rc rd re rf rg) (Identity (a,b,c,d,e,f,g)) = VTup7
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g))
+    go (VTup8 ra rb rc rd re rf rg rh) (Identity (a,b,c,d,e,f,g,h)) = VTup8
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h))
+    go (VTup9 ra rb rc rd re rf rg rh ri) (Identity (a,b,c,d,e,f,g,h,i)) = VTup9
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+    go (VTup10 ra rb rc rd re rf rg rh ri rj) (Identity (a,b,c,d,e,f,g,h,i,j)) = VTup10
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j))
+    go (VTup11 ra rb rc rd re rf rg rh ri rj rk) (Identity (a,b,c,d,e,f,g,h,i,j,k)) = VTup11
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j)) (go rk (Identity k))
+    go (VTup12 ra rb rc rd re rf rg rh ri rj rk rl) (Identity (a,b,c,d,e,f,g,h,i,j,k,l)) = VTup12
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j)) (go rk (Identity k)) (go rl (Identity l))
+    go (VTup13 ra rb rc rd re rf rg rh ri rj rk rl rm) (Identity (a,b,c,d,e,f,g,h,i,j,k,l,m)) = VTup13
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j)) (go rk (Identity k)) (go rl (Identity l))
+        (go rm (Identity m))
+    go (VTup14 ra rb rc rd re rf rg rh ri rj rk rl rm rn) (Identity (a,b,c,d,e,f,g,h,i,j,k,l,m,n)) = VTup14
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j)) (go rk (Identity k)) (go rl (Identity l))
+        (go rm (Identity m)) (go rn (Identity n))
+    go (VTup15 ra rb rc rd re rf rg rh ri rj rk rl rm rn ro) (Identity (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o)) = VTup15
+        (go ra (Identity a)) (go rb (Identity b)) (go rc (Identity c))
+        (go rd (Identity d)) (go re (Identity e)) (go rf (Identity f))
+        (go rg (Identity g)) (go rh (Identity h)) (go ri (Identity i))
+        (go rj (Identity j)) (go rk (Identity k)) (go rl (Identity l))
+        (go rm (Identity m)) (go rn (Identity n)) (go ro (Identity o))
 
 
 
