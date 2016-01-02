@@ -10,6 +10,7 @@ module Feldspar.Representation where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
+import Data.List (genericTake)
 import Data.Word
 
 import Language.Syntactic
@@ -115,15 +116,37 @@ instance Render Primitive
     renderSym Ge  = "(>=)"
     renderArgs = renderArgsSmart
 
+instance Eval Primitive
+  where
+    evalSym Add = (+)
+    evalSym Sub = (-)
+    evalSym Mul = (*)
+    evalSym Neg = negate
+    evalSym I2N = fromInteger . toInteger
+    evalSym Not = not
+    evalSym Eq  = (==)
+    evalSym Lt  = (<)
+    evalSym Gt  = (>)
+    evalSym Le  = (<=)
+    evalSym Ge  = (>=)
+
 -- | Conditionals
 data Condition sig
   where
     Condition :: Type a => Condition (Bool :-> a :-> a :-> Full a)
 
+instance Eval Condition
+  where
+    evalSym Condition = \c t f -> if c then t else f
+
 -- | For loop
 data ForLoop sig
   where
     ForLoop :: Type st => ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
+
+instance Eval ForLoop
+  where
+    evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
 
 -- | Interaction with the IO layer
 data IOSym sig
@@ -148,6 +171,10 @@ instance Render IOSym
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
+
+instance Eval IOSym
+  where
+    evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
 
 -- | 'equal' can only return 'True' for 'FreeVar' and 'UnsafeArrIx'. For
 -- 'UnsafeArrIx' it only returns 'True' when the arrays have an intensional
@@ -252,4 +279,9 @@ instance StringTree ForLoop
 deriveSymbol ''IOSym
 
 instance StringTree IOSym
+
+instance EvalEnv Primitive env
+instance EvalEnv Condition env
+instance EvalEnv ForLoop env
+instance EvalEnv IOSym env
 
