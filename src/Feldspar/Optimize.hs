@@ -4,7 +4,8 @@ module Feldspar.Optimize where
 
 
 
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (Any (..))
+import qualified Data.Monoid as Monoid
 import qualified Data.Typeable as Typeable
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -132,16 +133,36 @@ simplifyUp a = a
 
 
 
+type Opt = Writer (Set Name, Monoid.Any)
+
+tellVar :: Name -> Opt ()
+tellVar v = tell (Set.singleton v, mempty)
+
+deleteVar :: Name -> Opt a -> Opt a
+deleteVar v = censor (\(vs,unsafe) -> (Set.delete v vs, unsafe))
+
+tellUnsafe :: Opt ()
+tellUnsafe = tell (mempty, Monoid.Any True)
 
 simplify :: ASTF FeldDomain a -> ASTF FeldDomain a
 simplify = fst . runWriter . go
   where
-    go :: ASTF FeldDomain a -> Writer (Set Name) (ASTF FeldDomain a)
+    go :: ASTF FeldDomain a -> Opt (ASTF FeldDomain a)
     go var
-        | Just v <- prVar var = tell (Set.singleton v) >> return var
+        | Just v <- prVar var = tellVar v >> return var
     go (lam :$ body)
-        | Just v <- prLam lam = censor (Set.delete v) $ fmap (lam :$) $ go body
-    go a = simpleMatch (\s as -> simplifyUp . appArgs (Sym s) <$> mapArgsM go as) a
+        | Just v <- prLam lam = deleteVar v $ fmap (lam :$) $ go body
+    go a = simpleMatch
+      ( \s@(_ :&: t) as -> do
+          (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM go as)
+          case prj s of
+              Just (_ :: IOSym sig) -> tellUnsafe >> return a'
+              _ | null vs && not unsafe, Right Dict <- pwit pShow t -> return $ LitP t $ evalClosed a'
+                -- Constant fold if expression is closed and does not contain
+                -- unsafe operations.
+              _ -> return a'
+      )
+      a
 
 -- | Interface for controlling code motion
 cmInterface :: CodeMotionInterface FeldDomain
