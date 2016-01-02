@@ -12,6 +12,7 @@ import Data.Monoid
 import Data.Traversable (traverse)
 #endif
 
+import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -231,8 +232,8 @@ transAST = goAST . optimize
        -> Args (AST FeldDomain) sig -> Target (VExp (DenResult sig))
     go t lit Nil
         | Just (Literal a) <- prj lit
-        , Right Dict <- pwit pSmallType t
-        = return $ Actual $ value a
+        , Right Dict <- pwit pType t
+        = return $ mapVirtual (value . runIdentity) $ toVirtual a
     go t var Nil
         | Just (VarT v) <- prj var
         , Right Dict <- pwit pType t

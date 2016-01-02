@@ -157,9 +157,11 @@ simplify = fst . runWriter . go
           (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM go as)
           case prj s of
               Just (_ :: IOSym sig) -> tellUnsafe >> return a'
-              _ | null vs && not unsafe, Right Dict <- pwit pShow t -> return $ LitP t $ evalClosed a'
-                -- Constant fold if expression is closed and does not contain
-                -- unsafe operations.
+              _ | null vs && not unsafe
+                , Right Dict <- pwit pShow t
+                  -> return $ LitP t $ evalClosed a'
+                    -- Constant fold if expression is closed and does not
+                    -- contain unsafe operations.
               _ -> return a'
       )
       a
