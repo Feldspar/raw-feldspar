@@ -41,10 +41,12 @@ library
     GADTs
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses
+    PatternSynonyms
     Rank2Types
     ScopedTypeVariables
     TypeFamilies
     TypeOperators
+    ViewPatterns
 
   build-depends:
     base < 5,
