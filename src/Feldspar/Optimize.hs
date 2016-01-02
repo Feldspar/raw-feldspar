@@ -34,6 +34,9 @@ isExact a = simpleMatch
 -- patterns
 prj' :: (sub :<: sup) => sup sig -> Maybe (sub sig)
 prj' = prj
+  -- I think this function wouldn't be needed if one could add an appropriate
+  -- type signature for such patterns, but I wan't able to do this for `SymP`
+  -- (the inferred type is not accepted).
 
 viewLit :: ASTF FeldDomain a -> Maybe a
 viewLit lit
