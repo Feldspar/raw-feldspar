@@ -103,14 +103,18 @@ simplifyUp (NegP t (MulP _ a b)) | isExact a = MulP t a (NegP t b)
   -- Negate the right operand, because literals are moved to the right in
   -- multiplications
 
-simplifyUp (SymP t I2N :$ AddP _ a b) | isExact a = AddP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp (SymP t I2N :$ SubP _ a b) | isExact a = SubP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp (SymP t I2N :$ MulP _ a b) | isExact a = MulP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp (SymP t I2N :$ NegP _ a)   | isExact a = NegP t (SymP t I2N :$ a)
+simplifyUp res@(SymP t I2N :$ AddP _ a b) | isExact res = AddP t (SymP t I2N :$ a) (SymP t I2N :$ b)
+simplifyUp res@(SymP t I2N :$ SubP _ a b) | isExact res = SubP t (SymP t I2N :$ a) (SymP t I2N :$ b)
+simplifyUp res@(SymP t I2N :$ MulP _ a b) | isExact res = MulP t (SymP t I2N :$ a) (SymP t I2N :$ b)
+simplifyUp res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t (SymP t I2N :$ a)
   -- Pushing down `I2N` is not good for in-exact types, since that puts more of
   -- the expression under the in-exact type. This means that fewer
   -- simplifications may apply. Also, operations on in-exact types are typically
   -- more expensive.
+  --
+  -- Here it's important to guard on whether the *result* is an exact type. (For
+  -- other operations it doesn't matter which sub-expression we check because
+  -- they all have the same type.)
 
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
 simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = SymP t Ge :$ a :$ b
