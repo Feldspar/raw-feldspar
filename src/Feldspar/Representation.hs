@@ -174,6 +174,7 @@ instance Render IOSym
 
 instance Eval IOSym
   where
+    evalSym (FreeVar v) = error $ "eval: cannot evaluate free variable " ++ v
     evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
 
 -- | 'equal' can only return 'True' for 'FreeVar' and 'UnsafeArrIx'. For
