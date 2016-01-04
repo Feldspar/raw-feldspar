@@ -62,10 +62,17 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
   where
     LamP t v body = Sym (inj (LamT v) :&: t) :$ body
 
-pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = SymP t Add :$ a :$ b
-pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = SymP t Sub :$ a :$ b
-pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = SymP t Mul :$ a :$ b
-pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = SymP t Neg :$ a
+-- There type signatures are needed in order to use `simplifyUp` in the
+-- constructor
+pattern AddP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a
+
+pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
+pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b
+pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
+pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
 
 
 
@@ -120,10 +127,10 @@ simplifyUp res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t (SymP t I2N :$ 
   -- they all have the same type.)
 
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
-simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = SymP t Ge :$ a :$ b
-simplifyUp (SymP t Not :$ (SymP _ Gt :$ a :$ b)) = SymP t Le :$ a :$ b
-simplifyUp (SymP t Not :$ (SymP _ Le :$ a :$ b)) = SymP t Gt :$ a :$ b
-simplifyUp (SymP t Not :$ (SymP _ Ge :$ a :$ b)) = SymP t Lt :$ a :$ b
+simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = simplifyUp $ SymP t Ge :$ a :$ b
+simplifyUp (SymP t Not :$ (SymP _ Gt :$ a :$ b)) = simplifyUp $ SymP t Le :$ a :$ b
+simplifyUp (SymP t Not :$ (SymP _ Le :$ a :$ b)) = simplifyUp $ SymP t Gt :$ a :$ b
+simplifyUp (SymP t Not :$ (SymP _ Ge :$ a :$ b)) = simplifyUp $ SymP t Lt :$ a :$ b
 
 simplifyUp (SymP _ Condition :$ LitP _ True  :$ t :$ _) = t
 simplifyUp (SymP _ Condition :$ LitP _ False :$ _ :$ f) = f
