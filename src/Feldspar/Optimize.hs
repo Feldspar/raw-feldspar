@@ -152,10 +152,8 @@ simplify :: ASTF FeldDomain a -> ASTF FeldDomain a
 simplify = fst . runWriter . go
   where
     go :: ASTF FeldDomain a -> Opt (ASTF FeldDomain a)
-    go var
-        | Just v <- prVar var = tellVar v >> return var
-    go (lam :$ body)
-        | Just v <- prLam lam = deleteVar v $ fmap (lam :$) $ go body
+    go a@(VarP _ v)    = tellVar v >> return a
+    go (LamP t v body) = deleteVar v $ fmap (LamP t v) $ go body
     go a = simpleMatch
       ( \s@(_ :&: t) as -> do
           (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM go as)
@@ -184,24 +182,17 @@ cmInterface = defaultInterfaceDecor
     pTypeable = Proxy
 
     sharable :: ASTF FeldDomain a -> ASTF FeldDomain b -> Bool
-    sharable (Sym _) _ = False  -- Simple expressions not shared
-    sharable (lam :$ _) _
-        | Just _ <- prLam lam = False
-    sharable _ (lam :$ _)
-        | Just _ <- prLam lam = False
+    sharable (Sym _) _      = False  -- Simple expressions not shared
+    sharable (LamP _ _ _) _ = False
+    sharable _ (LamP _ _ _) = False
       -- Don't place let bindings over lambdas. This ensures that function
       -- arguments of higher-order constructs such as `ForLoop` are always
       -- lambdas.
-    sharable (sel :$ _) _
-        | Just s <- prj sel, isSelector s = False
+    sharable (SymP _ (_ :: Tuple (b :-> Full c)) :$ _) _ = False
             -- Any unary `Tuple` symbol must be a selector (because there are no
             -- 1-tuples).
-      where
-        isSelector = const True :: Tuple sig -> Bool
-    sharable (i2n :$ _) _
-        | Just I2N <- prj i2n = False
-    sharable (arrIx :$ _) _
-        | Just (UnsafeArrIx _) <- prj arrIx = False
+    sharable (SymP _ I2N :$ _) _ = False
+    sharable (SymP _ (UnsafeArrIx _) :$ _) _ = False
     sharable _ _ = True
 
 -- | Optimize a Feldspar expression
