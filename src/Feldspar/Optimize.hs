@@ -113,19 +113,6 @@ simplifyUp (NegP t (MulP _ a b)) | isExact a = MulP t a (NegP t b)
   -- Negate the right operand, because literals are moved to the right in
   -- multiplications
 
-simplifyUp res@(SymP t I2N :$ AddP _ a b) | isExact res = AddP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp res@(SymP t I2N :$ SubP _ a b) | isExact res = SubP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp res@(SymP t I2N :$ MulP _ a b) | isExact res = MulP t (SymP t I2N :$ a) (SymP t I2N :$ b)
-simplifyUp res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t (SymP t I2N :$ a)
-  -- Pushing down `I2N` is not good for in-exact types, since that puts more of
-  -- the expression under the in-exact type. This means that fewer
-  -- simplifications may apply. Also, operations on in-exact types are typically
-  -- more expensive.
-  --
-  -- Here it's important to guard on whether the *result* is an exact type. (For
-  -- other operations it doesn't matter which sub-expression we check because
-  -- they all have the same type.)
-
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
 simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = simplifyUp $ SymP t Ge :$ a :$ b
 simplifyUp (SymP t Not :$ (SymP _ Gt :$ a :$ b)) = simplifyUp $ SymP t Le :$ a :$ b
@@ -158,25 +145,37 @@ deleteVar v = censor (\(vs,unsafe) -> (Set.delete v vs, unsafe))
 tellUnsafe :: Opt ()
 tellUnsafe = tell (mempty, Monoid.Any True)
 
+simplifyM :: ASTF FeldDomain a -> Opt (ASTF FeldDomain a)
+simplifyM a@(VarP _ v)    = tellVar v >> return a
+simplifyM (LamP t v body) = deleteVar v $ fmap (LamP t v) $ simplifyM body
+simplifyM res@(SymP t I2N :$ AddP _ a b) | isExact res = AddP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+simplifyM res@(SymP t I2N :$ SubP _ a b) | isExact res = SubP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+simplifyM res@(SymP t I2N :$ MulP _ a b) | isExact res = MulP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+simplifyM res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t <$> simplifyM (SymP t I2N :$ a)
+  -- Pushing down `I2N` is not good for in-exact types, since that puts more of
+  -- the expression under the in-exact type. This means that fewer
+  -- simplifications may apply. Also, operations on in-exact types are typically
+  -- more expensive.
+  --
+  -- Here it's important to guard on whether the *result* is an exact type. (For
+  -- other numeric operations it doesn't matter which sub-expression we check
+  -- because they all have the same type.)
+simplifyM a = simpleMatch
+    ( \s@(_ :&: t) as -> do
+        (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
+        case prj s of
+            Just (_ :: IOSym sig) -> tellUnsafe >> return a'
+            _ | null vs && not unsafe
+              , Right Dict <- pwit pShow t
+                -> return $ LitP t $ evalClosed a'
+                  -- Constant fold if expression is closed and does not
+                  -- contain unsafe operations.
+            _ -> return a'
+    )
+    a
+
 simplify :: ASTF FeldDomain a -> ASTF FeldDomain a
-simplify = fst . runWriter . go
-  where
-    go :: ASTF FeldDomain a -> Opt (ASTF FeldDomain a)
-    go a@(VarP _ v)    = tellVar v >> return a
-    go (LamP t v body) = deleteVar v $ fmap (LamP t v) $ go body
-    go a = simpleMatch
-      ( \s@(_ :&: t) as -> do
-          (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM go as)
-          case prj s of
-              Just (_ :: IOSym sig) -> tellUnsafe >> return a'
-              _ | null vs && not unsafe
-                , Right Dict <- pwit pShow t
-                  -> return $ LitP t $ evalClosed a'
-                    -- Constant fold if expression is closed and does not
-                    -- contain unsafe operations.
-              _ -> return a'
-      )
-      a
+simplify = fst . runWriter . simplifyM
 
 -- | Interface for controlling code motion
 cmInterface :: CodeMotionInterface FeldDomain
