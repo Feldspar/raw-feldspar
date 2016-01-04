@@ -1,5 +1,7 @@
-import Feldspar
 import qualified Demo
+import qualified NumSimpl
 
-main = Demo.testAll
+main = do
+    Demo.testAll
+    NumSimpl.main
 

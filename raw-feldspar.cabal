@@ -72,5 +72,9 @@ test-suite Examples
 
   build-depends:
     base,
-    raw-feldspar
+    open-typerep,
+    raw-feldspar,
+    syntactic,
+    tasty-quickcheck,
+    tasty-th
 
