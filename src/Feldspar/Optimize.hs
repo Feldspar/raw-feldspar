@@ -104,7 +104,6 @@ simplifyUp (MulP t a@(LitP _ _) b@NonLitP) | isExact a = MulP t b a
   -- Move literals to the right
 simplifyUp (MulP t (AddP _ a (LitP _ b)) (LitP _ c)) | isExact a = AddP t a (LitP t (b-c))
 simplifyUp (MulP t (SubP _ a (LitP _ b)) (LitP _ c)) | isExact a = SubP t a (LitP t (b+c))
-simplifyUp (MulP t a (LitP _ b)) | b < 0, isExact a = AddP t a (LitP t (negate b))
 
 simplifyUp (NegP t (NegP _ a))   | isExact a = a
 simplifyUp (NegP t (AddP _ a b)) | isExact a = SubP t (NegP t a) b
