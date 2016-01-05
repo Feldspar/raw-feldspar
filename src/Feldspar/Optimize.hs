@@ -69,10 +69,16 @@ pattern SubP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a
 pattern MulP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 pattern NegP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
+pattern QuotP :: (Integral a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP  :: (Integral a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+
 pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
 pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b
 pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
 pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
+
+pattern QuotP t a b <- SymP t Quot :$ a :$ b where QuotP t a b = simplifyUp $ SymP t Quot :$ a :$ b
+pattern RemP t a b  <- SymP t Rem  :$ a :$ b where RemP t a b  = simplifyUp $ SymP t Rem  :$ a :$ b
 
 
 
@@ -110,6 +116,14 @@ simplifyUp (NegP t (SubP _ a b)) | isExact a = SubP t b a
 simplifyUp (NegP t (MulP _ a b)) | isExact a = MulP t a (NegP t b)
   -- Negate the right operand, because literals are moved to the right in
   -- multiplications
+
+simplifyUp (QuotP t (LitP _ 0) b) = LitP t 0
+simplifyUp (QuotP _ a (LitP _ 1)) = a
+simplifyUp (QuotP t a b) | alphaEq a b = LitP t 1
+
+simplifyUp (RemP t (LitP _ 0) b) = LitP t 0
+simplifyUp (RemP t a (LitP _ 1)) = LitP t 0
+simplifyUp (RemP t a b) | alphaEq a b = LitP t 0
 
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
 simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = simplifyUp $ SymP t Ge :$ a :$ b

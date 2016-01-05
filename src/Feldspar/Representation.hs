@@ -6,6 +6,7 @@
 module Feldspar.Representation where
 
 
+
 import Data.Array ((!))
 import Data.List (genericTake)
 import Data.Word
@@ -108,49 +109,62 @@ data Primitive sig
     Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Neg :: (SmallType a, Num a) => Primitive (a :-> Full a)
+
+    Quot :: (SmallType a, Integral a)   => Primitive (a :-> a :-> Full a)
+    Rem  :: (SmallType a, Integral a)   => Primitive (a :-> a :-> Full a)
+    FDiv :: (SmallType a, Fractional a) => Primitive (a :-> a :-> Full a)
+
     I2N :: (SmallType a, SmallType b,
             Integral a, Num b)  => Primitive (a :-> Full b)
-    Not ::                         Primitive (Bool :-> Full Bool)
-    And ::                         Primitive (Bool :-> Bool :-> Full Bool)
-    Or  ::                         Primitive (Bool :-> Bool :-> Full Bool)
-    Eq  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
-    Lt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
-    Gt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
-    Le  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
-    Ge  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
+
+    Not ::                Primitive (Bool :-> Full Bool)
+    And ::                Primitive (Bool :-> Bool :-> Full Bool)
+    Or  ::                Primitive (Bool :-> Bool :-> Full Bool)
+    Eq  :: SmallType a => Primitive (a :-> a :-> Full Bool)
+    Lt  :: SmallType a => Primitive (a :-> a :-> Full Bool)
+    Gt  :: SmallType a => Primitive (a :-> a :-> Full Bool)
+    Le  :: SmallType a => Primitive (a :-> a :-> Full Bool)
+    Ge  :: SmallType a => Primitive (a :-> a :-> Full Bool)
 
 instance Render Primitive
   where
-    renderSym Add = "(+)"
-    renderSym Sub = "(-)"
-    renderSym Mul = "(*)"
-    renderSym Neg = "Neg"
-    renderSym I2N = "I2N"
-    renderSym Not = "Not"
-    renderSym And = "And"
-    renderSym Or  = "Or"
-    renderSym Eq  = "(==)"
-    renderSym Lt  = "(<)"
-    renderSym Gt  = "(>)"
-    renderSym Le  = "(<=)"
-    renderSym Ge  = "(>=)"
+    renderSym Add  = "(+)"
+    renderSym Sub  = "(-)"
+    renderSym Mul  = "(*)"
+    renderSym Neg  = "Neg"
+    renderSym Quot = "Quot"
+    renderSym Rem  = "Rem"
+    renderSym FDiv = "FDiv"
+    renderSym I2N  = "I2N"
+    renderSym Not  = "Not"
+    renderSym And  = "And"
+    renderSym Or   = "Or"
+    renderSym Eq   = "(==)"
+    renderSym Lt   = "(<)"
+    renderSym Gt   = "(>)"
+    renderSym Le   = "(<=)"
+    renderSym Ge   = "(>=)"
+
     renderArgs = renderArgsSmart
 
 instance Eval Primitive
   where
-    evalSym Add = (+)
-    evalSym Sub = (-)
-    evalSym Mul = (*)
-    evalSym Neg = negate
-    evalSym I2N = fromInteger . toInteger
-    evalSym Not = not
-    evalSym And = (&&)
-    evalSym Or  = (||)
-    evalSym Eq  = (==)
-    evalSym Lt  = (<)
-    evalSym Gt  = (>)
-    evalSym Le  = (<=)
-    evalSym Ge  = (>=)
+    evalSym Add  = (+)
+    evalSym Sub  = (-)
+    evalSym Mul  = (*)
+    evalSym Neg  = negate
+    evalSym Quot = quot
+    evalSym Rem  = rem
+    evalSym FDiv = (/)
+    evalSym I2N  = fromInteger . toInteger
+    evalSym Not  = not
+    evalSym And  = (&&)
+    evalSym Or   = (||)
+    evalSym Eq   = (==)
+    evalSym Lt   = (<)
+    evalSym Gt   = (>)
+    evalSym Le   = (<=)
+    evalSym Ge   = (>=)
 
 -- Array indexing
 data Array sig

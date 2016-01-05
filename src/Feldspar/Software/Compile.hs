@@ -270,16 +270,19 @@ transAST = goAST . optimize
         | Just I2N <- prj op = liftVirt i2n    <$> goAST a
         | Just Not <- prj op = liftVirt not_   <$> goAST a
     go t op (a :* b :* Nil)
-        | Just Add <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
-        | Just Sub <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
-        | Just Mul <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
-        | Just Eq  <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
-        | Just And <- prj op = liftVirt2 (#&&) <$> goAST a <*> goAST b
-        | Just Or  <- prj op = liftVirt2 (#||) <$> goAST a <*> goAST b
-        | Just Lt  <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
-        | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
-        | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
-        | Just Ge  <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
+        | Just Add  <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
+        | Just Sub  <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
+        | Just Mul  <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
+        | Just FDiv <- prj op = liftVirt2 (/)   <$> goAST a <*> goAST b
+        | Just Quot <- prj op = liftVirt2 quot_ <$> goAST a <*> goAST b
+        | Just Rem  <- prj op = liftVirt2 (#%)  <$> goAST a <*> goAST b
+        | Just Eq   <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
+        | Just And  <- prj op = liftVirt2 (#&&) <$> goAST a <*> goAST b
+        | Just Or   <- prj op = liftVirt2 (#||) <$> goAST a <*> goAST b
+        | Just Lt   <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
+        | Just Gt   <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
+        | Just Le   <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
+        | Just Ge   <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
     go t arrIx (i :* Nil)
         | Just (Feldspar.Representation.ArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i

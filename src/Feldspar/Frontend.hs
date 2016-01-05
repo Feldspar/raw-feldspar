@@ -1,6 +1,7 @@
 module Feldspar.Frontend where
 
 
+
 import Prelude (Integral, error, (=<<), sequence_)
 import Prelude.EDSL
 
@@ -99,7 +100,7 @@ example = value Inhabited.example
 -- ** Primitive functions
 ----------------------------------------
 
-instance (SmallType a, Num a) => Num (Data a)
+instance (Num a, SmallType a) => Num (Data a)
   where
     fromInteger = value . fromInteger
     (+)         = sugarSymTR Add
@@ -108,6 +109,18 @@ instance (SmallType a, Num a) => Num (Data a)
     negate      = sugarSymTR Neg
     abs    = error "abs not yet defined for Data"
     signum = error "signum not yet defined for Data"
+
+instance (Fractional a, SmallType a) => Fractional (Data a)
+  where
+    (/) = sugarSymTR FDiv
+    fromRational = value . fromRational
+    recip = error "recip not defined for (Data a)"
+
+quot :: (Integral a, SmallType a) => Data a -> Data a -> Data a
+quot = sugarSymTR Quot
+
+rem :: (Integral a, SmallType a) => Data a -> Data a -> Data a
+rem = sugarSymTR Rem
 
 -- | Integral type casting
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
