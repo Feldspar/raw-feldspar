@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -6,10 +5,8 @@
 
 module Feldspar.Representation where
 
-
-#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
-#endif
+
 import Data.List (genericTake)
 import Data.Word
 
@@ -29,14 +26,11 @@ import Data.TypeRep.Types.IntWord.Typeable ()
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
-import Language.Embedded.Expression
-import qualified Language.Embedded.Imperative as Imp
-import qualified Language.Embedded.Imperative.CMD as Imp
-import Language.Embedded.CExp (CType)
+import Language.Embedded.VHDL.Expression (VType)
+import Language.Embedded.VHDL.Interface
+import qualified Language.Embedded.VHDL.Command as Imp
 
 import Data.VirtualContainer
-
-
 
 --------------------------------------------------------------------------------
 -- * Object-language types
@@ -44,8 +38,6 @@ import Data.VirtualContainer
 
 type FeldTypes
     =   BoolType
-    :+: FloatType
-    :+: DoubleType
     :+: IntWordType
     :+: TupleType
     :+: FunType
@@ -58,8 +50,8 @@ class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) =>
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 
 -- | Small Feldspar types
-class    (Type a, CType a) => SmallType a
-instance (Type a, CType a) => SmallType a
+class    (Type a, VType a) => SmallType a
+instance (Type a, VType a) => SmallType a
 
 instance ShowClass Type      where showClass _ = "Type"
 instance ShowClass SmallType where showClass _ = "SmallType"
@@ -74,13 +66,11 @@ type Length = Word32
 type Index  = Word32
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Ref a }
-
+newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Variable a }
+{-
 -- | Mutable array
 newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
@@ -148,6 +138,7 @@ instance Eval ForLoop
   where
     evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
 
+{-
 -- | Interaction with the IO layer
 data IOSym sig
   where
@@ -185,7 +176,8 @@ instance Equality IOSym
     equal (FreeVar v1) (FreeVar v2) = v1 == v2
     equal (UnsafeArrIx (Imp.ArrComp arr1)) (UnsafeArrIx (Imp.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
-
+-}
+{-
 type FeldConstructs
     =   Literal
     :+: BindingT
@@ -220,13 +212,12 @@ class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
 type instance VarPred Data = SmallType
-
-
+-}
 
 --------------------------------------------------------------------------------
 -- * Programs
 --------------------------------------------------------------------------------
-
+{-
 type CMD
     =       Imp.RefCMD Data
     Imp.:+: Imp.ArrCMD Data
@@ -238,13 +229,12 @@ type CMD
 
 newtype Program a = Program { unProgram :: Imp.Program CMD a }
   deriving (Functor, Applicative, Monad)
-
-
+-}
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances
 --------------------------------------------------------------------------------
-
+{-
 derivePWitness ''Type ''BoolType
 derivePWitness ''Type ''FloatType
 derivePWitness ''Type ''DoubleType
@@ -286,4 +276,4 @@ instance EvalEnv Primitive env
 instance EvalEnv Condition env
 instance EvalEnv ForLoop env
 instance EvalEnv IOSym env
-
+-}
