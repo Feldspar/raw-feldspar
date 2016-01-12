@@ -68,6 +68,10 @@ test-suite Examples
 
   main-is: Examples.hs
 
+  other-modules:
+    Demo
+    NumSimpl
+
   default-language: Haskell2010
 
   build-depends:

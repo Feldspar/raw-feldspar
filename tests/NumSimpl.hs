@@ -9,6 +9,7 @@ module NumSimpl where
 import Control.Monad
 import Data.Dynamic
 import Data.Int
+import Data.Word
 
 import Test.Tasty.QuickCheck
 import Test.Tasty.TH
@@ -90,6 +91,25 @@ prop_numExp_inexact (a,b,c,d,e) numExp =
   where
     env1 v = [a,b,c,d,e] !! v
     env2   = zip ([0..] :: [Name]) $ map toDyn [a,b,c,d,e]
+
+prop_simplify_idempotent_int :: NumExp -> Property
+prop_simplify_idempotent_int exp = counterexample (unlines [show e, show $ simplify e])
+                                 $ e == simplify e
+  where
+    e :: ASTF FeldDomain Int32
+    e = num2AST exp
+
+prop_simplify_idempotent_word :: NumExp -> Bool
+prop_simplify_idempotent_word exp = e == simplify e
+  where
+    e :: ASTF FeldDomain Word32
+    e = num2AST exp
+
+prop_simplify_idempotent_double :: NumExp -> Bool
+prop_simplify_idempotent_double exp = e == simplify e
+  where
+    e :: ASTF FeldDomain Word32
+    e = num2AST exp
 
 main = $defaultMainGenerator
 

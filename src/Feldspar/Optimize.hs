@@ -74,8 +74,6 @@ pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP 
 pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
 pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
 
-
-
 simplifyUp
     :: ASTF FeldDomain a
     -> ASTF FeldDomain a
@@ -128,7 +126,23 @@ simplifyUp (Sym ((prj -> Just ForLoop) :&: _) :$ LitP _ 0 :$ init :$ _) = init
 simplifyUp (SymP _ ForLoop :$ _ :$ init :$ LamP _ _ (LamP _ vs (VarP _ vs')))
     | vs==vs' = init
 
-simplifyUp a = a
+simplifyUp a = constFold a
+
+constFold :: ASTF FeldDomain a -> ASTF FeldDomain a
+constFold e
+  | isExact e
+  , constArgs e
+  , Right Dict <- pwit pShow $ getDecor e
+  = LitP (getDecor e) $ evalClosed e
+constFold e = e
+
+constArgs :: AST FeldDomain sig -> Bool
+constArgs (SymP _ Add)    = True
+constArgs (SymP _ Sub)    = True
+constArgs (SymP _ Mul)    = True
+constArgs (SymP _ Neg)    = True
+constArgs (s :$ LitP _ _) = constArgs s
+constArgs _               = False
 
 
 
