@@ -130,8 +130,7 @@ simplifyUp a = constFold a
 
 constFold :: ASTF FeldDomain a -> ASTF FeldDomain a
 constFold e
-  | isExact e
-  , constArgs e
+  | constArgs e
   , Right Dict <- pwit pShow $ getDecor e
   = LitP (getDecor e) $ evalClosed e
 constFold e = e
