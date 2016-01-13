@@ -173,12 +173,6 @@ unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . u
 -- ** Arrays
 
 -- | Create an uninitialized array
-newArr_ :: forall a . Type a => Program (Arr a)
-newArr_ = fmap Arr $ mapVirtualA (const (Program Imp.newArr_)) rep
-  where
-    rep = virtRep :: VirtualRep SmallType a
-
--- | Create an uninitialized array of unknown size
 newArr :: forall a . Type a => Data Length -> Program (Arr a)
 newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArr l)) rep
   where
@@ -194,19 +188,6 @@ setArr i a arr = sequence_ $
     zipListVirtual (\a' arr' -> Program $ Imp.setArr i a' arr') aS (unArr arr)
   where
     aS = sugar a :: Virtual SmallType Data a
-
--- | Copy the contents of an array to another array. The number of elements to
--- copy must not be greater than the number of allocated elements in either
--- array.
-copyArr :: Type a
-    => Arr a        -- ^ Destination
-    -> Arr a        -- ^ Source
-    -> Data Length  -- ^ Number of elements
-    -> Program ()
-copyArr arr1 arr2 len = sequence_ $
-    zipListVirtual (\a1 a2 -> Program $ Imp.copyArr a1 a2 len)
-      (unArr arr1)
-      (unArr arr2)
 
 --------------------------------------------------------------------------------
 -- ** Control flow
