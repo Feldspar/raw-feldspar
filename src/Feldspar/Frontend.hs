@@ -173,7 +173,7 @@ newRef :: Type a => Program (Ref a)
 newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
 
 -- | Create an initialized reference
-initRef :: forall a . Type a => Data a -> Program (Ref a)
+initRef :: Type a => Data a -> Program (Ref a)
 initRef = fmap Ref . mapVirtualA (Program . Imp.initRef) . sugar
 
 -- | Get the contents of a reference
