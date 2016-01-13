@@ -15,6 +15,8 @@ import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
+import qualified Control.Monad.Operational.Higher as H
+
 import Data.TypeRep
 import Data.TypeRep.TH
 import Data.TypeRep.Types.Basic
@@ -23,12 +25,17 @@ import Data.TypeRep.Types.Tuple
 import Data.TypeRep.Types.Tuple.Typeable ()
 import Data.TypeRep.Types.IntWord
 import Data.TypeRep.Types.IntWord.Typeable ()
+
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
-import Language.Embedded.VHDL.Expression (VType)
-import Language.Embedded.VHDL.Interface
-import qualified Language.Embedded.VHDL.Command as Imp
+import Language.Embedded.Hardware (HType)
+import Language.Embedded.Hardware.Interface (PredicateExp)
+import qualified Language.Embedded.Hardware as Hard
+
+import Language.Embedded.CExp (CType)
+import Language.Embedded.Expression (VarPred)
+import qualified Language.Embedded.Imperative.CMD as Soft
 
 import Data.VirtualContainer
 
@@ -67,10 +74,10 @@ type Index  = Word32
 
 -- | Mutable variable
 newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Variable a }
-{-
+
 -- | Mutable array
 newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
--}
+
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
@@ -120,6 +127,8 @@ instance Eval Primitive
     evalSym Le  = (<=)
     evalSym Ge  = (>=)
 
+--------------------------------------------------------------------------------
+
 -- | Conditionals
 data Condition sig
   where
@@ -128,6 +137,8 @@ data Condition sig
 instance Eval Condition
   where
     evalSym Condition = \c t f -> if c then t else f
+
+--------------------------------------------------------------------------------
 
 -- | For loop
 data ForLoop sig
@@ -138,14 +149,15 @@ instance Eval ForLoop
   where
     evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
 
-{-
+--------------------------------------------------------------------------------
+
 -- | Interaction with the IO layer
 data IOSym sig
   where
     -- Result of an IO operation
     FreeVar :: SmallType a => String -> IOSym (Full a)
     -- Array indexing
-    UnsafeArrIx :: SmallType a => Imp.Arr Index a -> IOSym (Index :-> Full a)
+    UnsafeArrIx :: SmallType a => Imp.Array Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
     UnsafePerform :: Program (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
@@ -157,8 +169,7 @@ data IOSym sig
 instance Render IOSym
   where
     renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx (Imp.ArrComp arr)) = "UnsafeArrIx " ++ arr
-    renderSym (UnsafeArrIx _)                 = "UnsafeArrIx ..."
+    renderSym (UnsafeArrIx arr) = "UnsafeArrIx " ++ show (Imp.toIdent arr)
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
@@ -173,11 +184,13 @@ instance Eval IOSym
 -- representation (i.e. were created to code generation).
 instance Equality IOSym
   where
-    equal (FreeVar v1) (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx (Imp.ArrComp arr1)) (UnsafeArrIx (Imp.ArrComp arr2)) = arr1 == arr2
+    equal (FreeVar v1)       (FreeVar v2) = v1 == v2
+    equal (UnsafeArrIx arr1) (UnsafeArrIx arr2) = Imp.toIdent arr1 == Imp.toIdent arr2
     equal _ _ = False
--}
-{-
+
+--------------------------------------------------------------------------------
+-- ** ...
+
 type FeldConstructs
     =   Literal
     :+: BindingT
@@ -211,30 +224,43 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
-type instance VarPred Data = SmallType
--}
+type instance VarPred      Data = SmallType
+type instance PredicateExp Data = SmallType
 
 --------------------------------------------------------------------------------
 -- * Programs
 --------------------------------------------------------------------------------
-{-
-type CMD
-    =       Imp.RefCMD Data
-    Imp.:+: Imp.ArrCMD Data
-    Imp.:+: Imp.ControlCMD Data
-    Imp.:+: Imp.PtrCMD
-    Imp.:+: Imp.FileCMD Data
-    Imp.:+: Imp.ObjectCMD Data
-    Imp.:+: Imp.CallCMD Data
 
-newtype Program a = Program { unProgram :: Imp.Program CMD a }
+type CMD =
+        Soft.RefCMD         Data
+  H.:+: Soft.ArrCMD         Data
+  H.:+: Soft.ControlCMD     Data
+
+type SoftwareCMD =
+        Soft.ControlCMD     Data
+  H.:+: Soft.PtrCMD
+  H.:+: Soft.CallCMD        Data
+  H.:+: Soft.ObjectCMD      Data
+  H.:+: Soft.FileCMD        Data
+
+type HardwareCMD =
+        Hard.ConditionalCMD Data
+  H.:+: Hard.LoopCMD        Data
+  H.:+: Hard.SignalCMD      Data
+  H.:+: Hard.StructuralCMD  Data
+
+newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
--}
+
+newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program CMD) a }
+  deriving (Functor, Applicative, Monad)
+
+newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances
 --------------------------------------------------------------------------------
-{-
+
 derivePWitness ''Type ''BoolType
 derivePWitness ''Type ''FloatType
 derivePWitness ''Type ''DoubleType
@@ -245,7 +271,7 @@ instance PWitness Type FunType t
 
 derivePWitness ''SmallType ''BoolType
 derivePWitness ''SmallType ''FloatType
-derivePWitness ''SmallType ''DoubleType
+derivePWitness ''SmattType ''DoubleType
 derivePWitness ''SmallType ''IntWordType
 
 instance PWitness SmallType TupleType t
@@ -276,4 +302,5 @@ instance EvalEnv Primitive env
 instance EvalEnv Condition env
 instance EvalEnv ForLoop env
 instance EvalEnv IOSym env
--}
+
+--------------------------------------------------------------------------------
