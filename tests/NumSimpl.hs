@@ -108,7 +108,7 @@ prop_simplify_idempotent_word exp = e == simplify e
 prop_simplify_idempotent_double :: NumExp -> Bool
 prop_simplify_idempotent_double exp = e == simplify e
   where
-    e :: ASTF FeldDomain Word32
+    e :: ASTF FeldDomain Double
     e = num2AST exp
 
 main = $defaultMainGenerator
