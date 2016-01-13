@@ -69,6 +69,7 @@ data VExp'
   where
     VExp' :: Type a => Virtual SmallType Imp.VExp a -> VExp'
 
+<<<<<<< 94ff13318a865531152d65b58f7ef18bd6d880e9
 type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
@@ -77,6 +78,13 @@ type TargetCMD
     Imp.:+: FileCMD CExp
     Imp.:+: ObjectCMD CExp
     Imp.:+: CallCMD CExp
+=======
+type TargetCMD =
+        Imp.VariableCMD    Imp.VExp
+  H.:+: Imp.ArrayCMD       Imp.VExp
+  H.:+: Imp.LoopCMD        Imp.VExp
+  H.:+: Imp.ConditionalCMD Imp.VExp
+>>>>>>> lower & translate of Imp.cmd..
 
 type Env = Map Name VExp'
 
@@ -135,9 +143,9 @@ liftVar (Imp.VExp (Sym (Imp.T (dom))))
   | Just n@(Imp.Name _)  <- prj dom = Data $ Sym $ (inj (FreeVar (Imp.temporaryGetName n)) :&: typeRep)
   | Just (Imp.Literal l) <- prj dom = Feld.value l
 
-{-
 instance Lower (Imp.SignalCMD Data)
   where
+<<<<<<< 94ff13318a865531152d65b58f7ef18bd6d880e9
     lowerInstr NewRef       = lift newRef
     lowerInstr (InitRef a)  = lift . initRef =<< translateSmallExp a
     lowerInstr (GetRef r)   = fmap liftVar $ lift $ getRef r
@@ -191,47 +199,57 @@ instance Lower (FileCMD Data)
     lowerInstr (FEof h)            = fmap liftVar $ lift $ feof h
     lowerInstr (FPrintf h form as) = lift . fprf h form . reverse =<< transPrintfArgs as
     lowerInstr (FGet h)            = fmap liftVar $ lift $ fget h
+=======
+    lowerInstr = error "hmm.."
+>>>>>>> lower & translate of Imp.cmd..
 
-transPrintfArgs :: [PrintfArg Data] -> Target [PrintfArg CExp]
-transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
-
-instance Lower (ObjectCMD Data)
+instance Lower (Imp.VariableCMD Data)
   where
-    lowerInstr (NewObject t) = lift $ newObject t
-    lowerInstr (InitObject name True t as) = do
-        lift . initObject name t =<< transFunArgs as
-    lowerInstr (InitObject name False t as) = do
-        lift . initUObject name t =<< transFunArgs as
+    lowerInstr (Imp.NewVariable Nothing)  = lift Imp.newVariable_
+    lowerInstr (Imp.NewVariable (Just a)) = lift . Imp.newVariable =<< translateSmallExp a
+    lowerInstr (Imp.GetVariable v)        = fmap liftVar $ lift $ Imp.getVariable v
+    lowerInstr (Imp.SetVariable v a)      = lift . Imp.setVariable v =<< translateSmallExp a
 
-transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
-transFunArgs = mapM $ mapMArg predCast translateSmallExp
+instance Lower (Imp.ArrayCMD Data)
   where
-    predCast :: VarPredCast Data CExp
-    predCast _ a = a
+    lowerInstr (Imp.NewArray n) = lift . Imp.newArray =<< translateSmallExp n
+    lowerInstr (Imp.NewArray_)  = error "NO!"
+    lowerInstr (Imp.GetArray n a) =
+      do v <- translateSmallExp n
+         fmap liftVar $ lift $ Imp.getArray v a
+    lowerInstr (Imp.SetArray i n a) =
+      do v <- translateSmallExp n
+         x <- translateSmallExp i
+         lift $ Imp.setArray x v a
 
-instance Lower (CallCMD Data)
+instance Lower (Imp.ConditionalCMD Data)
   where
-    lowerInstr (AddInclude incl)   = lift $ addInclude incl
-    lowerInstr (AddDefinition def) = lift $ addDefinition def
-    lowerInstr (AddExternFun f (_ :: proxy (Data res)) as) =
-        lift . addExternFun f (Proxy :: Proxy (CExp res)) =<< transFunArgs as
-    lowerInstr (AddExternProc p as) = lift . addExternProc p =<< transFunArgs as
-    lowerInstr (CallFun f as)  = fmap liftVar . lift . callFun f =<< transFunArgs as
-    lowerInstr (CallProc p as) = lift . callProc p =<< transFunArgs as
+    lowerInstr (Imp.If (c, t) _ (Just f)) =
+      do c' <- translateSmallExp c
+         ReaderT $ \env -> Imp.iff c'
+           (runReaderT t env)
+           (runReaderT f env)
+         undefined
 
-instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
+instance Lower (Imp.LoopCMD Data)
   where
-    lowerInstr (Imp.Inl i) = lowerInstr i
-    lowerInstr (Imp.Inr i) = lowerInstr i
+    lowerInstr (Imp.For r step) =
+      do r' <- translateSmallExp r
+         ReaderT $ \env -> Imp.for r' (flip runReaderT env . step . liftVar)
+
+instance (Lower i1, Lower i2) => Lower (i1 H.:+: i2)
+  where
+    lowerInstr (H.Inl i) = lowerInstr i
+    lowerInstr (H.Inr i) = lowerInstr i
 
 -- | Translate a Feldspar program to the 'Target' monad
-lower :: Program Feld.CMD a -> Target a
+lower :: H.Program Feld.CMD a -> Target a
 lower = interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program a program that uses 'TargetCMD'
-lowerTop :: Feld.Program a -> Program TargetCMD a
+lowerTop :: Feld.Program a -> H.Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unProgram
--}
+
 --------------------------------------------------------------------------------
 -- * Translation of expressions
 --------------------------------------------------------------------------------
@@ -249,12 +267,10 @@ transAST = goAST . optimize
        -> FeldConstructs sig
        -> Args (AST FeldDomain) sig
        -> Target (VExp (DenResult sig))
-    go = undefined
-{-
     go t lit Nil
         | Just (Literal a) <- prj lit
         , Right Dict <- pwit pType t
-        = return $ mapVirtual (value . runIdentity) $ toVirtual a
+        = return $ mapVirtual (Imp.value . runIdentity) $ toVirtual a
     go t var Nil
         | Just (VarT v) <- prj var
         , Right Dict <- pwit pType t
@@ -264,7 +280,7 @@ transAST = goAST . optimize
         , Just (LamT v) <- prj lam
         , Right Dict    <- pwit pType (getDecor a)
         = do r  <- initRefV =<< goAST a
-             a' <- unsafeFreezeRefV r
+             a' <- getRefV r
              localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
         | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
@@ -289,20 +305,21 @@ transAST = goAST . optimize
         | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
         | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
     go t op (a :* Nil)
-        | Just I2N <- prj op = liftVirt i2n  <$> goAST a
-        | Just Not <- prj op = liftVirt not_ <$> goAST a
+        | Just I2N <- prj op = error "sup I2N"
+        | Just Not <- prj op = liftVirt (Imp.not) <$> goAST a
     go t op (a :* b :* Nil)
-        | Just Add <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
-        | Just Sub <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
-        | Just Mul <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
-        | Just Eq  <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
-        | Just Lt  <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
-        | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
-        | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
-        | Just Ge  <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
+        | Just Add <- prj op = liftVirt2 (+)       <$> goAST a <*> goAST b
+        | Just Sub <- prj op = liftVirt2 (-)       <$> goAST a <*> goAST b
+        | Just Mul <- prj op = liftVirt2 (*)       <$> goAST a <*> goAST b
+        | Just Eq  <- prj op = liftVirt2 (Imp.eq)  <$> goAST a <*> goAST b
+        | Just Lt  <- prj op = liftVirt2 (Imp.lt)  <$> goAST a <*> goAST b
+        | Just Gt  <- prj op = liftVirt2 (Imp.gt)  <$> goAST a <*> goAST b
+        | Just Le  <- prj op = liftVirt2 (Imp.lte) <$> goAST a <*> goAST b
+        | Just Ge  <- prj op = liftVirt2 (Imp.gte) <$> goAST a <*> goAST b
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
+<<<<<<< 94ff13318a865531152d65b58f7ef18bd6d880e9
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
               (t',f') | Imp.Return (Actual t'') <- Imp.view t'
                       , Imp.Return (Actual f'') <- Imp.view f'
@@ -316,27 +333,45 @@ transAST = goAST . optimize
                       (flip runReaderT env . setRefV res =<< t')
                       (flip runReaderT env . setRefV res =<< f')
                   unsafeFreezeRefV res
+=======
+            case () of
+              _ | H.Return (Actual t') <- H.view $ flip runReaderT env $ goAST t
+                , H.Return (Actual f') <- H.view $ flip runReaderT env $ goAST f
+                -> do
+                    c' <- goSmallAST c
+                    return $ Actual (error "inline if") --((?) c' t' f')
+              _ -> do
+                    c'  <- goSmallAST c
+                    res <- newRefV
+                    ReaderT $ \env -> Imp.iff c'
+                        (flip runReaderT env $ goAST t >>= setRefV res)
+                        (flip runReaderT env $ goAST f >>= setRefV res)
+                    getRefV res
+>>>>>>> lower & translate of Imp.cmd..
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
         , Just (LamT sv) <- prj lams
         = do len'  <- goSmallAST len
              state <- initRefV =<< goAST init
-             ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
+             ReaderT $ \env -> Imp.for (len' - 1) $ \i -> flip runReaderT env $ do
                 s <- case pwit pSmallType t of
-                    Right Dict -> unsafeFreezeRefV state  -- For non-compound states
+                    Right Dict -> getRefV state  -- For non-compound states
                     _          -> getRefV state
                 s' <- localAlias iv (Actual i) $
                         localAlias sv s $
                           goAST body
                 setRefV state s'
-             unsafeFreezeRefV state
+             getRefV state
     go t free Nil
-        | Just (FreeVar v) <- prj free = return $ Actual $ Imp.variable v
+        | Just (FreeVar v) <- prj free = return $ Actual $ Imp.variable' v
+{-
     go t arrIx (i :* Nil)
         | Just (UnsafeArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
             fmap Actual $ lift $ Feld.getArr i' arr
+-}
+
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unProgram prog)
@@ -345,7 +380,7 @@ transAST = goAST . optimize
             a' <- goAST a
             lower (unProgram prog)
             return a'
--}
+
 -- | Translate a Feldspar expression
 translateExp :: Data a -> Target (VExp a)
 translateExp = transAST . unData

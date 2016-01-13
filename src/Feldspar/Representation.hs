@@ -232,7 +232,6 @@ type instance PredicateExp Data = SmallType
 --------------------------------------------------------------------------------
 
 type CMD =
-<<<<<<< d88312154c93bdb5331ee925aa9ea68cb7e13e0a
         Soft.RefCMD         Data
   H.:+: Soft.ArrCMD         Data
   H.:+: Soft.ControlCMD     Data
@@ -249,16 +248,6 @@ type HardwareCMD =
   H.:+: Hard.LoopCMD        Data
   H.:+: Hard.SignalCMD      Data
   H.:+: Hard.StructuralCMD  Data
-=======
-        Imp.SignalCMD       Data
-  H.:+: Imp.VariableCMD     Data
-  H.:+: Imp.ArrayCMD        Data
-  H.:+: Imp.LoopCMD         Data
-  H.:+: Imp.EntityCMD       Data
-  H.:+: Imp.ArchitectureCMD Data
-  H.:+: Imp.ProcessCMD      Data
-  H.:+: Imp.ConditionalCMD  Data
->>>>>>> support remaining frontend
 
 newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
