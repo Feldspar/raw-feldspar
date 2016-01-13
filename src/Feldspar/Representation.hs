@@ -70,10 +70,10 @@ type Index  = Word32
 
 -- | Mutable variable
 newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Variable a }
-{-
+
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
--}
+newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Array Index) a }
+
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
