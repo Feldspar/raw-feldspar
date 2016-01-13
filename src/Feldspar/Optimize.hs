@@ -74,6 +74,8 @@ pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP 
 pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
 pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
 
+
+
 simplifyUp
     :: ASTF FeldDomain a
     -> ASTF FeldDomain a
@@ -127,6 +129,31 @@ simplifyUp (SymP _ ForLoop :$ _ :$ init :$ LamP _ _ (LamP _ vs (VarP _ vs')))
     | vs==vs' = init
 
 simplifyUp a = constFold a
+  -- `constFold` here ensures that `simplifyUp` does not produce any expressions
+  -- that can be statically constant folded. This property is needed, e.g. to
+  -- fully simplify the expression `negate (2*x)`. The simplification should go
+  -- as follows:
+  --
+  --     negate (2*x)  ->  negate (x*2)  ->  x * negate 2  ->  x*(-2)
+  --
+  -- There is no explicit rule for the last step; it is done by `constFold`.
+  -- Furthermore, this constant folding would not be performed by the
+  -- `simplifyM` since `simplifyM` never sees the sub-expression `negate 2`.
+  -- (Note that the constant folding in `simplifyM` is still needed, because
+  -- constructs such as `ForLoop` cannot be folded by simple literal
+  -- propagation.)
+  --
+  -- In order to see that `simplifyUp` doesn't produce any "junk"
+  -- (sub-expressions that can be folded by `constFold`), we reason as follows:
+  --
+  --   * Assume that the arguments of the top-level node are junk-free
+  --   * `simplifyUp` will either apply an explicit rewrite or apply `constFold`
+  --   * In the latter case, the result will be junk-free
+  --   * In case of an explicit rewrite, the resulting expression is constructed
+  --     by applying `simplifyUp` to each newly introduced node; thus the
+  --     resulting expression must be junk-free
+
+
 
 -- | Reduce an expression to a literal if the following conditions are met:
 --
