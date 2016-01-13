@@ -224,6 +224,7 @@ type CMD =
         Imp.SignalCMD       Data
   H.:+: Imp.VariableCMD     Data
   H.:+: Imp.ArrayCMD        Data
+  H.:+: Imp.LoopCMD         Data
   H.:+: Imp.EntityCMD       Data
   H.:+: Imp.ArchitectureCMD Data
   H.:+: Imp.ProcessCMD      Data

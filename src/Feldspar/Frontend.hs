@@ -143,49 +143,50 @@ resugar = Syntactic.resugar
 
 -- | Create an uninitialized reference
 newRef :: Type a => Program (Ref a)
-newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
+newRef = fmap Ref $ mapVirtualA (const (Program Imp.newVariable_)) virtRep
 
 -- | Create an initialized reference
 initRef :: forall a . Type a => Data a -> Program (Ref a)
-initRef = fmap Ref . mapVirtualA (Program . Imp.initRef) . sugar
+initRef = fmap Ref . mapVirtualA (Program . Imp.newVariable) . sugar
 
 -- | Get the contents of a reference
 getRef :: Type a => Ref a -> Program (Data a)
-getRef = fmap desugar . mapVirtualA (Program . Imp.getRef) . unRef
+getRef = fmap desugar . mapVirtualA (Program . Imp.getVariable) . unRef
 
 -- | Set the contents of a reference
 setRef :: Type a => Ref a -> Data a -> Program ()
 setRef r
     = sequence_
-    . zipListVirtual (\r' a' -> Program $ Imp.setRef r' a') (unRef r)
+    . zipListVirtual (\r' a' -> Program $ Imp.setVariable r' a') (unRef r)
     . sugar
 
 -- | Modify the contents of reference
 modifyRef :: Type a => Ref a -> (Data a -> Data a) -> Program ()
-modifyRef r f = setRef r . f =<< unsafeFreezeRef r
+modifyRef r f = setRef r . f =<< getRef r
 
+{-
 -- | Freeze the contents of reference (only safe if the reference is not updated
 -- as long as the resulting value is alive)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
 unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
-
+-}
 --------------------------------------------------------------------------------
 -- ** Arrays
 
 -- | Create an uninitialized array
 newArr :: forall a . Type a => Data Length -> Program (Arr a)
-newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArr l)) rep
+newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArray l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Get an element of an array
 getArr :: Type a => Data Index -> Arr a -> Program (Data a)
-getArr i = fmap desugar . mapVirtualA (Program . Imp.getArr i) . unArr
+getArr i = fmap desugar . mapVirtualA (Program . Imp.getArray i) . unArr
 
 -- | Set an element of an array
 setArr :: forall a . Type a => Data Index -> Data a -> Arr a -> Program ()
 setArr i a arr = sequence_ $
-    zipListVirtual (\a' arr' -> Program $ Imp.setArr i a' arr') aS (unArr arr)
+    zipListVirtual (\a' arr' -> Program $ Imp.setArray i a' arr') aS (unArr arr)
   where
     aS = sugar a :: Virtual SmallType Data a
 
@@ -209,63 +210,15 @@ ifE :: Type a
 ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
-    unsafeFreezeRef res
-{-
+    getRef res
+
 -- | For loop
 for :: (Integral n, SmallType n)
-    => IxRange (Data n)        -- ^ Index range
+    => Data n                  -- ^ Range
     -> (Data n -> Program ())  -- ^ Loop body
     -> Program ()
 for range body = Program $ Imp.for range (unProgram . body)
--}
---------------------------------------------------------------------------------
--- ** File handling
-{-
--- | Open a file
-fopen :: FilePath -> IOMode -> Program Handle
-fopen file = Program . Imp.fopen file
 
--- | Close a file
-fclose :: Handle -> Program ()
-fclose = Program . Imp.fclose
-
--- | Check for end of file
-feof :: Handle -> Program (Data Bool)
-feof = Program . Imp.feof
-
-class PrintfType r
-  where
-    fprf :: Handle -> String -> [Imp.PrintfArg Data] -> r
-
-instance (a ~ ()) => PrintfType (Program a)
-  where
-    fprf h form = Program . Imp.singleE . Imp.FPrintf h form . reverse
-
-instance (Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
-  where
-    fprf h form as = \a -> fprf h form (Imp.PrintfArg a : as)
-
--- | Print to a handle. Accepts a variable number of arguments.
-fprintf :: PrintfType r => Handle -> String -> r
-fprintf h format = fprf h format []
-
--- | Put a single value to a handle
-fput :: (Formattable a, SmallType a)
-    => Handle
-    -> String  -- Prefix
-    -> Data a  -- Expression to print
-    -> String  -- Suffix
-    -> Program ()
-fput h pre a post = Program $ Imp.fput h pre a post
-
--- | Get a single value from a handle
-fget :: (Formattable a, SmallType a) => Handle -> Program (Data a)
-fget = Program . Imp.fget
-
--- | Print to @stdout@. Accepts a variable number of arguments.
-printf :: PrintfType r => String -> r
-printf = fprintf Imp.stdout
--}
 --------------------------------------------------------------------------------
 -- ** Abstract objects
 {-
