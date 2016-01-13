@@ -128,18 +128,37 @@ simplifyUp (SymP _ ForLoop :$ _ :$ init :$ LamP _ _ (LamP _ vs (VarP _ vs')))
 
 simplifyUp a = constFold a
 
+-- | Reduce an expression to a literal if the following conditions are met:
+--
+-- * The top-most symbol can be evaluated statically (i.g. not a variable or a
+--   lifted side-effecting program)
+-- * All immediate sub-terms are literals
+-- * The type of the expression is an allowed type for literals (e.g. not a
+--   function)
+--
+-- Note that this function only folds the top-level node of an expressions (if
+-- possible). It does not reduce an expression like @1+(2+3)@ where the
+-- sub-expression @2+3@ is not a literal.
 constFold :: ASTF FeldDomain a -> ASTF FeldDomain a
 constFold e
-  | constArgs e
-  , Right Dict <- pwit pShow $ getDecor e
-  = LitP (getDecor e) $ evalClosed e
+    | constArgs e
+    , canFold e
+    , Right Dict <- pwit pShow $ getDecor e
+    = LitP (getDecor e) $ evalClosed e
+  where
+    canFold :: ASTF FeldDomain a -> Bool
+    canFold e = simpleMatch
+      (\s _ -> case () of
+          _ | Just (_ :: BindingT sig) <- prj s -> False
+          _ | Just (_ :: IOSym sig)    <- prj s -> False
+          _ -> True
+      )
+      e
 constFold e = e
 
+-- | Check whether all arguments of a symbol are literals
 constArgs :: AST FeldDomain sig -> Bool
-constArgs (SymP _ Add)    = True
-constArgs (SymP _ Sub)    = True
-constArgs (SymP _ Mul)    = True
-constArgs (SymP _ Neg)    = True
+constArgs (Sym _)         = True
 constArgs (s :$ LitP _ _) = constArgs s
 constArgs _               = False
 
