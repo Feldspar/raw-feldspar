@@ -1,5 +1,3 @@
-{-# LANGUAGE OverlappingInstances #-}
-
 module Feldspar.Frontend where
 
 import Prelude (Integral, error, reverse)
@@ -13,6 +11,7 @@ import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
+import Language.Syntactic.TypeRep
 import Language.Syntactic.TypeRep
 
 import qualified Control.Monad.Operational.Higher as H
@@ -62,7 +61,7 @@ infixl 1 ?
 --------------------------------------------------------------------------------
 -- ** Literals
 
-{--- | Literal
+-- | Literal
 value :: Syntax a => Internal a -> a
 value = sugarSymTR . Literal
 
@@ -71,10 +70,10 @@ false = value False
 
 true :: Data Bool
 true = value True
--}
+
 --------------------------------------------------------------------------------
 -- ** Primitive functions
-{-
+
 instance (SmallType a, Num a) => Num (Data a)
   where
     fromInteger = value . fromInteger
@@ -112,17 +111,17 @@ min a b = a<=b ? a $ b
 
 max :: SmallType a => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
--}
+
 --------------------------------------------------------------------------------
 -- ** Arrays
-{-
+
 -- | Index into an array
 unsafeArrIx :: forall a . Type a => Arr a -> Data Index -> Data a
 unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
   where
-    arrIx :: SmallType b => Imp.Arr Index b -> Data b
+    arrIx :: SmallType b => Imp.Array Index b -> Data b
     arrIx arr = sugarSymTR (UnsafeArrIx arr) i
--}
+
 --------------------------------------------------------------------------------
 -- ** Syntactic conversion
 
@@ -132,7 +131,7 @@ desugar = Data . Syntactic.desugar
 sugar :: Syntax a => Data (Syntactic.Internal a) -> a
 sugar = Syntactic.sugar . unData
 
-resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
+resugar :: (Syntax a, Syntax b, Syntactic.Internal a ~ Syntactic.Internal b) => a -> b
 resugar = Syntactic.resugar
 
 --------------------------------------------------------------------------------
@@ -141,7 +140,7 @@ resugar = Syntactic.resugar
 
 --------------------------------------------------------------------------------
 -- ** References
-{-
+
 -- | Create an uninitialized reference
 newRef :: Type a => Program (Ref a)
 newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
@@ -169,10 +168,10 @@ modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 -- as long as the resulting value is alive)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
 unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
--}
+
 --------------------------------------------------------------------------------
 -- ** Arrays
-{-
+
 -- | Create an uninitialized array
 newArr_ :: forall a . Type a => Program (Arr a)
 newArr_ = fmap Arr $ mapVirtualA (const (Program Imp.newArr_)) rep
@@ -208,10 +207,10 @@ copyArr arr1 arr2 len = sequence_ $
     zipListVirtual (\a1 a2 -> Program $ Imp.copyArr a1 a2 len)
       (unArr arr1)
       (unArr arr2)
--}
+
 --------------------------------------------------------------------------------
 -- ** Control flow
-{-
+
 -- | Conditional statement
 iff
     :: Data Bool   -- ^ Condition
@@ -230,31 +229,13 @@ ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
-
+{-
 -- | For loop
 for :: (Integral n, SmallType n)
     => IxRange (Data n)        -- ^ Index range
     -> (Data n -> Program ())  -- ^ Loop body
     -> Program ()
 for range body = Program $ Imp.for range (unProgram . body)
-
--- | While loop
-while
-    :: Program (Data Bool)  -- ^ Continue condition
-    -> Program ()           -- ^ Loop body
-    -> Program ()
-while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
-
--- | Break out from a loop
-break :: Program ()
-break = Program Imp.break
-
--- | Assertion
-assert
-    :: Data Bool  -- ^ Expression that should be true
-    -> String     -- ^ Message in case of failure
-    -> Program ()
-assert cond msg = Program $ Imp.assert cond msg
 -}
 --------------------------------------------------------------------------------
 -- ** File handling
