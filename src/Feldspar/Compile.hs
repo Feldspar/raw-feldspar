@@ -4,13 +4,9 @@
 
 module Feldspar.Compile where
 
-
-
-#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 import Data.Monoid
 import Data.Traversable (traverse)
-#endif
 
 import Control.Monad.Identity
 import Control.Monad.Reader
@@ -26,11 +22,10 @@ import Data.TypeRep
 
 import Control.Monad.Operational.Higher (interpretWithMonad)
 
-import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
-import qualified Language.Embedded.Imperative as Imp
-import Language.Embedded.Imperative.CMD hiding (Ref, Arr)
-import Language.Embedded.CExp
-import qualified Language.Embedded.Backend.C as Imp
+import qualified Language.Embedded.VHDL as Imp
+import Language.Embedded.VHDL.Command hiding (Array)
+import Language.Embedded.VHDL.Expression
+--import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation hiding (Program)
@@ -43,7 +38,7 @@ import qualified Feldspar.Frontend as Feld
 --------------------------------------------------------------------------------
 -- * Virtual variables
 --------------------------------------------------------------------------------
-
+{-
 newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Ref a)
 newRefV = lift $ mapVirtualA (const newRef) virtRep
 
@@ -62,13 +57,11 @@ setRefV r = lift . sequence_ . zipListVirtual setRef r
 unsafeFreezeRefV :: VirtualType SmallType a =>
     Virtual SmallType Imp.Ref a -> Target (VExp a)
 unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * Translation of programs
 --------------------------------------------------------------------------------
-
+{-
 -- | Virtual expression
 type VExp = Virtual SmallType CExp
 
@@ -212,13 +205,11 @@ lower = interpretWithMonad lowerInstr
 -- | Translate a Feldspar program a program that uses 'TargetCMD'
 lowerTop :: Feld.Program a -> Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unProgram
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * Translation of expressions
 --------------------------------------------------------------------------------
-
+{-
 transAST :: ASTF FeldDomain a -> Target (VExp a)
 transAST = goAST . optimize
   where
@@ -332,13 +323,11 @@ translateExp = transAST . unData
 -- | Translate a Feldspar expression that can be represented as a simple 'CExp'
 translateSmallExp :: SmallType a => Data a -> Target (CExp a)
 translateSmallExp = fmap viewActual . translateExp
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * Back ends
 --------------------------------------------------------------------------------
-
+{-
 -- | Interpret a program in the 'IO' monad
 runIO :: Feld.Program a -> IO a
 runIO = Imp.interpret . lowerTop
@@ -406,4 +395,5 @@ compareCompiled
     -> String          -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty
-
+-}
+--------------------------------------------------------------------------------

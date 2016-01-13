@@ -1,11 +1,6 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverlappingInstances #-}
 
-module Feldspar.Frontend
-  ( module Feldspar.Frontend
-  , ExternalCompilerOpts (..)
-  ) where
-
-
+module Feldspar.Frontend where
 
 import Prelude (Integral, error, reverse)
 import Prelude.EDSL
@@ -20,24 +15,18 @@ import qualified Language.Syntactic as Syntactic
 
 import Language.Syntactic.TypeRep
 
-import qualified Control.Monad.Operational.Higher as Imp
-import qualified Language.Embedded.Imperative as Imp
-import qualified Language.Embedded.Imperative.CMD as Imp
-import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
-import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
+import qualified Control.Monad.Operational.Higher as H
+import qualified Language.Embedded.VHDL.Command   as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation
-
-
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** General constructs
-----------------------------------------
 
 -- | Explicit sharing
 share :: (Syntax a, Syntax b) => a -> (a -> b) -> b
@@ -70,13 +59,10 @@ cond = sugarSymTR Condition
 
 infixl 1 ?
 
-
-
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** Literals
-----------------------------------------
 
--- | Literal
+{--- | Literal
 value :: Syntax a => Internal a -> a
 value = sugarSymTR . Literal
 
@@ -85,13 +71,10 @@ false = value False
 
 true :: Data Bool
 true = value True
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Primitive functions
-----------------------------------------
-
+{-
 instance (SmallType a, Num a) => Num (Data a)
   where
     fromInteger = value . fromInteger
@@ -129,25 +112,19 @@ min a b = a<=b ? a $ b
 
 max :: SmallType a => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Arrays
-----------------------------------------
-
+{-
 -- | Index into an array
 unsafeArrIx :: forall a . Type a => Arr a -> Data Index -> Data a
 unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
   where
     arrIx :: SmallType b => Imp.Arr Index b -> Data b
     arrIx arr = sugarSymTR (UnsafeArrIx arr) i
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Syntactic conversion
-----------------------------------------
 
 desugar :: Syntax a => a -> Data (Syntactic.Internal a)
 desugar = Data . Syntactic.desugar
@@ -158,16 +135,13 @@ sugar = Syntactic.sugar . unData
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
 
-
-
 --------------------------------------------------------------------------------
 -- * Programs
 --------------------------------------------------------------------------------
 
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** References
-----------------------------------------
-
+{-
 -- | Create an uninitialized reference
 newRef :: Type a => Program (Ref a)
 newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
@@ -195,13 +169,10 @@ modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 -- as long as the resulting value is alive)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
 unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Arrays
-----------------------------------------
-
+{-
 -- | Create an uninitialized array
 newArr_ :: forall a . Type a => Program (Arr a)
 newArr_ = fmap Arr $ mapVirtualA (const (Program Imp.newArr_)) rep
@@ -237,13 +208,10 @@ copyArr arr1 arr2 len = sequence_ $
     zipListVirtual (\a1 a2 -> Program $ Imp.copyArr a1 a2 len)
       (unArr arr1)
       (unArr arr2)
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Control flow
-----------------------------------------
-
+{-
 -- | Conditional statement
 iff
     :: Data Bool   -- ^ Condition
@@ -287,13 +255,10 @@ assert
     -> String     -- ^ Message in case of failure
     -> Program ()
 assert cond msg = Program $ Imp.assert cond msg
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** File handling
-----------------------------------------
-
+{-
 -- | Open a file
 fopen :: FilePath -> IOMode -> Program Handle
 fopen file = Program . Imp.fopen file
@@ -338,13 +303,10 @@ fget = Program . Imp.fget
 -- | Print to @stdout@. Accepts a variable number of arguments.
 printf :: PrintfType r => String -> r
 printf = fprintf Imp.stdout
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Abstract objects
-----------------------------------------
-
+{-
 newObject
     :: String  -- ^ Object type
     -> Program Object
@@ -363,13 +325,10 @@ initUObject
     -> [FunArg Data] -- ^ Arguments
     -> Program Object
 initUObject fun ty args = Program $ Imp.initUObject fun ty args
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** External function calls (C-specific)
-----------------------------------------
-
+{-
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Program ()
 addInclude = Program . Imp.addInclude
@@ -469,4 +428,5 @@ objArg = Imp.objArg
 -- | Modifier that takes the address of another argument
 addr :: FunArg Data -> FunArg Data
 addr = Imp.addr
-
+-}
+--------------------------------------------------------------------------------
