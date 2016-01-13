@@ -88,7 +88,7 @@ simplifyUp (AddP t a (LitP _ b)) | b < 0, isExact a = SubP t a (LitP t (negate b
 
 simplifyUp (SubP t (LitP _ 0) b) | isExact b = NegP t b
 simplifyUp (SubP t a (LitP _ 0)) | isExact a = a
-simplifyUp (SubP t a@(LitP _ _) b@NonLitP) | isExact a = SubP t (NegP t b) (NegP t a)
+simplifyUp (SubP t a@(LitP _ _) b@NonLitP) | isExact a = AddP t (NegP t b) a
   -- Move literals to the right
 simplifyUp (SubP t (AddP _ a (LitP _ b)) (LitP _ c)) | isExact a = AddP t a (LitP t (b-c))
 simplifyUp (SubP t (SubP _ a (LitP _ b)) (LitP _ c)) | isExact a = SubP t a (LitP t (b+c))
