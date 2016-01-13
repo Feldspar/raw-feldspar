@@ -13,75 +13,90 @@ import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import qualified Control.Monad.Operational.Higher as Imp
+import Control.Monad.Operational.Higher (interpretWithMonad)
+import qualified Control.Monad.Operational.Higher as H
+
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
+import Language.Syntactic.TH
 
 import Data.TypeRep
+import Data.TypeRep.TH
+import Data.TypeRep.Types.Basic
+import Data.TypeRep.Types.Tuple
+import Data.TypeRep.Types.IntWord
 
-import Control.Monad.Operational.Higher (interpretWithMonad)
-
+import Language.Embedded.VHDL (VType)
 import qualified Language.Embedded.VHDL as Imp
-import Language.Embedded.VHDL.Command hiding (Array)
-import Language.Embedded.VHDL.Expression
---import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
+
 import Feldspar.Representation hiding (Program)
 import Feldspar.Optimize
 import qualified Feldspar.Representation as Feld
 import qualified Feldspar.Frontend as Feld
 
-
-
 --------------------------------------------------------------------------------
 -- * Virtual variables
 --------------------------------------------------------------------------------
+
+newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Variable a)
+newRefV = lift $ mapVirtualA (const Imp.newVariable_) virtRep
+
+initRefV :: VirtualType SmallType a => VExp a -> Target (Virtual SmallType Imp.Variable a)
+initRefV = lift . mapVirtualA (Imp.newVariable)
+
+getRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> Target (VExp a)
+getRefV = lift . mapVirtualA (Imp.getVariable)
+
+setRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> VExp a -> Target ()
+setRefV r = lift . sequence_ . zipListVirtual (Imp.setVariable) r
 {-
-newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Ref a)
-newRefV = lift $ mapVirtualA (const newRef) virtRep
-
-initRefV :: VirtualType SmallType a =>
-    VExp a -> Target (Virtual SmallType Imp.Ref a)
-initRefV = lift . mapVirtualA initRef
-
-getRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> Target (VExp a)
-getRefV = lift . mapVirtualA getRef
-
-setRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> VExp a -> Target ()
-setRefV r = lift . sequence_ . zipListVirtual setRef r
-
 unsafeFreezeRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> Target (VExp a)
+    Virtual SmallType Imp.Variable a -> Target (VExp a)
 unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
 -}
 --------------------------------------------------------------------------------
 -- * Translation of programs
 --------------------------------------------------------------------------------
-{-
+
 -- | Virtual expression
-type VExp = Virtual SmallType CExp
+type VExp = Virtual SmallType Imp.VExp
 
 -- | Virtual expression with hidden result type
 data VExp'
   where
-    VExp' :: Type a => Virtual SmallType CExp a -> VExp'
+    VExp' :: Type a => Virtual SmallType Imp.VExp a -> VExp'
 
-type TargetCMD
-    =       RefCMD CExp
-    Imp.:+: ArrCMD CExp
-    Imp.:+: ControlCMD CExp
-    Imp.:+: FileCMD CExp
-    Imp.:+: ObjectCMD CExp
-    Imp.:+: CallCMD CExp
+type TargetCMD =
+        Imp.SignalCMD   Imp.VExp
+  H.:+: Imp.VariableCMD Imp.VExp
+  H.:+: Imp.ArrayCMD    Imp.VExp
+  H.:+: Imp.LoopCMD     Imp.VExp
 
 type Env = Map Name VExp'
 
 -- | Target monad for translation
-type Target = ReaderT Env (Program TargetCMD)
+type Target = ReaderT Env (H.Program TargetCMD)
+
+--------------------------------------------------------------------------------
+
+pVType :: Proxy VType
+pVType = Proxy
+
+instance ShowClass VType where showClass _ = "VType"
+
+deriveWitness ''VType ''BoolType
+deriveWitness ''VType ''IntWordType
+
+derivePWitness ''VType ''BoolType
+derivePWitness ''VType ''IntWordType
+
+instance PWitness VType CharType t
+instance PWitness VType ListType t
+instance PWitness VType TupleType t
+instance PWitness VType FunType t
 
 -- | Add a local alias to the environment
 localAlias :: Type a
@@ -96,7 +111,7 @@ lookAlias :: forall a . Type a => Name -> Target (VExp a)
 lookAlias v = do
     env <- ask
     return $ case Map.lookup v env of
-        Nothing | Right Dict <- pwit pCType tr
+        Nothing | Right Dict <- pwit pVType tr
                -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case gcast pFeldTypes e of
             Left msg -> error $ "lookAlias: " ++ msg
@@ -109,21 +124,24 @@ class Lower instr
   where
     lowerInstr :: instr Target a -> Target a
 
--- | Lift a 'CExp' that has been created using
+-- | Lift a 'VExp' that has been created using
 -- 'Language.Embedded.Expression.litExp' or
 -- 'Language.Embedded.Expression.varExp'
-liftVar :: SmallType a => CExp a -> Data a
-liftVar (CExp (Sym (T (Var v))))   = Data $ Sym $ (inj (FreeVar v) :&: typeRep)
-liftVar (CExp (Sym (T (Lit _ a)))) = Feld.value a
+liftVar :: SmallType a => Imp.VExp a -> Data a
+liftVar (Imp.VExp (Sym (Imp.T (dom))))
+  | Just n@(Imp.Name _)  <- prj dom = Data $ Sym $ (inj (FreeVar (Imp.temporaryGetName n)) :&: typeRep)
+  | Just (Imp.Literal l) <- prj dom = Feld.value l
 
-instance Lower (RefCMD Data)
+{-
+instance Lower (Imp.SignalCMD Data)
   where
     lowerInstr NewRef       = lift newRef
     lowerInstr (InitRef a)  = lift . initRef =<< translateSmallExp a
     lowerInstr (GetRef r)   = fmap liftVar $ lift $ getRef r
     lowerInstr (SetRef r a) = lift . setRef r =<< translateSmallExp a
     lowerInstr (UnsafeFreezeRef r) = fmap liftVar $ lift $ unsafeFreezeRef r
-
+-}
+{-
 instance Lower (ArrCMD Data)
   where
     lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
@@ -137,7 +155,8 @@ instance Lower (ArrCMD Data)
         lift $ setArr i' a' arr
     lowerInstr (CopyArr dst src n) =
         lift . copyArr dst src =<< translateSmallExp n
-
+-}
+{-
 instance Lower (ControlCMD Data)
   where
     lowerInstr (If c t f) = do
@@ -209,18 +228,22 @@ lowerTop = flip runReaderT Map.empty . lower . unProgram
 --------------------------------------------------------------------------------
 -- * Translation of expressions
 --------------------------------------------------------------------------------
-{-
+
 transAST :: ASTF FeldDomain a -> Target (VExp a)
 transAST = goAST . optimize
   where
     goAST :: ASTF FeldDomain a -> Target (VExp a)
     goAST = simpleMatch (\(s :&: t) -> go t s)
 
-    goSmallAST :: SmallType a => ASTF FeldDomain a -> Target (CExp a)
+    goSmallAST :: SmallType a => ASTF FeldDomain a -> Target (Imp.VExp a)
     goSmallAST = fmap viewActual . goAST
 
-    go :: TypeRep FeldTypes (DenResult sig) -> FeldConstructs sig
-       -> Args (AST FeldDomain) sig -> Target (VExp (DenResult sig))
+    go :: TypeRep FeldTypes (DenResult sig)
+       -> FeldConstructs sig
+       -> Args (AST FeldDomain) sig
+       -> Target (VExp (DenResult sig))
+    go = undefined
+{-
     go t lit Nil
         | Just (Literal a) <- prj lit
         , Right Dict <- pwit pType t
@@ -302,11 +325,11 @@ transAST = goAST . optimize
                 setRefV state s'
              unsafeFreezeRefV state
     go t free Nil
-        | Just (FreeVar v) <- prj free = return $ Actual $ variable v
+        | Just (FreeVar v) <- prj free = return $ Actual $ Imp.variable v
     go t arrIx (i :* Nil)
         | Just (UnsafeArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
-            fmap Actual $ lift $ getArr i' arr
+            fmap Actual $ lift $ Feld.getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unProgram prog)
@@ -315,15 +338,15 @@ transAST = goAST . optimize
             a' <- goAST a
             lower (unProgram prog)
             return a'
-
+-}
 -- | Translate a Feldspar expression
 translateExp :: Data a -> Target (VExp a)
 translateExp = transAST . unData
 
--- | Translate a Feldspar expression that can be represented as a simple 'CExp'
-translateSmallExp :: SmallType a => Data a -> Target (CExp a)
+-- | Translate a Feldspar expression that can be represented as a simple 'VExp'
+translateSmallExp :: SmallType a => Data a -> Target (Imp.VExp a)
 translateSmallExp = fmap viewActual . translateExp
--}
+
 --------------------------------------------------------------------------------
 -- * Back ends
 --------------------------------------------------------------------------------
