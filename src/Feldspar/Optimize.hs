@@ -1,8 +1,5 @@
 -- | Optimize Feldspar expressions
-
 module Feldspar.Optimize where
-
-
 
 import Control.Monad.Writer hiding (Any (..))
 import qualified Data.Monoid as Monoid
@@ -20,7 +17,9 @@ import Data.TypeRep.Types.Basic
 
 import Feldspar.Representation
 
-
+--------------------------------------------------------------------------------
+-- * ...
+--------------------------------------------------------------------------------
 
 isExact :: ASTF FeldDomain a -> Bool
 isExact a = simpleMatch
@@ -43,6 +42,9 @@ viewLit :: ASTF FeldDomain a -> Maybe a
 viewLit lit
     | Just (Literal a) <- prj lit = Just a
 viewLit _ = Nothing
+
+--------------------------------------------------------------------------------
+-- ** Patterns.
 
 pattern LitP t a <- Sym ((prj' -> Just (Literal a)) :&: t)
   where
@@ -74,7 +76,8 @@ pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP 
 pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
 pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
 
-
+--------------------------------------------------------------------------------
+-- ** ...
 
 simplifyUp
     :: ASTF FeldDomain a
