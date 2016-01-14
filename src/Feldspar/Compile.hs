@@ -282,19 +282,19 @@ transAST = goAST . optimize
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
-            case () of
-              _ | Imp.Return (Actual t') <- Imp.view $ flip runReaderT env $ goAST t
-                , Imp.Return (Actual f') <- Imp.view $ flip runReaderT env $ goAST f
-                -> do
-                    c' <- goSmallAST c
-                    return $ Actual (c' ? t' $ f')
-              _ -> do
-                    c'  <- goSmallAST c
-                    res <- newRefV
-                    ReaderT $ \env -> iff c'
-                        (flip runReaderT env $ goAST t >>= setRefV res)
-                        (flip runReaderT env $ goAST f >>= setRefV res)
-                    unsafeFreezeRefV res
+            case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
+              (t',f') | Imp.Return (Actual t'') <- Imp.view t'
+                      , Imp.Return (Actual f'') <- Imp.view f'
+                      -> do c' <- goSmallAST c
+                            return $ Actual (c' ? t'' $ f'')
+
+              (t',f') -> do
+                  c'  <- goSmallAST c
+                  res <- newRefV
+                  ReaderT $ \env -> iff c'
+                      (flip runReaderT env . setRefV res =<< t')
+                      (flip runReaderT env . setRefV res =<< f')
+                  unsafeFreezeRefV res
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami

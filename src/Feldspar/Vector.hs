@@ -17,7 +17,7 @@ data Vector a
 
 instance Type a => Storable (Vector (Data a))
   where
-    type StoreRep (Vector (Data a))  = (Ref Length, Arr a)
+    type StoreRep (Vector (Data a)) = (Ref Length, Arr a)
     initStoreRep vec = do
         arr <- newArr len
         lenRef <- initRef len
