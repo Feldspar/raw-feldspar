@@ -392,10 +392,10 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 -- * Back ends
 --------------------------------------------------------------------------------
-{-
+
 -- | Interpret a program in the 'IO' monad
 runIO :: Feld.Program a -> IO a
-runIO = Imp.interpret . lowerTop
+runIO = H.interpret . lowerTop
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
@@ -410,7 +410,7 @@ compile = Imp.compile . lowerTop
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: Feld.Program a -> IO ()
 icompile = putStrLn . compile
-
+{-
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
 compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
@@ -426,7 +426,8 @@ runCompiled' opts = Imp.runCompiled' opts . lowerTop
 -- | Generate C code, use GCC to compile it, and run the resulting executable
 runCompiled :: Feld.Program a -> IO ()
 runCompiled = runCompiled' mempty
-
+-}
+{-
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled'
