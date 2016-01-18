@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Internal representation of Feldspar programs
@@ -43,31 +43,24 @@ import Data.VirtualContainer
 -- * Object-language types
 --------------------------------------------------------------------------------
 
-type FeldTypes
-    =   BoolType
+type FeldTypes =
+        BoolType
+    :+: FloatType
+    :+: DoubleType
     :+: IntWordType
     :+: TupleType
     :+: FunType
-
-pFeldTypes :: Proxy FeldTypes
-pFeldTypes = Proxy
 
 -- | Feldspar types
 class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 
 -- | Small Feldspar types
-class    (Type a, VType a) => SmallType a
-instance (Type a, VType a) => SmallType a
+class    (Type a, CType a, HType a) => SmallType a
+instance (Type a, CType a, HType a) => SmallType a
 
 instance ShowClass Type      where showClass _ = "Type"
 instance ShowClass SmallType where showClass _ = "SmallType"
-
-pType :: Proxy Type
-pType = Proxy
-
-pSmallType :: Proxy SmallType
-pSmallType = Proxy
 
 type Length = Word32
 type Index  = Word32
@@ -77,6 +70,17 @@ newtype Ref a = Ref { unRef :: Virtual SmallType Soft.Variable a }
 
 -- | Mutable array
 newtype Arr a = Arr { unArr :: Virtual SmallType (Soft.Arr Index) a }
+
+--------------------------------------------------------------------------------
+
+pFeldTypes :: Proxy FeldTypes
+pFeldTypes = Proxy
+
+pType      :: Proxy Type
+pType      = Proxy
+
+pSmallType :: Proxy SmallType
+pSmallType = Proxy
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
@@ -89,14 +93,15 @@ data Primitive sig
     Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Neg :: (SmallType a, Num a) => Primitive (a :-> Full a)
-    I2N :: (SmallType a, SmallType b,
-            Integral a, Num b)  => Primitive (a :-> Full b)
     Not ::                         Primitive (Bool :-> Full Bool)
     Eq  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Lt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Gt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Le  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Ge  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
+    I2N :: ( SmallType a, SmallType b
+           , Integral a, Num b )
+        => Primitive (a :-> Full b)
 
 instance Render Primitive
   where
@@ -155,11 +160,11 @@ instance Eval ForLoop
 data IOSym sig
   where
     -- Result of an IO operation
-    FreeVar :: SmallType a => String -> IOSym (Full a)
+    FreeVar           :: SmallType a => String -> IOSym (Full a)
     -- Array indexing
-    UnsafeArrIx :: SmallType a => Imp.Array Index a -> IOSym (Index :-> Full a)
+    UnsafeArrIx       :: SmallType a => Soft.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
-    UnsafePerform :: Program (Data a) -> IOSym (Full a)
+    UnsafePerform     :: Program (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
     UnsafePerformWith :: Program () -> IOSym (a :-> Full a)
   -- The reason for having `UnsafeArrIx` instead of doing the same thing using
@@ -169,7 +174,7 @@ data IOSym sig
 instance Render IOSym
   where
     renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx arr) = "UnsafeArrIx " ++ show (Imp.toIdent arr)
+    renderSym (UnsafeArrIx (Soft.ArrComp arr)) = "UnsafeArrIx " ++ show arr
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
@@ -185,7 +190,7 @@ instance Eval IOSym
 instance Equality IOSym
   where
     equal (FreeVar v1)       (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx arr1) (UnsafeArrIx arr2) = Imp.toIdent arr1 == Imp.toIdent arr2
+    equal (UnsafeArrIx (Soft.ArrComp arr1)) (UnsafeArrIx (Soft.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
 
 --------------------------------------------------------------------------------
@@ -232,6 +237,7 @@ type instance PredicateExp Data = SmallType
 --------------------------------------------------------------------------------
 
 type CMD =
+<<<<<<< d52dd71142f4dc5b12d993c0b83c8b841eda598f
         Soft.RefCMD         Data
   H.:+: Soft.ArrCMD         Data
   H.:+: Soft.ControlCMD     Data
@@ -248,6 +254,11 @@ type HardwareCMD =
   H.:+: Hard.LoopCMD        Data
   H.:+: Hard.SignalCMD      Data
   H.:+: Hard.StructuralCMD  Data
+=======
+        Soft.RefCMD        Data
+  H.:+: Soft.ArrCMD        Data
+  H.:+: Soft.ControlCMD    Data
+>>>>>>> representation uses commands supported by both software & hardware, specifics are put into the different monad transformers
 
 newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
@@ -256,6 +267,34 @@ newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program 
   deriving (Functor, Applicative, Monad)
 
 newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
+
+--------------------------------------------------------------------------------
+
+type SoftwareCMD =
+        Soft.CallCMD       Data
+  H.:+: Soft.ObjectCMD     Data
+  H.:+: Soft.FileCMD       Data
+
+newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD Program a }
+
+--------------------------------------------------------------------------------
+
+type HardwareCMD =
+        Hard.SignalCMD     Data
+  H.:+: Hard.StructuralCMD Data
+
+newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD Program a }
+
+--------------------------------------------------------------------------------
+
+-- | Interprets a program transformer wrapping another program.
+interpret2
+  :: ( H.Interp i m, H.HFunctor i
+     , H.Interp j m, H.HFunctor j
+     , Monad m)
+  => H.ProgramT i (H.Program j) a
+  -> m a
+interpret2 = H.interpretT (H.interpret)
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances
@@ -271,7 +310,11 @@ instance PWitness Type FunType t
 
 derivePWitness ''SmallType ''BoolType
 derivePWitness ''SmallType ''FloatType
+<<<<<<< d52dd71142f4dc5b12d993c0b83c8b841eda598f
 derivePWitness ''SmattType ''DoubleType
+=======
+derivePWitness ''SmallType ''DoubleType
+>>>>>>> representation uses commands supported by both software & hardware, specifics are put into the different monad transformers
 derivePWitness ''SmallType ''IntWordType
 
 instance PWitness SmallType TupleType t
