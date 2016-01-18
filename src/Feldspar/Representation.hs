@@ -237,7 +237,6 @@ type instance PredicateExp Data = SmallType
 --------------------------------------------------------------------------------
 
 type CMD =
-<<<<<<< d52dd71142f4dc5b12d993c0b83c8b841eda598f
         Soft.RefCMD         Data
   H.:+: Soft.ArrCMD         Data
   H.:+: Soft.ControlCMD     Data
@@ -254,11 +253,6 @@ type HardwareCMD =
   H.:+: Hard.LoopCMD        Data
   H.:+: Hard.SignalCMD      Data
   H.:+: Hard.StructuralCMD  Data
-=======
-        Soft.RefCMD        Data
-  H.:+: Soft.ArrCMD        Data
-  H.:+: Soft.ControlCMD    Data
->>>>>>> representation uses commands supported by both software & hardware, specifics are put into the different monad transformers
 
 newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
@@ -310,11 +304,7 @@ instance PWitness Type FunType t
 
 derivePWitness ''SmallType ''BoolType
 derivePWitness ''SmallType ''FloatType
-<<<<<<< d52dd71142f4dc5b12d993c0b83c8b841eda598f
-derivePWitness ''SmattType ''DoubleType
-=======
 derivePWitness ''SmallType ''DoubleType
->>>>>>> representation uses commands supported by both software & hardware, specifics are put into the different monad transformers
 derivePWitness ''SmallType ''IntWordType
 
 instance PWitness SmallType TupleType t
