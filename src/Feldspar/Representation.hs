@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Internal representation of Feldspar programs
@@ -29,9 +29,13 @@ import Data.TypeRep.Types.IntWord.Typeable ()
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
-import Language.Embedded.VHDL.Expression (VType)
-import Language.Embedded.VHDL.Interface
-import qualified Language.Embedded.VHDL.Command as Imp
+import Language.Embedded.Hardware (HType)
+import Language.Embedded.Hardware.Interface (PredicateExp)
+import qualified Language.Embedded.Hardware as Hard
+
+import Language.Embedded.CExp (CType)
+import Language.Embedded.Expression (VarPred)
+import qualified Language.Embedded.Imperative.CMD as Soft
 
 import Data.VirtualContainer
 
@@ -39,40 +43,44 @@ import Data.VirtualContainer
 -- * Object-language types
 --------------------------------------------------------------------------------
 
-type FeldTypes
-    =   BoolType
+type FeldTypes =
+        BoolType
+    :+: FloatType
+    :+: DoubleType
     :+: IntWordType
     :+: TupleType
     :+: FunType
-
-pFeldTypes :: Proxy FeldTypes
-pFeldTypes = Proxy
 
 -- | Feldspar types
 class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 
 -- | Small Feldspar types
-class    (Type a, VType a) => SmallType a
-instance (Type a, VType a) => SmallType a
+class    (Type a, CType a, HType a) => SmallType a
+instance (Type a, CType a, HType a) => SmallType a
 
 instance ShowClass Type      where showClass _ = "Type"
 instance ShowClass SmallType where showClass _ = "SmallType"
-
-pType :: Proxy Type
-pType = Proxy
-
-pSmallType :: Proxy SmallType
-pSmallType = Proxy
 
 type Length = Word32
 type Index  = Word32
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Variable a }
+newtype Ref a = Ref { unRef :: Virtual SmallType Soft.Ref a }
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Array Index) a }
+newtype Arr a = Arr { unArr :: Virtual SmallType (Soft.Arr Index) a }
+
+--------------------------------------------------------------------------------
+
+pFeldTypes :: Proxy FeldTypes
+pFeldTypes = Proxy
+
+pType      :: Proxy Type
+pType      = Proxy
+
+pSmallType :: Proxy SmallType
+pSmallType = Proxy
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
@@ -85,14 +93,15 @@ data Primitive sig
     Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Neg :: (SmallType a, Num a) => Primitive (a :-> Full a)
-    I2N :: (SmallType a, SmallType b,
-            Integral a, Num b)  => Primitive (a :-> Full b)
     Not ::                         Primitive (Bool :-> Full Bool)
     Eq  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Lt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Gt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Le  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Ge  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
+    I2N :: ( SmallType a, SmallType b
+           , Integral a, Num b )
+        => Primitive (a :-> Full b)
 
 instance Render Primitive
   where
@@ -123,6 +132,8 @@ instance Eval Primitive
     evalSym Le  = (<=)
     evalSym Ge  = (>=)
 
+--------------------------------------------------------------------------------
+
 -- | Conditionals
 data Condition sig
   where
@@ -131,6 +142,8 @@ data Condition sig
 instance Eval Condition
   where
     evalSym Condition = \c t f -> if c then t else f
+
+--------------------------------------------------------------------------------
 
 -- | For loop
 data ForLoop sig
@@ -141,15 +154,17 @@ instance Eval ForLoop
   where
     evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
 
+--------------------------------------------------------------------------------
+
 -- | Interaction with the IO layer
 data IOSym sig
   where
     -- Result of an IO operation
-    FreeVar :: SmallType a => String -> IOSym (Full a)
+    FreeVar           :: SmallType a => String -> IOSym (Full a)
     -- Array indexing
-    UnsafeArrIx :: SmallType a => Imp.Array Index a -> IOSym (Index :-> Full a)
+    UnsafeArrIx       :: SmallType a => Soft.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
-    UnsafePerform :: Program (Data a) -> IOSym (Full a)
+    UnsafePerform     :: Program (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
     UnsafePerformWith :: Program () -> IOSym (a :-> Full a)
   -- The reason for having `UnsafeArrIx` instead of doing the same thing using
@@ -159,7 +174,7 @@ data IOSym sig
 instance Render IOSym
   where
     renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx arr) = "UnsafeArrIx " ++ show (Imp.toIdent arr)
+    renderSym (UnsafeArrIx (Soft.ArrComp arr)) = "UnsafeArrIx " ++ show arr
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
@@ -175,7 +190,7 @@ instance Eval IOSym
 instance Equality IOSym
   where
     equal (FreeVar v1)       (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx arr1) (UnsafeArrIx arr2) = Imp.toIdent arr1 == Imp.toIdent arr2
+    equal (UnsafeArrIx (Soft.ArrComp arr1)) (UnsafeArrIx (Soft.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
 
 --------------------------------------------------------------------------------
@@ -214,6 +229,7 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
+type instance VarPred      Data = SmallType
 type instance PredicateExp Data = SmallType
 
 --------------------------------------------------------------------------------
@@ -221,25 +237,56 @@ type instance PredicateExp Data = SmallType
 --------------------------------------------------------------------------------
 
 type CMD =
-        Imp.VariableCMD     Data
-  H.:+: Imp.ArrayCMD        Data
-  H.:+: Imp.ConditionalCMD  Data
-  H.:+: Imp.LoopCMD         Data
+        Soft.RefCMD        Data
+  H.:+: Soft.ArrCMD        Data
+  H.:+: Soft.ControlCMD    Data
 
 newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
+
+--------------------------------------------------------------------------------
+
+type SoftwareCMD =
+        Soft.CallCMD       Data
+  H.:+: Soft.ObjectCMD     Data
+  H.:+: Soft.FileCMD       Data
+
+newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD Program a }
+
+--------------------------------------------------------------------------------
+
+type HardwareCMD =
+        Hard.SignalCMD     Data
+  H.:+: Hard.StructuralCMD Data
+
+newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD Program a }
+
+--------------------------------------------------------------------------------
+
+-- | Interprets a program transformer wrapping another program.
+interpret2
+  :: ( H.Interp i m, H.HFunctor i
+     , H.Interp j m, H.HFunctor j
+     , Monad m)
+  => H.ProgramT i (H.Program j) a
+  -> m a
+interpret2 = H.interpretT (H.interpret)
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances
 --------------------------------------------------------------------------------
 
 derivePWitness ''Type ''BoolType
+derivePWitness ''Type ''FloatType
+derivePWitness ''Type ''DoubleType
 derivePWitness ''Type ''IntWordType
 derivePWitness ''Type ''TupleType
 
 instance PWitness Type FunType t
 
 derivePWitness ''SmallType ''BoolType
+derivePWitness ''SmallType ''FloatType
+derivePWitness ''SmallType ''DoubleType
 derivePWitness ''SmallType ''IntWordType
 
 instance PWitness SmallType TupleType t
@@ -271,3 +318,4 @@ instance EvalEnv Condition env
 instance EvalEnv ForLoop env
 instance EvalEnv IOSym env
 
+--------------------------------------------------------------------------------
