@@ -14,15 +14,23 @@ import qualified Language.Syntactic as Syntactic
 import Language.Syntactic.TypeRep
 import Language.Syntactic.TypeRep
 
-import qualified Control.Monad.Operational.Higher as H
-import qualified Language.Embedded.VHDL.Command   as Imp
+import qualified Control.Monad.Operational.Higher   as H
+
+import Language.Embedded.Imperative.CMD (IxRange)
+import qualified Language.Embedded.Imperative       as Soft
+import qualified Language.Embedded.Imperative.CMD   as Soft
+
+import qualified Language.Embedded.Hardware as Hard
 
 import Data.VirtualContainer
+
 import Feldspar.Representation
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
+
+infixl 1 ?
 
 --------------------------------------------------------------------------------
 -- ** General constructs
@@ -36,11 +44,7 @@ forLoop :: Syntax st => Data Length -> st -> (Data Index -> st -> st) -> st
 forLoop = sugarSymTR ForLoop
 
 -- | Conditional expression
-cond :: Syntax a
-    => Data Bool  -- ^ Condition
-    -> a          -- ^ True branch
-    -> a          -- ^ False branch
-    -> a
+cond :: Syntax a => Data Bool -> a -> a -> a
 cond = sugarSymTR Condition
 
 -- | Condition operator; use as follows:
@@ -55,8 +59,6 @@ cond = sugarSymTR Condition
     -> a          -- ^ False branch
     -> a
 (?) = cond
-
-infixl 1 ?
 
 --------------------------------------------------------------------------------
 -- ** Literals
@@ -119,19 +121,19 @@ max a b = a>=b ? a $ b
 unsafeArrIx :: forall a . Type a => Arr a -> Data Index -> Data a
 unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
   where
-    arrIx :: SmallType b => Imp.Array Index b -> Data b
+    arrIx :: SmallType b => Soft.Arr Index b -> Data b
     arrIx arr = sugarSymTR (UnsafeArrIx arr) i
 
 --------------------------------------------------------------------------------
 -- ** Syntactic conversion
 
-desugar :: Syntax a => a -> Data (Syntactic.Internal a)
+desugar :: Syntax a => a -> Data (Internal a)
 desugar = Data . Syntactic.desugar
 
-sugar :: Syntax a => Data (Syntactic.Internal a) -> a
+sugar :: Syntax a => Data (Internal a) -> a
 sugar = Syntactic.sugar . unData
 
-resugar :: (Syntax a, Syntax b, Syntactic.Internal a ~ Syntactic.Internal b) => a -> b
+resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
 
 --------------------------------------------------------------------------------
@@ -143,50 +145,46 @@ resugar = Syntactic.resugar
 
 -- | Create an uninitialized reference
 newRef :: Type a => Program (Ref a)
-newRef = fmap Ref $ mapVirtualA (const (Program Imp.newVariable_)) virtRep
+newRef = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
 
 -- | Create an initialized reference
 initRef :: forall a . Type a => Data a -> Program (Ref a)
-initRef = fmap Ref . mapVirtualA (Program . Imp.newVariable) . sugar
+initRef = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
 
 -- | Get the contents of a reference
 getRef :: Type a => Ref a -> Program (Data a)
-getRef = fmap desugar . mapVirtualA (Program . Imp.getVariable) . unRef
+getRef = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
 
 -- | Set the contents of a reference
 setRef :: Type a => Ref a -> Data a -> Program ()
-setRef r
-    = sequence_
-    . zipListVirtual (\r' a' -> Program $ Imp.setVariable r' a') (unRef r)
-    . sugar
+setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
 
 -- | Modify the contents of reference
 modifyRef :: Type a => Ref a -> (Data a -> Data a) -> Program ()
-modifyRef r f = setRef r . f =<< getRef r
+modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 
-{-
 -- | Freeze the contents of reference (only safe if the reference is not updated
 -- as long as the resulting value is alive)
 unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
-unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
--}
+unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
+
 --------------------------------------------------------------------------------
 -- ** Arrays
 
 -- | Create an uninitialized array
 newArr :: forall a . Type a => Data Length -> Program (Arr a)
-newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArray l)) rep
+newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Get an element of an array
 getArr :: Type a => Data Index -> Arr a -> Program (Data a)
-getArr i = fmap desugar . mapVirtualA (Program . Imp.getArray i) . unArr
+getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
 
 -- | Set an element of an array
 setArr :: forall a . Type a => Data Index -> Data a -> Arr a -> Program ()
 setArr i a arr = sequence_ $
-    zipListVirtual (\a' arr' -> Program $ Imp.setArray i a' arr') aS (unArr arr)
+    zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') aS (unArr arr)
   where
     aS = sugar a :: Virtual SmallType Data a
 
@@ -199,7 +197,7 @@ iff
     -> Program ()  -- ^ True branch
     -> Program ()  -- ^ False branch
     -> Program ()
-iff c t f = Program $ Imp.iff c (unProgram t) (unProgram f)
+iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
 
 -- | Conditional statement that returns an expression
 ifE :: Type a
@@ -214,10 +212,17 @@ ifE c t f = do
 
 -- | For loop
 for :: (Integral n, SmallType n)
-    => Data n                  -- ^ Range
+    => IxRange (Data n)        -- ^ Range
     -> (Data n -> Program ())  -- ^ Loop body
     -> Program ()
-for range body = Program $ Imp.for range (unProgram . body)
+for range body = Program $ Soft.for range (unProgram . body)
+
+-- | While loop
+while
+   :: Program (Data Bool)
+   -> Program ()
+   -> Program ()
+while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
 
 --------------------------------------------------------------------------------
 -- ** Abstract objects
