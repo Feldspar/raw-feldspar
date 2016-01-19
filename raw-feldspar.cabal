@@ -50,14 +50,15 @@ library
 
   build-depends:
     base < 5,
-    containers,
-    imperative-edsl-vhdl,
     mtl,
-    open-typerep >= 0.5,
-    operational-alacarte,
+    containers,
+    template-haskell,
     prelude-edsl,
-    syntactic >= 3.4,
-    template-haskell
+    operational-alacarte,
+    imperative-edsl >=0.4.1,
+    hardware-edsl   >=0.1.0,
+    open-typerep    >= 0.5,
+    syntactic       >= 3.4
 
   hs-source-dirs: src
 
