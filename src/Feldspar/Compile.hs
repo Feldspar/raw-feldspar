@@ -13,7 +13,6 @@ import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Control.Monad.Operational.Higher (interpretWithMonad)
 import qualified Control.Monad.Operational.Higher as H
 
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
@@ -27,23 +26,27 @@ import Data.TypeRep.Types.Basic
 import Data.TypeRep.Types.Tuple
 import Data.TypeRep.Types.IntWord
 
-import Language.Embedded.VHDL (VType)
-import qualified Language.Embedded.VHDL as Imp
+import Language.Embedded.Hardware (HType)
+import qualified Language.Embedded.Hardware as Hard
+
+import Language.Embedded.CExp (CType)
+import qualified Language.Embedded.Imperative     as Soft
+import qualified Language.Embedded.Imperative.CMD as Soft
 
 import Data.VirtualContainer
 
 import Feldspar.Representation hiding (Program)
 import Feldspar.Optimize
 import qualified Feldspar.Representation as Feld
-import qualified Feldspar.Frontend as Feld
+import qualified Feldspar.Frontend       as Feld
 
 --------------------------------------------------------------------------------
 -- * Virtual variables
 --------------------------------------------------------------------------------
 
-newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Variable a)
-newRefV = lift $ mapVirtualA (const Imp.newVariable_) virtRep
-
+newRefV :: VirtualType SmallType a => Target (Virtual SmallType Soft.Ref a)
+newRefV = lift $ mapVirtualA (const Soft.newRef) virtRep
+{-
 initRefV :: VirtualType SmallType a => VExp a -> Target (Virtual SmallType Imp.Variable a)
 initRefV = lift . mapVirtualA (Imp.newVariable)
 
@@ -52,9 +55,8 @@ getRefV = lift . mapVirtualA (Imp.getVariable)
 
 setRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> VExp a -> Target ()
 setRefV r = lift . sequence_ . zipListVirtual (Imp.setVariable) r
-{-
-unsafeFreezeRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Variable a -> Target (VExp a)
+
+unsafeFreezeRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> Target (VExp a)
 unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
 -}
 --------------------------------------------------------------------------------
@@ -92,7 +94,7 @@ type Env = Map Name VExp'
 type Target = ReaderT Env (H.Program TargetCMD)
 
 --------------------------------------------------------------------------------
-
+{-
 pVType :: Proxy VType
 pVType = Proxy
 
@@ -108,7 +110,8 @@ instance PWitness VType CharType t
 instance PWitness VType ListType t
 instance PWitness VType TupleType t
 instance PWitness VType FunType t
-
+-}
+{-
 -- | Add a local alias to the environment
 localAlias :: Type a
     => Name    -- ^ Old name
@@ -129,12 +132,14 @@ lookAlias v = do
             Right e' -> e'
   where
     tr = typeRep :: TypeRep FeldTypes a
-
+-}
+{-
 -- | Translate instructions to the 'Target' monad
 class Lower instr
   where
     lowerInstr :: instr Target a -> Target a
-
+-}
+{-
 -- | Lift a 'VExp' that has been created using
 -- 'Language.Embedded.Expression.litExp' or
 -- 'Language.Embedded.Expression.varExp'
@@ -249,11 +254,11 @@ lower = interpretWithMonad lowerInstr
 -- | Translate a Feldspar program a program that uses 'TargetCMD'
 lowerTop :: Feld.Program a -> H.Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unProgram
-
+-}
 --------------------------------------------------------------------------------
 -- * Translation of expressions
 --------------------------------------------------------------------------------
-
+{-
 transAST :: ASTF FeldDomain a -> Target (VExp a)
 transAST = goAST . optimize
   where
@@ -388,11 +393,11 @@ translateExp = transAST . unData
 -- | Translate a Feldspar expression that can be represented as a simple 'VExp'
 translateSmallExp :: SmallType a => Data a -> Target (Imp.VExp a)
 translateSmallExp = fmap viewActual . translateExp
-
+-}
 --------------------------------------------------------------------------------
 -- * Back ends
 --------------------------------------------------------------------------------
-
+{-
 -- | Interpret a program in the 'IO' monad
 runIO :: Feld.Program a -> IO a
 runIO = H.interpret . lowerTop
@@ -410,6 +415,7 @@ compile = Imp.compile . lowerTop
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: Feld.Program a -> IO ()
 icompile = putStrLn . compile
+-}
 {-
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
