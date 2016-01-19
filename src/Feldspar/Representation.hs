@@ -261,23 +261,7 @@ newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program 
   deriving (Functor, Applicative, Monad)
 
 newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
-
---------------------------------------------------------------------------------
-
-type SoftwareCMD =
-        Soft.CallCMD       Data
-  H.:+: Soft.ObjectCMD     Data
-  H.:+: Soft.FileCMD       Data
-
-newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD Program a }
-
---------------------------------------------------------------------------------
-
-type HardwareCMD =
-        Hard.SignalCMD     Data
-  H.:+: Hard.StructuralCMD Data
-
-newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD Program a }
+  deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
 
