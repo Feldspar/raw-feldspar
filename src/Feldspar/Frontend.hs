@@ -16,7 +16,7 @@ import Language.Syntactic.TypeRep
 
 import qualified Control.Monad.Operational.Higher   as H
 
-import Language.Embedded.Imperative.CMD (IxRange)
+import Language.Embedded.Imperative.CMD (IxRange, FunArg, Object)
 import qualified Language.Embedded.Imperative       as Soft
 import qualified Language.Embedded.Imperative.CMD   as Soft
 
@@ -29,8 +29,6 @@ import Feldspar.Representation
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
-
-infixl 1 ?
 
 --------------------------------------------------------------------------------
 -- ** General constructs
@@ -60,10 +58,11 @@ cond = sugarSymTR Condition
     -> a
 (?) = cond
 
+infixl 1 ?
+
 --------------------------------------------------------------------------------
 -- ** Literals
 
--- | Literal
 value :: Syntax a => Internal a -> a
 value = sugarSymTR . Literal
 
@@ -191,21 +190,14 @@ setArr i a arr = sequence_ $
 --------------------------------------------------------------------------------
 -- ** Control flow
 
--- | Conditional statement
-iff
-    :: Data Bool   -- ^ Condition
-    -> Program ()  -- ^ True branch
-    -> Program ()  -- ^ False branch
-    -> Program ()
+-- | Conditional statement.
+iff :: Data Bool -> Program () -> Program () -> Program ()
 iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
 
--- | Conditional statement that returns an expression
-ifE :: Type a
-    => Data Bool         -- ^ Condition
-    -> Program (Data a)  -- ^ True branch
-    -> Program (Data a)  -- ^ False branch
-    -> Program (Data a)
+-- | Conditional statement that returns an expression.
+ifE :: Type a => Data Bool -> Program (Data a) -> Program (Data a) -> Program (Data a)
 ifE c t f = do
+<<<<<<< 73aac3c446ea8c6db6267d2ec5d8d50279519f6f
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
@@ -265,33 +257,15 @@ feof :: Handle -> Program (Data Bool)
 feof = Program . Imp.feof
 
 --------------------------------------------------------------------------------
--- ** Abstract objects
-{-
-newObject
-    :: String  -- ^ Object type
-    -> Program Object
-newObject = Program . Imp.newObject
+-- * Software.
+--------------------------------------------------------------------------------
 
-initObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Program Object
-initObject fun ty args = Program $ Imp.initObject fun ty args
-
-initUObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Program Object
-initUObject fun ty args = Program $ Imp.initUObject fun ty args
--}
 --------------------------------------------------------------------------------
 -- ** External function calls (C-specific)
-{-
--- | Add an @#include@ statement to the generated code
-addInclude :: String -> Program ()
-addInclude = Program . Imp.addInclude
+
+-- | Add an @#include@ statement to the generated code.
+addInclude :: String -> Software ()
+addInclude = Software . Soft.addInclude
 
 -- | Add a global definition to the generated code
 --
@@ -313,80 +287,108 @@ addInclude = Program . Imp.addInclude
 -- >           // goes here
 -- >       }
 -- >       |]
-addDefinition :: Definition -> Program ()
-addDefinition = Program . Imp.addDefinition
+addDefinition :: Soft.Definition -> Software ()
+addDefinition = Software . Soft.addDefinition
 
--- | Declare an external function
+-- | Declare an external function.
 addExternFun :: forall proxy res . SmallType res
     => String         -- ^ Function name
     -> proxy res      -- ^ Proxy for expression and result type
     -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Program ()
-addExternFun fun res args = Program $ Imp.addExternFun fun res' args
+    -> Software ()
+addExternFun fun res args = Software $ Soft.addExternFun fun res' args
   where
     res' = Proxy :: Proxy (Data res)
 
--- | Declare an external procedure
+-- | Declare an external procedure.
 addExternProc
     :: String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Program ()
-addExternProc proc args = Program $ Imp.addExternProc proc args
+    -> Software ()
+addExternProc proc args = Software $ Soft.addExternProc proc args
 
--- | Call a function
+-- | Call a function.
 callFun :: SmallType a
     => String         -- ^ Function name
     -> [FunArg Data]  -- ^ Arguments
-    -> Program (Data a)
-callFun fun as = Program $ Imp.callFun fun as
+    -> Software (Data a)
+callFun fun as = Software $ Soft.callFun fun as
 
--- | Call a procedure
+-- | Call a procedure.
 callProc
     :: String         -- ^ Function name
     -> [FunArg Data]  -- ^ Arguments
-    -> Program ()
-callProc fun as = Program $ Imp.callProc fun as
+    -> Software ()
+callProc fun as = Software $ Soft.callProc fun as
 
--- | Declare and call an external function
+-- | Declare and call an external function.
 externFun :: SmallType res
     => String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments
-    -> Program (Data res)
-externFun fun args = Program $ Imp.externFun fun args
+    -> Software (Data res)
+externFun fun args = Software $ Soft.externFun fun args
 
--- | Declare and call an external procedure
+-- | Declare and call an external procedure.
 externProc
     :: String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments
-    -> Program ()
-externProc proc args = Program $ Imp.externProc proc args
+    -> Software ()
+externProc proc args = Software $ Soft.externProc proc args
 
--- | Get current time as number of seconds passed today
-getTime :: Program (Data Double)
-getTime = Program Imp.getTime
+-- | Get current time as number of seconds passed today.
+getTime :: Software (Data Double)
+getTime = Software Soft.getTime
 
--- | Constant string argument
+-- | Constant string argument.
 strArg :: String -> FunArg Data
-strArg = Imp.strArg
+strArg = Soft.strArg
 
--- | Value argument
+-- | Value argument.
 valArg :: SmallType a => Data a -> FunArg Data
-valArg = Imp.valArg
+valArg = Soft.valArg
 
--- | Reference argument
+-- | Reference argument.
 refArg :: SmallType a => Ref a -> FunArg Data
-refArg (Ref r) = Imp.refArg (viewActual r)
+refArg (Ref r) = Soft.refArg (viewActual r)
 
--- | Array argument
+-- | Array argument.
 arrArg :: SmallType a => Arr a -> FunArg Data
-arrArg (Arr a) = Imp.arrArg (viewActual a)
+arrArg (Arr a) = Soft.arrArg (viewActual a)
 
--- | Abstract object argument
+-- | Abstract object argument.
 objArg :: Object -> FunArg Data
-objArg = Imp.objArg
+objArg = Soft.objArg
 
--- | Modifier that takes the address of another argument
+-- | Modifier that takes the address of another argument.
 addr :: FunArg Data -> FunArg Data
-addr = Imp.addr
--}
+addr = Soft.addr
+
+--------------------------------------------------------------------------------
+-- ** Abstract objects
+
+newObject
+    :: String  -- ^ Object type
+    -> Software Object
+newObject = Software . Soft.newObject
+
+initObject
+    :: String        -- ^ Function name
+    -> String        -- ^ Object type
+    -> [FunArg Data] -- ^ Arguments
+    -> Software Object
+initObject fun ty args = Software $ Soft.initObject fun ty args
+
+initUObject
+    :: String        -- ^ Function name
+    -> String        -- ^ Object type
+    -> [FunArg Data] -- ^ Arguments
+    -> Software Object
+initUObject fun ty args = Software $ Soft.initUObject fun ty args
+
+--------------------------------------------------------------------------------
+-- * Hardware
+--------------------------------------------------------------------------------
+
+
+
 --------------------------------------------------------------------------------
