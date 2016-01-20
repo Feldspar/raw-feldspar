@@ -4,7 +4,8 @@
 module Feldspar.Compile.Hardware where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Reader (ReaderT(..))
+import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Monad.Identity (runIdentity)
 import qualified Control.Monad.Reader as Reader
 
 import qualified Control.Monad.Operational.Higher as H
@@ -122,12 +123,12 @@ instance Lower (Soft.ControlCMD Data)
         c' <- translateSmallExp c
         undefined
         ReaderT $ \env -> Hard.iff c'
-            (Reader.runReaderT t env)
-            (Reader.runReaderT f env)
+            (runReaderT t env)
+            (runReaderT f env)
     lowerInstr (Soft.While cont body) = do
         ReaderT $ \env -> Hard.while
-            (Reader.runReaderT (translateSmallExp =<< cont) env)
-            (Reader.runReaderT body env)
+            (runReaderT (translateSmallExp =<< cont) env)
+            (runReaderT body env)
     -- VHDL always uses a step length of one by default. For longer steps,
     -- we could to some enum tricks. For now I'll also assume lo is zero.
     lowerInstr (Soft.For (_, _, hi) body) = do
@@ -135,7 +136,7 @@ instance Lower (Soft.ControlCMD Data)
         let l = case hi' of
                   (Soft.Incl i) -> i
                   (Soft.Excl i) -> i - 1
-        ReaderT $ \env -> Hard.for l (flip Reader.runReaderT env . body . liftVar)
+        ReaderT $ \env -> Hard.for l (flip runReaderT env . body . liftVar)
     lowerInstr (Soft.Assert {}) = error "lower: assert?"
     lowerInstr (Soft.Break  {}) = error "lower-todo: break out of loops."
 
@@ -162,12 +163,150 @@ hardenArray (Soft.ArrEval i)       = Hard.ArrayE i
 lower :: (Lower instr, H.HFunctor instr) => H.Program instr a -> Target a
 lower = H.interpretWithMonad undefined
 
+lowerTop :: Feld.Program a -> H.Program TargetCMD a
+lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
+
 --------------------------------------------------------------------------------
 -- *
 --------------------------------------------------------------------------------
 
+-- | ...
+translateAST :: ASTF FeldDomain a -> Target (VExp a)
+translateAST = goAST . optimize
+  where
+    goAST :: ASTF FeldDomain a -> Target (VExp a)
+    goAST = simpleMatch (\(s :&: t) -> go t s)
+
+    goSmallAST :: SmallType a => ASTF FeldDomain a -> Target (Hard.HExp a)
+    goSmallAST = fmap viewActual . goAST
+
+    go :: TypeRep FeldTypes (DenResult sig)
+       -> FeldConstructs sig
+       -> Args (AST FeldDomain) sig
+       -> Target (VExp (DenResult sig))
+    go t lit Nil
+        | Just (Literal a) <- prj lit
+        , Right Dict <- pwit pType t
+        = return $ mapVirtual (Hard.value . runIdentity) $ toVirtual a
+    go t var Nil
+        | Just (VarT v) <- prj var
+        , Right Dict <- pwit pType t
+        = lookAlias v
+    go t lt (a :* (lam :$ body) :* Nil)
+        | Just Let      <- prj lt
+        , Just (LamT v) <- prj lam
+        , Right Dict    <- pwit pType (getDecor a)
+        = do r  <- initRefV =<< goAST a
+             a' <- getRefV r
+             localAlias v a' $ goAST body
+    go t tup (a :* b :* Nil)
+        | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
+    go t tup (a :* b :* c :* Nil)
+        | Just Tup3 <- prj tup = VTup3 <$> goAST a <*> goAST b <*> goAST c
+    go t tup (a :* b :* c :* d :* Nil)
+        | Just Tup4 <- prj tup = VTup4 <$> goAST a <*> goAST b <*> goAST c <*> goAST d
+    go t sel (a :* Nil)
+        | Just Sel1  <- prj sel = fmap vsel1  $ goAST a
+        | Just Sel2  <- prj sel = fmap vsel2  $ goAST a
+        | Just Sel3  <- prj sel = fmap vsel3  $ goAST a
+        | Just Sel4  <- prj sel = fmap vsel4  $ goAST a
+        | Just Sel5  <- prj sel = fmap vsel5  $ goAST a
+        | Just Sel6  <- prj sel = fmap vsel6  $ goAST a
+        | Just Sel7  <- prj sel = fmap vsel7  $ goAST a
+        | Just Sel8  <- prj sel = fmap vsel8  $ goAST a
+        | Just Sel9  <- prj sel = fmap vsel9  $ goAST a
+        | Just Sel10 <- prj sel = fmap vsel10 $ goAST a
+        | Just Sel11 <- prj sel = fmap vsel11 $ goAST a
+        | Just Sel12 <- prj sel = fmap vsel12 $ goAST a
+        | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
+        | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
+        | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
+    go t op (a :* Nil)
+        | Just I2N <- prj op = error "sup I2N"
+        | Just Not <- prj op = liftVirt (Hard.not) <$> goAST a
+    go t op (a :* b :* Nil)
+        | Just Add <- prj op = liftVirt2 (+)        <$> goAST a <*> goAST b
+        | Just Sub <- prj op = liftVirt2 (-)        <$> goAST a <*> goAST b
+        | Just Mul <- prj op = liftVirt2 (*)        <$> goAST a <*> goAST b
+        | Just Eq  <- prj op = liftVirt2 (Hard.eq)  <$> goAST a <*> goAST b
+        | Just Lt  <- prj op = liftVirt2 (Hard.lt)  <$> goAST a <*> goAST b
+        | Just Gt  <- prj op = liftVirt2 (Hard.gt)  <$> goAST a <*> goAST b
+        | Just Le  <- prj op = liftVirt2 (Hard.lte) <$> goAST a <*> goAST b
+        | Just Ge  <- prj op = liftVirt2 (Hard.gte) <$> goAST a <*> goAST b
+    go ty cond (c :* t :* f :* Nil)
+        | Just Condition <- prj cond = do
+            env <- Reader.ask
+            case () of
+              _ | H.Return (Actual t') <- H.view $ flip runReaderT env $ goAST t
+                , H.Return (Actual f') <- H.view $ flip runReaderT env $ goAST f
+                -> do
+                    c' <- goSmallAST c
+                    return $ Actual (error "inline if") --((?) c' t' f')
+              _ -> do
+                    c'  <- goSmallAST c
+                    res <- newRefV
+                    ReaderT $ \env -> Hard.iff c'
+                        (flip runReaderT env $ goAST t >>= setRefV res)
+                        (flip runReaderT env $ goAST f >>= setRefV res)
+                    getRefV res
+    go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
+        | Just ForLoop   <- prj loop
+        , Just (LamT iv) <- prj lami
+        , Just (LamT sv) <- prj lams
+        = do len'  <- goSmallAST len
+             state <- initRefV =<< goAST init
+             ReaderT $ \env -> Hard.for (len' - 1) $ \i -> flip runReaderT env $ do
+                s <- case pwit pSmallType t of
+                    Right Dict -> getRefV state  -- For non-compound states
+                    _          -> getRefV state
+                s' <- localAlias iv (Actual i) $
+                        localAlias sv s $
+                          goAST body
+                setRefV state s'
+             getRefV state
+    go t free Nil
+        | Just (FreeVar v) <- prj free = return $ Actual $ Hard.variable v
+    go t arrIx (i :* Nil)
+        | Just (UnsafeArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
+    go t unsPerf Nil
+        | Just (UnsafePerform prog) <- prj unsPerf
+        = translateExp =<< lower (unProgram prog)
+    go t unsPerf (a :* Nil)
+        | Just (UnsafePerformWith prog) <- prj unsPerf = do
+            a' <- goAST a
+            lower (unProgram prog)
+            return a'
+
+-- | Add a local alias to the environment
+localAlias :: Type a
+    => Name    -- ^ Old name
+    -> VExp a  -- ^ New expression
+    -> Target b
+    -> Target b
+localAlias v e = Reader.local (Map.insert v (VExp_ e))
+
+-- | Lookup an alias in the environment
+lookAlias :: forall a . Type a => Name -> Target (VExp a)
+lookAlias v = do
+    env <- Reader.ask
+    return $ case Map.lookup v env of
+        Nothing | Right Dict <- pwit pHType tr
+               -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
+        Just (VExp_ e) -> case gcast pFeldTypes e of
+            Left msg -> error $ "lookAlias: " ++ msg
+            Right e' -> e'
+  where
+    tr = typeRep :: TypeRep FeldTypes a
+
+--------------------------------------------------------------------------------
+
+-- | Translate a Feldspar expression.
+translateExp :: Data a -> Target (VExp a)
+translateExp = translateAST . unData
+
+-- | Translate a Feldspar expression that can be represented as a simple 'HExp'.
 translateSmallExp :: SmallType a => Data a -> Target (Hard.HExp a)
-translateSmallExp = undefined
+translateSmallExp = fmap viewActual . translateExp
 
 --------------------------------------------------------------------------------
 -- Stuff
