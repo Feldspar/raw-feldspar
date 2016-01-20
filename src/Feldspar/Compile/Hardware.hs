@@ -26,7 +26,8 @@ import Data.TypeRep.Types.Tuple
 import Data.TypeRep.Types.IntWord
 
 import Language.Embedded.Hardware (HType)
-import qualified Language.Embedded.Hardware as Hard
+import qualified Language.Embedded.Hardware                   as Hard
+import qualified Language.Embedded.Hardware.Expression.Syntax as Hard
 
 import qualified Language.Embedded.Imperative     as Soft
 import qualified Language.Embedded.Imperative.CMD as Soft
@@ -145,8 +146,11 @@ instance (Lower i, Lower j) => Lower (i H.:+: j)
     lowerInstr (H.Inl i) = lowerInstr i
     lowerInstr (H.Inr j) = lowerInstr j
 
+-- | Lift a 'HExp' that has been created using 'Hard.litE' or 'Hard.varE'.
 liftVar :: SmallType a => Hard.HExp a -> Data a
-liftVar = undefined
+liftVar (Hard.HExp (Sym (Hard.T dom)))
+  | Just (Hard.Name n)    <- prj dom = Data $ Sym $ inj (FreeVar n) :&: typeRep
+  | Just (Hard.Literal l) <- prj dom = Feld.value l
 
 -- | Transforms a software reference into a hardware variable.
 hardenRef :: SmallType a => Soft.Ref a -> Hard.Variable a
@@ -160,9 +164,11 @@ hardenArray (Soft.ArrEval i)       = Hard.ArrayE i
 
 --------------------------------------------------------------------------------
 
+-- | Translate a Feldspar program to the 'Target' monad.
 lower :: (Lower instr, H.HFunctor instr) => H.Program instr a -> Target a
 lower = H.interpretWithMonad undefined
 
+-- | Translate a Feldspar program a program that uses 'TargetCMD'.
 lowerTop :: Feld.Program a -> H.Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
 
