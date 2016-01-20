@@ -4,7 +4,7 @@
 module Feldspar.Compile.Hardware where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Reader (ReaderT)
+import Control.Monad.Reader (ReaderT(..))
 import qualified Control.Monad.Reader as Reader
 
 import qualified Control.Monad.Operational.Higher as H
@@ -114,7 +114,30 @@ instance Lower (Soft.ArrCMD Data)
       i' <- translateSmallExp i
       fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
     lowerInstr (Soft.NewArr_)          = error "lower: hardware arrays must have a length."
-    lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment"
+    lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment."
+
+instance Lower (Soft.ControlCMD Data)
+  where
+    lowerInstr (Soft.If c t f) = do
+        c' <- translateSmallExp c
+        undefined
+        ReaderT $ \env -> Hard.iff c'
+            (Reader.runReaderT t env)
+            (Reader.runReaderT f env)
+    lowerInstr (Soft.While cont body) = do
+        ReaderT $ \env -> Hard.while
+            (Reader.runReaderT (translateSmallExp =<< cont) env)
+            (Reader.runReaderT body env)
+    -- VHDL always uses a step length of one by default. For longer steps,
+    -- we could to some enum tricks. For now I'll also assume lo is zero.
+    lowerInstr (Soft.For (_, _, hi) body) = do
+        hi' <- traverse translateSmallExp hi
+        let l = case hi' of
+                  (Soft.Incl i) -> i
+                  (Soft.Excl i) -> i - 1
+        ReaderT $ \env -> Hard.for l (flip Reader.runReaderT env . body . liftVar)
+    lowerInstr (Soft.Assert {}) = error "lower: assert?"
+    lowerInstr (Soft.Break  {}) = error "lower-todo: break out of loops."
 
 instance (Lower i, Lower j) => Lower (i H.:+: j)
   where
