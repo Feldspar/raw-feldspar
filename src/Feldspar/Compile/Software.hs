@@ -28,6 +28,7 @@ import Language.Embedded.CExp (CType)
 import qualified Language.Embedded.CExp           as Soft
 import qualified Language.Embedded.Imperative     as Soft
 import qualified Language.Embedded.Imperative.CMD as Soft
+import qualified Language.Embedded.Backend.C      as Soft
 
 import Data.VirtualContainer
 
@@ -291,6 +292,78 @@ translateExp = transAST . unData
 -- | Translate a Feldspar expression that can be represented as a simple 'CExp'
 translateSmallExp :: SmallType a => Data a -> Target (Soft.CExp a)
 translateSmallExp = fmap viewActual . translateExp
+
+--------------------------------------------------------------------------------
+-- * Run.
+--------------------------------------------------------------------------------
+
+-- | Interpret a program in the 'IO' monad
+runIO :: Feld.Program a -> IO a
+runIO = H.interpret . lowerTop
+
+-- | Compile a program to C code represented as a string. To compile the
+-- resulting C code, use something like
+--
+-- > gcc -std=c99 YOURPROGRAM.c
+compile :: Feld.Program a -> String
+compile = Soft.compile . lowerTop
+
+-- | Compile a program to C code and print it on the screen. To compile the
+-- resulting C code, use something like
+--
+-- > gcc -std=c99 YOURPROGRAM.c
+icompile :: Feld.Program a -> IO ()
+icompile = putStrLn . compile
+
+-- | Generate C code and use GCC to check that it compiles (no linking)
+compileAndCheck' :: Soft.ExternalCompilerOpts -> Feld.Program a -> IO ()
+compileAndCheck' opts = Soft.compileAndCheck' opts . lowerTop
+
+-- | Generate C code and use GCC to check that it compiles (no linking)
+compileAndCheck :: Feld.Program a -> IO ()
+compileAndCheck = compileAndCheck' mempty
+
+-- | Generate C code, use GCC to compile it, and run the resulting executable
+runCompiled' :: Soft.ExternalCompilerOpts -> Feld.Program a -> IO ()
+runCompiled' opts = Soft.runCompiled' opts . lowerTop
+
+-- | Generate C code, use GCC to compile it, and run the resulting executable
+runCompiled :: Feld.Program a -> IO ()
+runCompiled = runCompiled' mempty
+
+-- | Like 'runCompiled'' but with explicit input/output connected to
+-- @stdin@/@stdout@
+captureCompiled'
+    :: Soft.ExternalCompilerOpts
+    -> Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO String       -- ^ Result from @stdout@
+captureCompiled' opts = Soft.captureCompiled' opts . lowerTop
+
+-- | Like 'runCompiled' but with explicit input/output connected to
+-- @stdin@/@stdout@
+captureCompiled
+    :: Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO String       -- ^ Result from @stdout@
+captureCompiled = captureCompiled' mempty
+
+-- | Compare the content written to 'stdout' from interpretation in 'IO' and
+-- from running the compiled C code
+compareCompiled'
+    :: Soft.ExternalCompilerOpts
+    -> Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO ()
+compareCompiled' opts = Soft.compareCompiled' opts . lowerTop
+
+-- | Compare the content written to 'stdout' from interpretation in 'IO' and
+-- from running the compiled C code
+compareCompiled
+    :: Feld.Program a  -- ^ Program to run
+    -> String          -- ^ Input to send to @stdin@
+    -> IO ()
+compareCompiled = compareCompiled' mempty
 
 --------------------------------------------------------------------------------
 -- Stuff
