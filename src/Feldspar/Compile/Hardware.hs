@@ -309,6 +309,22 @@ translateSmallExp :: SmallType a => Data a -> Target (Hard.HExp a)
 translateSmallExp = fmap viewActual . translateExp
 
 --------------------------------------------------------------------------------
+-- * Run.
+--------------------------------------------------------------------------------
+
+-- | Interpret a program in the 'IO' monad.
+runIO :: Feld.Program a -> IO a
+runIO = H.interpret . lowerTop
+
+-- | Compile a program to VHDL code represented as a string.
+compile :: Feld.Program a -> String
+compile = Hard.compile . lowerTop
+
+-- | Compile a program to VHDL code and print it on the screen.
+icompile :: Feld.Program a -> IO ()
+icompile = putStrLn . compile
+
+--------------------------------------------------------------------------------
 -- Stuff
 --------------------------------------------------------------------------------
 
