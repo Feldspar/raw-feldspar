@@ -96,12 +96,12 @@ instance Lower (Soft.RefCMD Data)
     lowerInstr (Soft.NewRef)     = Reader.lift   Hard.newVariable_
     lowerInstr (Soft.InitRef a)  = Reader.lift . Hard.newVariable               =<< translateSmallExp a
     lowerInstr (Soft.SetRef r a) = Reader.lift . Hard.setVariable (hardenRef r) =<< translateSmallExp a
-    lowerInstr (Soft.GetRef r)   = fmap liftVar $ Reader.lift $ Hard.getVariable $ hardenRef r
+    lowerInstr (Soft.GetRef r)          = fmap liftVar $ Reader.lift $ Hard.getVariable          $ hardenRef r
+    lowerInstr (Soft.UnsafeFreezeRef r) = fmap liftVar $ Reader.lift $ Hard.unsafeFreezeVariable $ hardenRef r
 
 instance Lower (Soft.ArrCMD Data)
   where
     lowerInstr (Soft.NewArr i)         = Reader.lift . Hard.newArray =<< translateSmallExp i
-    lowerInstr (Soft.NewArr_)          = error "lower: hardware arrays must have a length."
     lowerInstr (Soft.InitArr xs)       = Reader.lift $ Hard.initArray xs
     lowerInstr (Soft.SetArr i v a)     = do
       i' <- translateSmallExp i
@@ -109,9 +109,12 @@ instance Lower (Soft.ArrCMD Data)
       Reader.lift $ Hard.setArray i' v' (hardenArray a)
     lowerInstr (Soft.GetArr i a)       = do
       i' <- translateSmallExp i
-      Reader.lift $ Hard.getArray i'    (hardenArray a)
-    lowerInstr (Soft.CopyArr a b l)    = undefined
-    lowerInstr (Soft.UnsafeGetArr i a) = undefined
+      fmap liftVar $ Reader.lift $ Hard.getArray i' (hardenArray a)
+    lowerInstr (Soft.UnsafeGetArr i a) = do
+      i' <- translateSmallExp i
+      fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
+    lowerInstr (Soft.NewArr_)          = error "lower: hardware arrays must have a length."
+    lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment"
 
 instance (Lower i, Lower j) => Lower (i H.:+: j)
   where
