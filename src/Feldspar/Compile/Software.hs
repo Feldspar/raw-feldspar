@@ -190,7 +190,99 @@ transAST = goAST . optimize
        -> FeldConstructs sig
        -> Args (AST FeldDomain) sig
        -> Target (VExp (DenResult sig))
-    go = undefined
+    go t lit Nil
+        | Just (Literal a) <- prj lit
+        , Right Dict <- pwit pType t
+        = return $ mapVirtual (Soft.value . runIdentity) $ toVirtual a
+    go t var Nil
+        | Just (VarT v) <- prj var
+        , Right Dict <- pwit pType t
+        = lookAlias v
+    go t lt (a :* (lam :$ body) :* Nil)
+        | Just Let      <- prj lt
+        , Just (LamT v) <- prj lam
+        , Right Dict    <- pwit pType (getDecor a)
+        = do r  <- initRefV =<< goAST a
+             a' <- unsafeFreezeRefV r
+             localAlias v a' $ goAST body
+    go t tup (a :* b :* Nil)
+        | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
+    go t tup (a :* b :* c :* Nil)
+        | Just Tup3 <- prj tup = VTup3 <$> goAST a <*> goAST b <*> goAST c
+    go t tup (a :* b :* c :* d :* Nil)
+        | Just Tup4 <- prj tup = VTup4 <$> goAST a <*> goAST b <*> goAST c <*> goAST d
+    go t sel (a :* Nil)
+        | Just Sel1  <- prj sel = fmap vsel1  $ goAST a
+        | Just Sel2  <- prj sel = fmap vsel2  $ goAST a
+        | Just Sel3  <- prj sel = fmap vsel3  $ goAST a
+        | Just Sel4  <- prj sel = fmap vsel4  $ goAST a
+        | Just Sel5  <- prj sel = fmap vsel5  $ goAST a
+        | Just Sel6  <- prj sel = fmap vsel6  $ goAST a
+        | Just Sel7  <- prj sel = fmap vsel7  $ goAST a
+        | Just Sel8  <- prj sel = fmap vsel8  $ goAST a
+        | Just Sel9  <- prj sel = fmap vsel9  $ goAST a
+        | Just Sel10 <- prj sel = fmap vsel10 $ goAST a
+        | Just Sel11 <- prj sel = fmap vsel11 $ goAST a
+        | Just Sel12 <- prj sel = fmap vsel12 $ goAST a
+        | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
+        | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
+        | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
+    go t op (a :* Nil)
+        | Just I2N <- prj op = liftVirt Soft.i2n  <$> goAST a
+        | Just Not <- prj op = liftVirt Soft.not_ <$> goAST a
+    go t op (a :* b :* Nil)
+        | Just Add <- prj op = liftVirt2 (+)        <$> goAST a <*> goAST b
+        | Just Sub <- prj op = liftVirt2 (-)        <$> goAST a <*> goAST b
+        | Just Mul <- prj op = liftVirt2 (*)        <$> goAST a <*> goAST b
+        | Just Eq  <- prj op = liftVirt2 (Soft.#==) <$> goAST a <*> goAST b
+        | Just Lt  <- prj op = liftVirt2 (Soft.#<)  <$> goAST a <*> goAST b
+        | Just Gt  <- prj op = liftVirt2 (Soft.#>)  <$> goAST a <*> goAST b
+        | Just Le  <- prj op = liftVirt2 (Soft.#<=) <$> goAST a <*> goAST b
+        | Just Ge  <- prj op = liftVirt2 (Soft.#>=) <$> goAST a <*> goAST b
+    go ty cond (c :* t :* f :* Nil)
+        | Just Condition <- prj cond = do
+            env <- Reader.ask
+            case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
+              (t',f') | H.Return (Actual t'') <- H.view t'
+                      , H.Return (Actual f'') <- H.view f'
+                      -> do c' <- goSmallAST c
+                            return $ Actual (c' Soft.? t'' $ f'')
+              (t',f') -> do
+                  c'  <- goSmallAST c
+                  res <- newRefV
+                  ReaderT $ \env -> Soft.iff c'
+                      (flip runReaderT env . setRefV res =<< t')
+                      (flip runReaderT env . setRefV res =<< f')
+                  unsafeFreezeRefV res
+    go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
+        | Just ForLoop   <- prj loop
+        , Just (LamT iv) <- prj lami
+        , Just (LamT sv) <- prj lams
+        = do len'  <- goSmallAST len
+             state <- initRefV =<< goAST init
+             ReaderT $ \env -> Soft.for (0, 1, Soft.Excl len') $ \i -> flip runReaderT env $ do
+                s <- case pwit pSmallType t of
+                    Right Dict -> unsafeFreezeRefV state  -- For non-compound states
+                    _          -> getRefV state
+                s' <- localAlias iv (Actual i) $
+                        localAlias sv s $
+                          goAST body
+                setRefV state s'
+             unsafeFreezeRefV state
+    go t free Nil
+        | Just (FreeVar v) <- prj free = return $ Actual $ Soft.variable v
+    go t arrIx (i :* Nil)
+        | Just (UnsafeArrIx arr) <- prj arrIx = do
+            i' <- goSmallAST i
+            fmap Actual $ Reader.lift $ Soft.getArr i' arr
+    go t unsPerf Nil
+        | Just (UnsafePerform prog) <- prj unsPerf
+        = translateExp =<< lower (unProgram prog)
+    go t unsPerf (a :* Nil)
+        | Just (UnsafePerformWith prog) <- prj unsPerf = do
+            a' <- goAST a
+            lower (unProgram prog)
+            return a'
 
 -- | Translate a Feldspar expression
 translateExp :: Data a -> Target (VExp a)
