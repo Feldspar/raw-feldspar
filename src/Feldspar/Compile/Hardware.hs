@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Feldspar.Compile.Hardware where
@@ -83,28 +84,29 @@ unsafeFreezeRefV = Reader.lift . mapVirtualA Hard.unsafeFreezeVariable
 -- *
 --------------------------------------------------------------------------------
 
-type family Harden a
-type instance Harden (Soft.Ref   a) = Hard.Variable a
-type instance Harden (Soft.Arr i a) = Hard.Array i a
-type instance Harden (Data a)       = Data a
-type instance Harden ()             = ()
-
 class Lower instr
   where
-    lowerInstr :: instr Target a -> Target (Harden a)
+    lowerInstr :: instr Target a -> Target a
 
 instance Lower (Soft.RefCMD Data)
   where
-    lowerInstr (Soft.NewRef)     = Reader.lift   Hard.newVariable_
-    lowerInstr (Soft.InitRef a)  = Reader.lift . Hard.newVariable               =<< translateSmallExp a
-    lowerInstr (Soft.SetRef r a) = Reader.lift . Hard.setVariable (hardenRef r) =<< translateSmallExp a
-    lowerInstr (Soft.GetRef r)          = fmap liftVar $ Reader.lift $ Hard.getVariable          $ hardenRef r
-    lowerInstr (Soft.UnsafeFreezeRef r) = fmap liftVar $ Reader.lift $ Hard.unsafeFreezeVariable $ hardenRef r
+    lowerInstr (Soft.NewRef)     =
+      Reader.lift $ fmap softenRef Hard.newVariable_
+    lowerInstr (Soft.InitRef a)  =
+      Reader.lift . fmap softenRef . Hard.newVariable =<< translateSmallExp a
+    lowerInstr (Soft.SetRef r a) =
+      Reader.lift . Hard.setVariable (hardenRef r) =<< translateSmallExp a
+    lowerInstr (Soft.GetRef r)   =
+      fmap liftVar $ Reader.lift $ Hard.getVariable $ hardenRef r
+    lowerInstr (Soft.UnsafeFreezeRef r) =
+      fmap liftVar $ Reader.lift $ Hard.unsafeFreezeVariable $ hardenRef r
 
 instance Lower (Soft.ArrCMD Data)
   where
-    lowerInstr (Soft.NewArr i)         = Reader.lift . Hard.newArray =<< translateSmallExp i
-    lowerInstr (Soft.InitArr xs)       = Reader.lift $ Hard.initArray xs
+    lowerInstr (Soft.NewArr i)         =
+      Reader.lift . fmap softenArray . Hard.newArray =<< translateSmallExp i
+    lowerInstr (Soft.InitArr xs)       =
+      Reader.lift $ fmap softenArray $ Hard.initArray xs
     lowerInstr (Soft.SetArr i v a)     = do
       i' <- translateSmallExp i
       v' <- translateSmallExp v
@@ -156,34 +158,41 @@ hardenRef :: SmallType a => Soft.Ref a -> Hard.Variable a
 hardenRef (Soft.RefComp i) = Hard.VariableC i
 hardenRef (Soft.RefEval i) = Hard.VariableE i
 
+softenRef :: SmallType a => Hard.Variable a -> Soft.Ref a
+softenRef (Hard.VariableC i) = Soft.RefComp i
+softenRef (Hard.VariableE i) = Soft.RefEval i
+
 -- | Transforms a software array into a hardware one.
 hardenArray :: SmallType a => Soft.Arr i a -> Hard.Array i a
 hardenArray (Soft.ArrComp ('a':i)) = Hard.ArrayC (read i :: Integer)
 hardenArray (Soft.ArrEval i)       = Hard.ArrayE i
 
+softenArray :: SmallType a => Hard.Array i a -> Soft.Arr i a
+softenArray (Hard.ArrayC i) = Soft.ArrComp ('a' : show i)
+softenArray (Hard.ArrayE i) = Soft.ArrEval i
+
 --------------------------------------------------------------------------------
 
--- | Translate a Feldspar program to the 'Target' monad.
-lower :: forall instr a. (Lower instr, H.HFunctor instr) => H.Program instr a -> Target (Harden a)
-lower = undefined
-  where
-    loop :: H.Program instr x -> Target x
-    loop = go . H.view
-    
-    go :: H.ProgramView instr x -> Target x
-    go (H.Return a)       = return undefined -- ? a -> Harden a ?
-    go ((H.:>>=) instr f) = undefined
+type family HW a
+type instance HW (Soft.Ref   a) = Hard.Variable a
+type instance HW (Soft.Arr i a) = Hard.Array i a
+type instance HW (Data a)       = Data a
+type instance HW ()             = ()
 
---  
---  (:>>=) :: instr (Program instr) b -> (b -> Program instr a) -> ProgramView instr a
---  
-      -- f       :: b -> Program instr a
-      -- instr   :: instr (Program instr) b
-      -- H.hfmap :: (forall b. m b -> n b) -> h m b -> h n b
-      -- lower   :: Program instr a -> Target (Harden a)
+class Harden a where
+  harden :: a -> HW a
+
+instance SmallType a => Harden (Soft.Ref a)   where harden = hardenRef
+instance SmallType a => Harden (Soft.Arr i a) where harden = hardenArray
+instance SmallType a => Harden (Data a)       where harden = id
+instance                Harden ()             where harden = id
+
+-- | Translate a Feldspar program to the 'Target' monad.
+lower :: (Lower instr, H.HFunctor instr, Harden a) => H.Program instr a -> Target (HW a)
+lower = fmap harden . H.interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program a program that uses 'TargetCMD'.
-lowerTop :: Feld.Program a -> H.Program TargetCMD (Harden a)
+lowerTop :: Harden a => Feld.Program a -> H.Program TargetCMD (HW a)
 lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
 
 --------------------------------------------------------------------------------
@@ -288,6 +297,7 @@ translateAST = goAST . optimize
         | Just (FreeVar v) <- prj free = return $ Actual $ Hard.variable v
     go t arrIx (i :* Nil)
         | Just (UnsafeArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
+{-
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unProgram prog)
@@ -296,6 +306,7 @@ translateAST = goAST . optimize
             a' <- goAST a
             lower (unProgram prog)
             return a'
+-}
 
 -- | Add a local alias to the environment
 localAlias :: Type a
@@ -333,15 +344,15 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad.
-runIO :: Feld.Program a -> IO (Harden a)
+runIO :: Harden a => Feld.Program a -> IO (HW a)
 runIO = H.interpret . lowerTop
 
 -- | Compile a program to VHDL code represented as a string.
-compile :: Feld.Program a -> String
+compile :: Harden a => Feld.Program a -> String
 compile = Hard.compile . lowerTop
 
 -- | Compile a program to VHDL code and print it on the screen.
-icompile :: Feld.Program a -> IO ()
+icompile :: Harden a => Feld.Program a -> IO ()
 icompile = putStrLn . compile
 
 --------------------------------------------------------------------------------
