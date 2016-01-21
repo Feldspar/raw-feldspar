@@ -1,68 +1,10 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
-
 module Feldspar.Compile where
 
-import Control.Applicative
-import Data.Monoid
-import Data.Traversable (traverse)
-
-import Control.Monad.Identity
-import Control.Monad.Reader
-import Data.Map (Map)
-import qualified Data.Map as Map
-
-import qualified Control.Monad.Operational.Higher as H
-
-import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
-import Language.Syntactic.Functional hiding (Binding (..))
-import Language.Syntactic.Functional.Tuple
-import Language.Syntactic.TH
-
-import Data.TypeRep
-import Data.TypeRep.TH
-import Data.TypeRep.Types.Basic
-import Data.TypeRep.Types.Tuple
-import Data.TypeRep.Types.IntWord
-
-import Language.Embedded.Hardware (HType)
-import qualified Language.Embedded.Hardware as Hard
-
-import Language.Embedded.CExp (CType)
-import qualified Language.Embedded.Imperative     as Soft
-import qualified Language.Embedded.Imperative.CMD as Soft
-
-import Data.VirtualContainer
-
-import Feldspar.Representation hiding (Program)
-import Feldspar.Optimize
-import qualified Feldspar.Representation as Feld
-import qualified Feldspar.Frontend       as Feld
-
 --------------------------------------------------------------------------------
--- * Virtual variables
+-- * hmm..
 --------------------------------------------------------------------------------
 
-newRefV :: VirtualType SmallType a => Target (Virtual SmallType Soft.Ref a)
-newRefV = lift $ mapVirtualA (const Soft.newRef) virtRep
-{-
-initRefV :: VirtualType SmallType a => VExp a -> Target (Virtual SmallType Imp.Variable a)
-initRefV = lift . mapVirtualA (Imp.newVariable)
-
-getRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> Target (VExp a)
-getRefV = lift . mapVirtualA (Imp.getVariable)
-
-setRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> VExp a -> Target ()
-setRefV r = lift . sequence_ . zipListVirtual (Imp.setVariable) r
-
-unsafeFreezeRefV :: VirtualType SmallType a => Virtual SmallType Imp.Variable a -> Target (VExp a)
-unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
--}
---------------------------------------------------------------------------------
--- * Translation of programs
---------------------------------------------------------------------------------
-
+<<<<<<< 14865f80987dfeb2bf88bdbd2dfac85063bad3a9
 -- | Virtual expression
 type VExp = Virtual SmallType Imp.VExp
 
@@ -150,7 +92,6 @@ liftVar (Imp.VExp (Sym (Imp.T (dom))))
 
 instance Lower (Imp.SignalCMD Data)
   where
-<<<<<<< 94ff13318a865531152d65b58f7ef18bd6d880e9
     lowerInstr NewRef       = lift newRef
     lowerInstr (InitRef a)  = lift . initRef =<< translateSmallExp a
     lowerInstr (GetRef r)   = fmap liftVar $ lift $ getRef r
@@ -204,9 +145,7 @@ instance Lower (FileCMD Data)
     lowerInstr (FEof h)            = fmap liftVar $ lift $ feof h
     lowerInstr (FPrintf h form as) = lift . fprf h form . reverse =<< transPrintfArgs as
     lowerInstr (FGet h)            = fmap liftVar $ lift $ fget h
-=======
     lowerInstr = error "hmm.."
->>>>>>> lower & translate of Imp.cmd..
 
 instance Lower (Imp.VariableCMD Data)
   where
@@ -324,7 +263,6 @@ transAST = goAST . optimize
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
-<<<<<<< 94ff13318a865531152d65b58f7ef18bd6d880e9
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
               (t',f') | Imp.Return (Actual t'') <- Imp.view t'
                       , Imp.Return (Actual f'') <- Imp.view f'
@@ -338,21 +276,6 @@ transAST = goAST . optimize
                       (flip runReaderT env . setRefV res =<< t')
                       (flip runReaderT env . setRefV res =<< f')
                   unsafeFreezeRefV res
-=======
-            case () of
-              _ | H.Return (Actual t') <- H.view $ flip runReaderT env $ goAST t
-                , H.Return (Actual f') <- H.view $ flip runReaderT env $ goAST f
-                -> do
-                    c' <- goSmallAST c
-                    return $ Actual (error "inline if") --((?) c' t' f')
-              _ -> do
-                    c'  <- goSmallAST c
-                    res <- newRefV
-                    ReaderT $ \env -> Imp.iff c'
-                        (flip runReaderT env $ goAST t >>= setRefV res)
-                        (flip runReaderT env $ goAST f >>= setRefV res)
-                    getRefV res
->>>>>>> lower & translate of Imp.cmd..
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
@@ -460,12 +383,6 @@ compareCompiled'
     -> IO ()
 compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
 
--- | Compare the content written to 'stdout' from interpretation in 'IO' and
--- from running the compiled C code
-compareCompiled
-    :: Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
-    -> IO ()
-compareCompiled = compareCompiled' mempty
--}
+-- ...
+
 --------------------------------------------------------------------------------
