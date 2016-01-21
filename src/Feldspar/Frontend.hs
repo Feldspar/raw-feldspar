@@ -7,6 +7,8 @@ import Control.Monad
 
 import Data.Proxy
 
+import System.IO
+
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
@@ -260,6 +262,54 @@ feof = Program . Imp.feof
 --------------------------------------------------------------------------------
 -- * Software.
 --------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- ** File handling.
+
+-- | Open a file.
+fopen :: FilePath -> IOMode -> Software Soft.Handle
+fopen file = Software . Soft.fopen file
+
+-- | Close a file.
+fclose :: Soft.Handle -> Software ()
+fclose = Software . Soft.fclose
+
+-- | Check for end of file.
+feof :: Soft.Handle -> Software (Data Bool)
+feof = Software . Soft.feof
+
+class PrintfType r
+  where
+    fprf :: Soft.Handle -> String -> [Soft.PrintfArg Data] -> r
+
+instance (a ~ ()) => PrintfType (Software a)
+  where
+    fprf h form = Software . H.singleE . Soft.FPrintf h form . reverse
+
+instance (Soft.Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
+  where
+    fprf h form as = \a -> fprf h form (Soft.PrintfArg a : as)
+
+-- | Print to a handle. Accepts a variable number of arguments.
+fprintf :: PrintfType r => Soft.Handle -> String -> r
+fprintf h format = fprf h format []
+
+-- | Put a single value to a handle.
+fput :: (Soft.Formattable a, SmallType a)
+     => Soft.Handle
+     -> String      -- Prefix
+     -> Data a      -- Expression to print
+     -> String      -- Suffix
+     -> Software ()
+fput h pre e post = Software $ Soft.fput h pre e post
+
+-- | Get a single value from a handle.
+fget :: (Soft.Formattable a, SmallType a) => Soft.Handle -> Software (Data a)
+fget = Software . Soft.fget
+
+-- | Print to @stdout@. Accepts a variable number of arguments.
+printf :: PrintfType r => String -> r
+printf = fprintf Soft.stdout
 
 --------------------------------------------------------------------------------
 -- ** External function calls (C-specific)
