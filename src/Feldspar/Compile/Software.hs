@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Feldspar.Compile.Software where
 
 import Control.Applicative ((<$>))
@@ -54,7 +52,10 @@ type TargetCMD =
         Soft.RefCMD     Soft.CExp
   H.:+: Soft.ArrCMD     Soft.CExp
   H.:+: Soft.ControlCMD Soft.CExp
-
+  H.:+: Soft.FileCMD    Soft.CExp
+  H.:+: Soft.CallCMD    Soft.CExp
+  H.:+: Soft.ObjectCMD  Soft.CExp
+  
 type Env = Map Name VExp_
 
 -- | Target monad for translation
@@ -130,6 +131,33 @@ instance Lower (Soft.ControlCMD Data)
         Reader.lift $ Soft.assert cond' msg
     lowerInstr (Soft.Break) = Reader.lift Soft.break
 
+instance Lower (Soft.FileCMD Data)
+  where
+    lowerInstr (Soft.FOpen file mode)   = Reader.lift $ Soft.fopen file mode
+    lowerInstr (Soft.FClose h)          = Reader.lift $ Soft.fclose h
+    lowerInstr (Soft.FPrintf h form as) = Reader.lift . Soft.fprf h form . reverse =<< transPrintfArgs as
+    lowerInstr (Soft.FEof h)            = fmap liftVar $ Reader.lift $ Soft.feof h
+    lowerInstr (Soft.FGet h)            = fmap liftVar $ Reader.lift $ Soft.fget h
+
+instance Lower (Soft.ObjectCMD Data)
+  where
+    lowerInstr (Soft.NewObject t) =
+        Reader.lift $ Soft.newObject t
+    lowerInstr (Soft.InitObject name True t as) = do
+        Reader.lift . Soft.initObject name t =<< transFunArgs as
+    lowerInstr (Soft.InitObject name False t as) = do
+        Reader.lift . Soft.initUObject name t =<< transFunArgs as
+
+instance Lower (Soft.CallCMD Data)
+  where
+    lowerInstr (Soft.AddInclude incl)    = Reader.lift $ Soft.addInclude incl
+    lowerInstr (Soft.AddDefinition def)  = Reader.lift $ Soft.addDefinition def
+    lowerInstr (Soft.AddExternFun f (_ :: proxy (Data res)) as) =
+        Reader.lift . Soft.addExternFun f (Proxy :: Proxy (Soft.CExp res)) =<< transFunArgs as
+    lowerInstr (Soft.AddExternProc p as) = Reader.lift . Soft.addExternProc p =<< transFunArgs as
+    lowerInstr (Soft.CallFun f as)       = fmap liftVar . Reader.lift . Soft.callFun f =<< transFunArgs as
+    lowerInstr (Soft.CallProc p as)      = Reader.lift . Soft.callProc p =<< transFunArgs as
+
 instance (Lower i1, Lower i2) => Lower (i1 H.:+: i2)
   where
     lowerInstr (H.Inl i) = lowerInstr i
@@ -162,6 +190,17 @@ lookAlias v = do
             Right e' -> e'
   where
     tr = typeRep :: TypeRep FeldTypes a
+
+-- | ...
+transPrintfArgs :: [Soft.PrintfArg Data] -> Target [Soft.PrintfArg Soft.CExp]
+transPrintfArgs = mapM $ \(Soft.PrintfArg a) -> Soft.PrintfArg <$> translateSmallExp a
+
+-- | ...
+transFunArgs :: [Soft.FunArg Data] -> Target [Soft.FunArg Soft.CExp]
+transFunArgs = mapM $ Soft.mapMArg predCast translateSmallExp
+  where
+    predCast :: Soft.VarPredCast Data Soft.CExp
+    predCast _ a = a
 
 --------------------------------------------------------------------------------
 
