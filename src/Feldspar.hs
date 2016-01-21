@@ -1,9 +1,6 @@
 module Feldspar
   ( module Prelude.EDSL
   , module Control.Monad
-    -- * Types
-  , module Data.Int
-  , module Data.Word
   , Internal
   , Type
   , SmallType
@@ -14,24 +11,15 @@ module Feldspar
   , Data
   , Syntax
   , Program
+  , Software
+  , Hardware
+    -- * Types
+  , module Data.Int
+  , module Data.Word
     -- * Front end
   , module Feldspar.Frontend
     -- * Storable types
   , module Feldspar.Storable
-    -- * Back ends
-  , runIO
-  , compile
-  , icompile
-{-
-  , compileAndCheck'
-  , compileAndCheck
-  , runCompiled'
-  , runCompiled
-  , captureCompiled'
-  , captureCompiled
-  , compareCompiled'
-  , compareCompiled
--}    
   ) where
 
 import Prelude.EDSL
