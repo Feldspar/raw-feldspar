@@ -152,11 +152,11 @@ instance Lower (Soft.CallCMD Data)
   where
     lowerInstr (Soft.AddInclude incl)    = Reader.lift $ Soft.addInclude incl
     lowerInstr (Soft.AddDefinition def)  = Reader.lift $ Soft.addDefinition def
+    lowerInstr (Soft.AddExternProc p as) = Reader.lift . Soft.addExternProc p =<< transFunArgs as
+    lowerInstr (Soft.CallProc p as)      = Reader.lift . Soft.callProc p      =<< transFunArgs as
+    lowerInstr (Soft.CallFun f as)       = fmap liftVar . Reader.lift . Soft.callFun f =<< transFunArgs as
     lowerInstr (Soft.AddExternFun f (_ :: proxy (Data res)) as) =
         Reader.lift . Soft.addExternFun f (Proxy :: Proxy (Soft.CExp res)) =<< transFunArgs as
-    lowerInstr (Soft.AddExternProc p as) = Reader.lift . Soft.addExternProc p =<< transFunArgs as
-    lowerInstr (Soft.CallFun f as)       = fmap liftVar . Reader.lift . Soft.callFun f =<< transFunArgs as
-    lowerInstr (Soft.CallProc p as)      = Reader.lift . Soft.callProc p =<< transFunArgs as
 
 instance (Lower i1, Lower i2) => Lower (i1 H.:+: i2)
   where

@@ -122,7 +122,6 @@ instance Lower (Soft.ControlCMD Data)
   where
     lowerInstr (Soft.If c t f) = do
         c' <- translateSmallExp c
-        undefined
         ReaderT $ \env -> Hard.iff c'
             (runReaderT t env)
             (runReaderT f env)
@@ -165,11 +164,26 @@ hardenArray (Soft.ArrEval i)       = Hard.ArrayE i
 --------------------------------------------------------------------------------
 
 -- | Translate a Feldspar program to the 'Target' monad.
-lower :: (Lower instr, H.HFunctor instr) => H.Program instr a -> Target a
-lower = H.interpretWithMonad undefined
+lower :: forall instr a. (Lower instr, H.HFunctor instr) => H.Program instr a -> Target (Harden a)
+lower = undefined
+  where
+    loop :: H.Program instr x -> Target x
+    loop = go . H.view
+    
+    go :: H.ProgramView instr x -> Target x
+    go (H.Return a)       = return undefined -- ? a -> Harden a ?
+    go ((H.:>>=) instr f) = undefined
+
+--  
+--  (:>>=) :: instr (Program instr) b -> (b -> Program instr a) -> ProgramView instr a
+--  
+      -- f       :: b -> Program instr a
+      -- instr   :: instr (Program instr) b
+      -- H.hfmap :: (forall b. m b -> n b) -> h m b -> h n b
+      -- lower   :: Program instr a -> Target (Harden a)
 
 -- | Translate a Feldspar program a program that uses 'TargetCMD'.
-lowerTop :: Feld.Program a -> H.Program TargetCMD a
+lowerTop :: Feld.Program a -> H.Program TargetCMD (Harden a)
 lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
 
 --------------------------------------------------------------------------------
@@ -319,7 +333,7 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad.
-runIO :: Feld.Program a -> IO a
+runIO :: Feld.Program a -> IO (Harden a)
 runIO = H.interpret . lowerTop
 
 -- | Compile a program to VHDL code represented as a string.
