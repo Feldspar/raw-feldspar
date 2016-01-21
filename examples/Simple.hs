@@ -52,6 +52,6 @@ abort = do
 --------------------------------------------------------------------------------
 
 testSimple :: IO ()
-testSimple = SW.icompile simple -- >> HW.icompile simple
+testSimple = SW.icompile simple >> HW.icompile simple
 
 --------------------------------------------------------------------------------
