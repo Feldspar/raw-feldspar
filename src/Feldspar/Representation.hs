@@ -272,7 +272,7 @@ interpret2
      , Monad m)
   => H.ProgramT i (H.Program j) a
   -> m a
-interpret2 = H.interpretT (H.interpret)
+interpret2 = H.interpretT H.interpret
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances
