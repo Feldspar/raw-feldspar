@@ -22,8 +22,14 @@ import Feldspar.Representation
 --------------------------------------------------------------------------------
 
 isExact :: ASTF FeldDomain a -> Bool
-isExact a = True
-
+isExact a = simpleMatch
+  (\(_ :&: t) _ -> case () of
+    _ | Just _ <- typeEq t floatType  -> False
+    _ | Just _ <- typeEq t doubleType -> False
+    _ -> True
+  )
+  a
+  
 -- | 'prj' with a stronger constraint to allow using it in bidirectional
 -- patterns
 prj' :: (sub :<: sup) => sup sig -> Maybe (sub sig)
