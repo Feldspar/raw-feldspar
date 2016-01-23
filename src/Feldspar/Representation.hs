@@ -237,26 +237,29 @@ type instance PredicateExp Data = SmallType
 --------------------------------------------------------------------------------
 
 type CMD =
-        Soft.RefCMD        Data
-  H.:+: Soft.ArrCMD        Data
-  H.:+: Soft.ControlCMD    Data
+        Soft.RefCMD         Data
+  H.:+: Soft.ArrCMD         Data
+  H.:+: Soft.ControlCMD     Data
 
 type SoftwareCMD =
-        Soft.CallCMD       Data
-  H.:+: Soft.ObjectCMD     Data
-  H.:+: Soft.FileCMD       Data
+        Soft.ControlCMD     Data
+  H.:+: Soft.CallCMD        Data
+  H.:+: Soft.ObjectCMD      Data
+  H.:+: Soft.FileCMD        Data
 
 type HardwareCMD =
-        Hard.SignalCMD     Data
-  H.:+: Hard.StructuralCMD Data
+        Hard.ConditionalCMD Data
+  H.:+: Hard.LoopCMD        Data
+  H.:+: Hard.SignalCMD      Data
+  H.:+: Hard.StructuralCMD  Data
 
 newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
 
-newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD Program a }
+newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program CMD) a }
   deriving (Functor, Applicative, Monad)
 
-newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD Program a }
+newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
   deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
