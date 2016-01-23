@@ -1,9 +1,12 @@
+{-# LANGUAGE InstanceSigs #-}
+
 module Feldspar.Frontend where
 
 import Prelude (Integral, error, reverse)
 import Prelude.EDSL
 
 import Control.Monad
+import Control.Monad.Trans
 
 import Data.Proxy
 
@@ -139,128 +142,53 @@ resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
 
 --------------------------------------------------------------------------------
--- * Programs
+-- * General operations.
 --------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
--- ** References
+-- | Collection of genneral operations.
+type Any m = (References m, Arrays m, Controls m)
 
--- | Create an uninitialized reference
-newRef :: Type a => Program (Ref a)
-newRef = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
-
--- | Create an initialized reference
-initRef :: forall a . Type a => Data a -> Program (Ref a)
-initRef = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
-
--- | Get the contents of a reference
-getRef :: Type a => Ref a -> Program (Data a)
-getRef = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
-
--- | Set the contents of a reference
-setRef :: Type a => Ref a -> Data a -> Program ()
-setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
-
--- | Modify the contents of reference
-modifyRef :: Type a => Ref a -> (Data a -> Data a) -> Program ()
-modifyRef r f = setRef r . f =<< unsafeFreezeRef r
-
--- | Freeze the contents of reference (only safe if the reference is not updated
--- as long as the resulting value is alive)
-unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
-unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
-
---------------------------------------------------------------------------------
--- ** Arrays
-
--- | Create an uninitialized array
-newArr :: forall a . Type a => Data Length -> Program (Arr a)
-newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
+-- | References.
+class References m
   where
-    rep = virtRep :: VirtualRep SmallType a
+    -- | Create an uninitialized reference.
+    newRef    :: Type a => m (Ref a)
+    -- | Create an initialized reference.
+    initRef   :: Type a => Data a -> m (Ref a)
+    -- | Get the contents of a reference.
+    getRef    :: Type a => Ref a -> m (Data a)
+    -- | Set the contents of a reference.
+    setRef    :: Type a => Ref a -> Data a -> m ()
+    -- | Modify the contents of reference.
+    modifyRef :: Type a => Ref a -> (Data a -> Data a) -> m ()
+    -- | Freeze the contents of reference (only safe if the reference is not updated
+    --   as long as the resulting value is alive).
+    unsafeFreezeRef :: Type a => Ref a -> m (Data a)
 
--- | Get an element of an array
-getArr :: Type a => Data Index -> Arr a -> Program (Data a)
-getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
-
--- | Set an element of an array
-setArr :: forall a . Type a => Data Index -> Data a -> Arr a -> Program ()
-setArr i a arr = sequence_ $
-    zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') aS (unArr arr)
+-- | Arrays.
+class Arrays m
   where
-    aS = sugar a :: Virtual SmallType Data a
+    -- | Create an uninitialized array.
+    newArr :: Type a => Data Length -> m (Arr a)
+    -- | Get an element of an array.
+    getArr :: Type a => Data Index -> Arr a -> m (Data a)
+    -- | Set an element of an array.
+    setArr :: Type a => Data Index -> Data a -> Arr a -> m ()
+
+-- | Control flow.
+class Controls m
+  where
+    -- | Conditional statement.
+    iff :: Data Bool -> m () -> m () -> m ()
+    -- | Conditional statement that returns an expression.
+    ifE :: Type a => Data Bool -> m (Data a) -> m (Data a) -> m (Data a)
+    -- | For loop.
+    for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
+    -- | While loop.
+    while :: m (Data Bool) -> m () -> m ()    
 
 --------------------------------------------------------------------------------
--- ** Control flow
-
--- | Conditional statement.
-iff :: Data Bool -> Program () -> Program () -> Program ()
-iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
-
--- | Conditional statement that returns an expression.
-ifE :: Type a => Data Bool -> Program (Data a) -> Program (Data a) -> Program (Data a)
-ifE c t f = do
-<<<<<<< 73aac3c446ea8c6db6267d2ec5d8d50279519f6f
-    res <- newRef
-    iff c (t >>= setRef res) (f >>= setRef res)
-    unsafeFreezeRef res
-    getRef res
-
--- | For loop
-for :: (Integral n, SmallType n)
-    => IxRange (Data n)        -- ^ Range
-    -> (Data n -> Program ())  -- ^ Loop body
-    -> Program ()
-for range body = Program $ Imp.for range (unProgram . body)
-
--- | While loop
-while
-    :: Program (Data Bool)  -- ^ Continue condition
-    -> Program ()           -- ^ Loop body
-    -> Program ()
-while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
-
--- | Break out from a loop
-break :: Program ()
-break = Program Imp.break
-
--- | Assertion
-assert
-    :: Data Bool  -- ^ Expression that should be true
-    -> String     -- ^ Message in case of failure
-    -> Program ()
-assert cond msg = Program $ Imp.assert cond msg
-
---------------------------------------------------------------------------------
--- ** Pointer operations
-
--- | Swap two pointers
---
--- This is generally an unsafe operation. E.g. it can be used to make a
--- reference to a data structure escape the scope of the data.
---
--- The 'IsPointer' class ensures that the operation is only possible for types
--- that are represented as pointers in C.
-unsafeSwap :: IsPointer a => a -> a -> Program ()
-unsafeSwap a b = Program $ Imp.unsafeSwap a b
-
---------------------------------------------------------------------------------
--- ** File handling
-{-
--- | Open a file
-fopen :: FilePath -> IOMode -> Program Handle
-fopen file = Program . Imp.fopen file
-
--- | Close a file
-fclose :: Handle -> Program ()
-fclose = Program . Imp.fclose
-
--- | Check for end of file
-feof :: Handle -> Program (Data Bool)
-feof = Program . Imp.feof
-
---------------------------------------------------------------------------------
--- * Software.
+-- * Software specific operations.
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -437,7 +365,7 @@ initUObject
 initUObject fun ty args = Software $ Soft.initUObject fun ty args
 
 --------------------------------------------------------------------------------
--- * Hardware
+-- * Hardware specific operations.
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -489,5 +417,108 @@ architecture e a body = Hardware $ Hard.architecture e a (unHardware body)
 process :: [SigX] -> Hardware () -> Hardware ()
 process xs body = undefined
   -- Hardware $ Hard.process (fmap (\(SigX (Sig s)) -> Hard.hideSig s) xs) (unHardware body)
+
+--------------------------------------------------------------------------------
+-- * ...
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- ** Programs.
+
+-- | ...
+instance References (Program)
+  where
+    newRef   = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
+    initRef  = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
+    getRef   = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
+    setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
+    modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
+    unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
+
+-- | ...
+instance Arrays (Program)
+  where
+    newArr :: forall a. Type a => Data Length -> Program (Arr a)
+    newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
+      where rep = virtRep :: VirtualRep SmallType a
+
+    getArr :: forall a. Type a => Data Index -> Arr a -> Program (Data a)
+    getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
+
+    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
+    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
+      where rep = sugar a :: Virtual SmallType Data a
+
+instance Controls (Program)
+  where
+    iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
+    ifE c t f = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for  range body = Program $ Soft.for range (unProgram . body)
+    while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+liftS :: Program a -> Software a
+liftS = Software . lift . unProgram
+
+instance References (Software)
+  where
+    newRef          = liftS newRef
+    initRef         = liftS . initRef
+    getRef          = liftS . getRef
+    setRef r        = liftS . setRef r
+    modifyRef r     = liftS . modifyRef r
+    unsafeFreezeRef = liftS . unsafeFreezeRef
+
+instance Arrays (Software)
+  where
+    newArr     = liftS . newArr
+    getArr i   = liftS . getArr i
+    setArr i v = liftS . setArr i v
+
+instance Controls (Software)
+  where
+    iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
+    ifE c t f  = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for  range body = Software $ Soft.for range (unSoftware . body)
+    while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+liftH :: Program a -> Hardware a
+liftH = Hardware . lift . unProgram
+
+instance References (Hardware)
+  where
+    newRef          = liftH newRef
+    initRef         = liftH . initRef
+    getRef          = liftH . getRef
+    setRef r        = liftH . setRef r
+    modifyRef r     = liftH . modifyRef r
+    unsafeFreezeRef = liftH . unsafeFreezeRef
+
+instance Arrays (Hardware)
+  where
+    newArr     = liftH . newArr
+    getArr i   = liftH . getArr i
+    setArr i v = liftH . setArr i v
+
+instance Controls (Hardware)
+  where
+    iff c t f  = Hardware $ Hard.iff c (unHardware t) (unHardware f)
+    ifE c t f  = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
+    while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
 
 --------------------------------------------------------------------------------
