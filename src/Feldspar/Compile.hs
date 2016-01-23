@@ -81,6 +81,7 @@ type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
     Imp.:+: ControlCMD CExp
+    Imp.:+: PtrCMD
     Imp.:+: FileCMD CExp
     Imp.:+: ObjectCMD CExp
     Imp.:+: CallCMD CExp
@@ -164,6 +165,10 @@ instance Lower (ControlCMD Data)
         cond' <- translateSmallExp cond
         lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
+
+instance Lower PtrCMD
+  where
+    lowerInstr (SwapPtr a b) = lift $ unsafeSwap a b
 
 instance Lower (FileCMD Data)
   where

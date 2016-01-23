@@ -291,6 +291,22 @@ assert cond msg = Program $ Imp.assert cond msg
 
 
 ----------------------------------------
+-- ** Pointer operations
+----------------------------------------
+
+-- | Swap two pointers
+--
+-- This is generally an unsafe operation. E.g. it can be used to make a
+-- reference to a data structure escape the scope of the data.
+--
+-- The 'IsPointer' class ensures that the operation is only possible for types
+-- that are represented as pointers in C.
+unsafeSwap :: IsPointer a => a -> a -> Program ()
+unsafeSwap a b = Program $ Imp.unsafeSwap a b
+
+
+
+----------------------------------------
 -- ** File handling
 ----------------------------------------
 

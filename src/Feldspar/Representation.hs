@@ -231,6 +231,7 @@ type CMD
     =       Imp.RefCMD Data
     Imp.:+: Imp.ArrCMD Data
     Imp.:+: Imp.ControlCMD Data
+    Imp.:+: Imp.PtrCMD
     Imp.:+: Imp.FileCMD Data
     Imp.:+: Imp.ObjectCMD Data
     Imp.:+: Imp.CallCMD Data
