@@ -7,13 +7,17 @@ import Prelude ((.), ($))
 import qualified Prelude
 
 import Feldspar
+import Feldspar.Representation (unProgram)
 import qualified Feldspar.Compile.Hardware as HW
 import qualified Feldspar.Compile.Software as SW
 
-import System.IO
+import Language.Embedded.Imperative.Frontend.General (stdin, stdout)
+import Language.Embedded.Hardware.Command (wcompile)
+
+import System.IO hiding (stdin, stdout)
 
 --------------------------------------------------------------------------------
--- *
+-- * ...
 --------------------------------------------------------------------------------
 
 simple :: Program ()
@@ -29,8 +33,7 @@ simple = do
       (do modifyRef end (+1))
 
 software :: Software ()
-software = undefined
-{-
+software = do
   done <- initRef false
   sum  <- initRef (0 :: Data Word32)
   n    <- initRef (0 :: Data Word8)
@@ -42,7 +45,6 @@ software = undefined
       (modifyRef sum (+n))
   x <- getRef sum
   printf "The sum of your numbers is %d.\n" x
--}
 
 abort :: Software ()
 abort = do
@@ -52,6 +54,12 @@ abort = do
 --------------------------------------------------------------------------------
 
 testSimple :: IO ()
-testSimple = SW.icompile simple >> HW.icompile simple
+testSimple = do
+  SW.icompile simple
+  putStrLn ""
+  wcompile (HW.lowerTop simple)
+
+testSoftware :: IO ()
+testSoftware = SW.icompile software
 
 --------------------------------------------------------------------------------
