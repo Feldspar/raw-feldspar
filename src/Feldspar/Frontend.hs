@@ -148,39 +148,8 @@ resugar = Syntactic.resugar
 -- | Collection of genneral operations.
 type Any m = (References m, Arrays m, Controls m)
 
-{-
---  TODO: alternative to newRep, ugly types though.
-
-class Wrapping m where
-  type Source m :: * -> *
-  wrap   :: Source m a -> m a
-  unwrap :: m a -> Source m a
-
-instance Wrapping Program where
-  type Source Program = H.Program CMD
-  wrap   = Program
-  unwrap = unProgram
-
-instance Wrapping Hardware where
-  type Source Hardware = H.ProgramT HardwareCMD (H.Program CMD)
-  wrap   = Hardware
-  unwrap = unHardware
-
-instance Wrapping Software where
-  type Source Software = H.ProgramT SoftwareCMD (H.Program CMD)
-  wrap   = Software
-  unwrap = unSoftware
-
-apa :: (Type a
-       , Monad m
-       , Wrapping m
-       , Applicative (Source m)
-       , Source m ~ Soft.ProgramT instr n
-       , Soft.IExp instr ~ Data
-       , Soft.RefCMD Data H.:<: instr
-       ) => m (Ref a)
-apa = wrap $ fmap Ref $ mapVirtualA (const Soft.newRef) virtRep
--}
+-- Andy Gill: Remote monad, Haskino.
+-- Ericsson:  Improving latency in a signal processing system on the epiphany architecture.
 
 -- | References.
 class References m

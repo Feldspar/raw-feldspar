@@ -25,7 +25,7 @@ library
     Feldspar.Optimize
     Feldspar.Frontend
     Feldspar.Storable
-    Feldspar.Vector
+    --Feldspar.Vector
     Feldspar.Compile
 
   other-modules:
@@ -56,9 +56,9 @@ library
     prelude-edsl,
     operational-alacarte,
     imperative-edsl >=0.4.1,
-    hardware-edsl   >=0.1.0,
-    open-typerep    >= 0.5,
-    syntactic       >= 3.4
+    hardware-edsl   >=0.1.0.1,
+    open-typerep    >=0.5,
+    syntactic       >=3.4
 
   hs-source-dirs: src
 
