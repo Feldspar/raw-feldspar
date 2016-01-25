@@ -148,9 +148,6 @@ resugar = Syntactic.resugar
 -- | Collection of genneral operations.
 type Any m = (References m, Arrays m, Controls m)
 
--- Andy Gill: Remote monad, Haskino.
--- Ericsson:  Improving latency in a signal processing system on the epiphany architecture.
-
 -- | References.
 class References m
   where

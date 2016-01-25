@@ -53,6 +53,7 @@ type TargetCMD =
   H.:+: Soft.ArrCMD     Soft.CExp
   H.:+: Soft.ControlCMD Soft.CExp
   H.:+: Soft.FileCMD    Soft.CExp
+  H.:+: Soft.PtrCMD
   H.:+: Soft.CallCMD    Soft.CExp
   H.:+: Soft.ObjectCMD  Soft.CExp
   
@@ -157,6 +158,10 @@ instance Lower (Soft.CallCMD Data)
     lowerInstr (Soft.CallFun f as)       = fmap liftVar . Reader.lift . Soft.callFun f =<< transFunArgs as
     lowerInstr (Soft.AddExternFun f (_ :: proxy (Data res)) as) =
         Reader.lift . Soft.addExternFun f (Proxy :: Proxy (Soft.CExp res)) =<< transFunArgs as
+
+instance Lower (Soft.PtrCMD)
+  where
+    lowerInstr (Soft.SwapPtr a b) = Reader.lift $ Soft.unsafeSwap a b
 
 instance (Lower i1, Lower i2) => Lower (i1 H.:+: i2)
   where
