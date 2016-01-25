@@ -264,17 +264,6 @@ newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program 
   deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
-
--- | Interprets a program transformer wrapping another program.
-interpret2
-  :: ( H.Interp i m, H.HFunctor i
-     , H.Interp j m, H.HFunctor j
-     , Monad m)
-  => H.ProgramT i (H.Program j) a
-  -> m a
-interpret2 = H.interpretT H.interpret
-
---------------------------------------------------------------------------------
 -- Uninteresting instances
 --------------------------------------------------------------------------------
 
