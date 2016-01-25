@@ -5,6 +5,7 @@
 module Feldspar.Compile.Hardware where
 
 import Control.Applicative ((<$>))
+import Control.Monad
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Identity (runIdentity)
 import qualified Control.Monad.Reader as Reader
@@ -29,6 +30,10 @@ import Data.TypeRep.Types.IntWord
 import Language.Embedded.Hardware (HType)
 import qualified Language.Embedded.Hardware                   as Hard
 import qualified Language.Embedded.Hardware.Expression.Syntax as Hard
+
+--------------------------------------------------------------------------------
+import qualified Language.Embedded.VHDL as VHDL
+--------------------------------------------------------------------------------
 
 import qualified Language.Embedded.Imperative     as Soft
 import qualified Language.Embedded.Imperative.CMD as Soft
@@ -142,6 +147,51 @@ instance Lower (Soft.ControlCMD Data)
     lowerInstr (Soft.Assert {}) = error "lower: assert?"
     lowerInstr (Soft.Break  {}) = error "lower-todo: break out of loops."
 
+instance Lower (Hard.SignalCMD Data)
+  where
+    lowerInstr (Hard.NewSignal _ _ _ Nothing) =
+      Reader.lift $ Hard.newSignal_
+    lowerInstr (Hard.NewSignal _ _ _ (Just e)) =
+      Reader.lift . Hard.newSignal =<< translateSmallExp e
+    lowerInstr (Hard.SetSignal s e) =
+      Reader.lift . Hard.setSignal  s =<< translateSmallExp e
+    lowerInstr (Hard.GetSignal s) =
+      fmap liftVar $ Reader.lift $ Hard.getSignal s
+    lowerInstr (Hard.UnsafeFreezeSignal s) =
+      fmap liftVar $ Reader.lift $ Hard.unsafeFreezeSignal s
+
+instance Lower (Hard.LoopCMD Data)
+  where
+    lowerInstr (Hard.For   cont body) = do
+      cont' <- translateSmallExp cont
+      ReaderT $ \env -> Hard.for
+        (cont')
+        (flip runReaderT env . body . liftVar)
+    lowerInstr (Hard.While exit body) = do
+      ReaderT $ \env -> Hard.while
+        (runReaderT (translateSmallExp =<< exit) env)
+        (runReaderT body env)
+
+instance Lower (Hard.ConditionalCMD Data)
+  where
+    lowerInstr (Hard.If (c, i) t e) = do
+      let (bs, ps) = unzip t
+      c'  <-      translateSmallExp c
+      bs' <- mapM translateSmallExp bs
+      ReaderT $ \env -> Hard.conditional
+        (c', runReaderT i env)
+        (zip bs' $ fmap (flip runReaderT env) ps)
+        (maybe Nothing (Just . flip runReaderT env) e)
+
+instance Lower (Hard.StructuralCMD Data)
+  where
+    lowerInstr (Hard.Entity e p) = do
+      ReaderT $ \env -> Hard.entity e (runReaderT p env)
+    lowerInstr (Hard.Architecture e a p) = do
+      ReaderT $ \env -> Hard.architecture e a (runReaderT p env)
+    lowerInstr (Hard.Process ss p) = do
+      ReaderT $ \env -> Hard.process ss (runReaderT p env)
+
 instance (Lower i, Lower j) => Lower (i H.:+: j)
   where
     lowerInstr (H.Inl i) = lowerInstr i
@@ -191,9 +241,16 @@ instance                Harden ()             where harden = id
 lower :: (Lower instr, H.HFunctor instr, Harden a) => H.Program instr a -> Target (HW a)
 lower = fmap harden . H.interpretWithMonad lowerInstr
 
--- | Translate a Feldspar program a program that uses 'TargetCMD'.
+-- | Translate a Feldspar program into a program that uses 'TargetCMD'.
 lowerTop :: Harden a => Feld.Program a -> H.Program TargetCMD (HW a)
 lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
+
+-- | Translate a Hardware program into a program that uses 'TargetCMD'.
+lowerHard :: Harden a => Feld.Hardware a -> H.Program TargetCMD (HW a)
+lowerHard = flip runReaderT Map.empty . fmap harden . interp2 . unHardware
+  where
+    interp2 :: (H.HFunctor i, Lower i, H.HFunctor j, Lower j) => H.ProgramT i (H.Program j) a -> Target a
+    interp2 = H.interpretWithMonadT lowerInstr (H.interpretWithMonad lowerInstr)
 
 --------------------------------------------------------------------------------
 -- *
@@ -354,6 +411,16 @@ compile = Hard.compile . lowerTop
 -- | Compile a program to VHDL code and print it on the screen.
 icompile :: Harden a => Feld.Program a -> IO ()
 icompile = putStrLn . compile
+
+--------------------------------------------------------------------------------
+
+-- | ...
+compile2 :: Harden a => Feld.Hardware a -> String
+compile2 = Hard.compile . lowerHard
+
+-- | ...
+icompile2 :: Harden a => Feld.Hardware a -> IO ()
+icompile2 = putStrLn . compile2
 
 --------------------------------------------------------------------------------
 -- Stuff
