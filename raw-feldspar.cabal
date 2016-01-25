@@ -56,9 +56,15 @@ library
     prelude-edsl,
     operational-alacarte,
     imperative-edsl >=0.4.1,
+<<<<<<< HEAD
     hardware-edsl   >=0.1.0.1,
     open-typerep    >=0.5,
     syntactic       >=3.4
+=======
+    hardware-edsl   >=0.1.0,
+    open-typerep    >= 0.5,
+    syntactic       >= 3.4
+>>>>>>> d51e55966dbe030e03d1d996a8445ac0feaf5d5a
 
   hs-source-dirs: src
 

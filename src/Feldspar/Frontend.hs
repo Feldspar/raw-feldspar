@@ -401,6 +401,7 @@ unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal
 -- ** Structural.
 
 data SigX = forall a. SigX (Sig a)
+<<<<<<< HEAD
 
 hides :: Sig a -> SigX
 hides = SigX
@@ -523,4 +524,123 @@ instance Controls (Hardware)
 
 --------------------------------------------------------------------------------
 
+hides :: Sig a -> SigX
+hides = SigX
 
+-- | Wraps the program in an entity declaration.
+entity :: String -> Hardware a -> Hardware a
+entity e body = Hardware $ Hard.entity e (unHardware body)
+
+-- | Wraps the program in an architecture.
+architecture :: String -> String -> Hardware a -> Hardware a
+architecture e a body = Hardware $ Hard.architecture e a (unHardware body)
+
+-- | Wraps the program in a process.
+process :: [SigX] -> Hardware () -> Hardware ()
+process xs body = undefined
+  -- Hardware $ Hard.process (fmap (\(SigX (Sig s)) -> Hard.hideSig s) xs) (unHardware body)
+
+--------------------------------------------------------------------------------
+-- * ...
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- ** Programs.
+
+-- | ...
+instance References (Program)
+  where
+    newRef   = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
+    initRef  = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
+    getRef   = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
+    setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
+    modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
+    unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
+
+-- | ...
+instance Arrays (Program)
+  where
+    newArr :: forall a. Type a => Data Length -> Program (Arr a)
+    newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
+      where rep = virtRep :: VirtualRep SmallType a
+
+    getArr :: forall a. Type a => Data Index -> Arr a -> Program (Data a)
+    getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
+
+    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
+    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
+      where rep = sugar a :: Virtual SmallType Data a
+
+instance Controls (Program)
+  where
+    iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
+    ifE c t f = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for  range body = Program $ Soft.for range (unProgram . body)
+    while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+liftS :: Program a -> Software a
+liftS = Software . lift . unProgram
+
+instance References (Software)
+  where
+    newRef          = liftS newRef
+    initRef         = liftS . initRef
+    getRef          = liftS . getRef
+    setRef r        = liftS . setRef r
+    modifyRef r     = liftS . modifyRef r
+    unsafeFreezeRef = liftS . unsafeFreezeRef
+
+instance Arrays (Software)
+  where
+    newArr     = liftS . newArr
+    getArr i   = liftS . getArr i
+    setArr i v = liftS . setArr i v
+
+instance Controls (Software)
+  where
+    iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
+    ifE c t f  = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for  range body = Software $ Soft.for range (unSoftware . body)
+    while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+liftH :: Program a -> Hardware a
+liftH = Hardware . lift . unProgram
+
+instance References (Hardware)
+  where
+    newRef          = liftH newRef
+    initRef         = liftH . initRef
+    getRef          = liftH . getRef
+    setRef r        = liftH . setRef r
+    modifyRef r     = liftH . modifyRef r
+    unsafeFreezeRef = liftH . unsafeFreezeRef
+
+instance Arrays (Hardware)
+  where
+    newArr     = liftH . newArr
+    getArr i   = liftH . getArr i
+    setArr i v = liftH . setArr i v
+
+instance Controls (Hardware)
+  where
+    iff c t f  = Hardware $ Hard.iff c (unHardware t) (unHardware f)
+    ifE c t f  = do
+      res <- newRef
+      iff c (t >>= setRef res) (f >>= setRef res)
+      getRef res
+    for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
+    while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
+
+--------------------------------------------------------------------------------
