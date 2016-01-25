@@ -208,9 +208,16 @@ transFunArgs = mapM $ Soft.mapMArg predCast translateSmallExp
 lower :: H.Program Feld.CMD a -> Target a
 lower = H.interpretWithMonad lowerInstr
 
--- | Translate a Feldspar program a program that uses 'TargetCMD'
+-- | Translate a Feldspar program into a program that uses 'TargetCMD'
 lowerTop :: Feld.Program a -> H.Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unProgram
+
+-- | Translate a Software program into a program that uses 'TargetCMD'
+lowerSoft :: Feld.Software a -> H.Program TargetCMD a
+lowerSoft = flip runReaderT Map.empty . interp2 . unSoftware
+  where
+    interp2 :: (H.HFunctor i, Lower i, H.HFunctor j, Lower j) => H.ProgramT i (H.Program j) a -> Target a
+    interp2 = H.interpretWithMonadT lowerInstr (H.interpretWithMonad lowerInstr)
 
 --------------------------------------------------------------------------------
 -- *
@@ -345,14 +352,16 @@ runIO = H.interpret . lowerTop
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 compile :: Feld.Program a -> String
-compile = Soft.compile . lowerTop
+compile  = Soft.compile . lowerTop
+compile2 = Soft.compile . lowerSoft -- !
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: Feld.Program a -> IO ()
-icompile = putStrLn . compile
+icompile  = putStrLn . compile
+icompile2 = putStrLn . compile2  -- !
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: Soft.ExternalCompilerOpts -> Feld.Program a -> IO ()
