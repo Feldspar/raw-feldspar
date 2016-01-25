@@ -60,6 +60,6 @@ testSimple = do
   wcompile (HW.lowerTop simple)
 
 testSoftware :: IO ()
-testSoftware = SW.icompile software
+testSoftware = SW.icompile2 software
 
 --------------------------------------------------------------------------------
