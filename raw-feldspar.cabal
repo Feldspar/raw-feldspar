@@ -26,7 +26,8 @@ library
     Feldspar.Frontend
     Feldspar.Storable
     Feldspar.Vector
-    Feldspar.Compile
+    Feldspar.Compile.Software
+    Feldspar.Compile.Hardware
 
   other-modules:
     Data.VirtualContainer.TH
@@ -51,7 +52,8 @@ library
   build-depends:
     base < 5,
     containers,
-    imperative-edsl,
+    imperative-edsl >=0.4.1,
+    hardware-edsl >=0.1.0.1,
     mtl,
     open-typerep >= 0.5,
     operational-alacarte,

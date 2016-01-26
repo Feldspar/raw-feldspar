@@ -14,6 +14,8 @@ module Feldspar
   , Data
   , Syntax
   , Program
+  , Software
+  , Hardware
     -- * Front end
   , module Feldspar.Frontend
   , module Language.Embedded.Imperative.Frontend.General
@@ -45,7 +47,7 @@ import Language.Syntactic
 import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
 
 import Feldspar.Representation
-import Feldspar.Compile
+import Feldspar.Compile.Software
 import Feldspar.Frontend
 import Feldspar.Storable
 

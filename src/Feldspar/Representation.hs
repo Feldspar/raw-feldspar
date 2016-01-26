@@ -18,6 +18,8 @@ import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
+import qualified Control.Monad.Operational.Higher as H
+
 import Data.TypeRep
 import Data.TypeRep.TH
 import Data.TypeRep.Types.Basic
@@ -29,10 +31,13 @@ import Data.TypeRep.Types.IntWord.Typeable ()
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
-import Language.Embedded.Expression
-import qualified Language.Embedded.Imperative as Imp
-import qualified Language.Embedded.Imperative.CMD as Imp
+import Language.Embedded.Hardware (HType)
+import Language.Embedded.Hardware.Interface (PredicateExp)
+import qualified Language.Embedded.Hardware as Hard
+
 import Language.Embedded.CExp (CType)
+import Language.Embedded.Expression (VarPred)
+import qualified Language.Embedded.Imperative.CMD as Soft
 
 import Data.VirtualContainer
 
@@ -58,8 +63,8 @@ class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) =>
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 
 -- | Small Feldspar types
-class    (Type a, CType a) => SmallType a
-instance (Type a, CType a) => SmallType a
+class    (Type a, CType a, HType a) => SmallType a
+instance (Type a, CType a, HType a) => SmallType a
 
 instance ShowClass Type      where showClass _ = "Type"
 instance ShowClass SmallType where showClass _ = "SmallType"
@@ -74,10 +79,10 @@ type Length = Word32
 type Index  = Word32
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Ref a }
+newtype Ref a = Ref { unRef :: Virtual SmallType Soft.Ref a }
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
+newtype Arr a = Arr { unArr :: Virtual SmallType (Soft.Arr Index) a }
 
 
 
@@ -154,7 +159,7 @@ data IOSym sig
     -- Result of an IO operation
     FreeVar :: SmallType a => String -> IOSym (Full a)
     -- Array indexing
-    UnsafeArrIx :: SmallType a => Imp.Arr Index a -> IOSym (Index :-> Full a)
+    UnsafeArrIx :: SmallType a => Soft.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
     UnsafePerform :: Program (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
@@ -166,8 +171,8 @@ data IOSym sig
 instance Render IOSym
   where
     renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx (Imp.ArrComp arr)) = "UnsafeArrIx " ++ arr
-    renderSym (UnsafeArrIx _)                 = "UnsafeArrIx ..."
+    renderSym (UnsafeArrIx (Soft.ArrComp arr)) = "UnsafeArrIx " ++ arr
+    renderSym (UnsafeArrIx _)                  = "UnsafeArrIx ..."
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
@@ -183,7 +188,7 @@ instance Eval IOSym
 instance Equality IOSym
   where
     equal (FreeVar v1) (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx (Imp.ArrComp arr1)) (UnsafeArrIx (Imp.ArrComp arr2)) = arr1 == arr2
+    equal (UnsafeArrIx (Soft.ArrComp arr1)) (UnsafeArrIx (Soft.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
 
 type FeldConstructs
@@ -219,7 +224,8 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
-type instance VarPred Data = SmallType
+type instance VarPred      Data = SmallType
+type instance PredicateExp Data = SmallType
 
 
 
@@ -227,19 +233,32 @@ type instance VarPred Data = SmallType
 -- * Programs
 --------------------------------------------------------------------------------
 
-type CMD
-    =       Imp.RefCMD Data
-    Imp.:+: Imp.ArrCMD Data
-    Imp.:+: Imp.ControlCMD Data
-    Imp.:+: Imp.PtrCMD
-    Imp.:+: Imp.FileCMD Data
-    Imp.:+: Imp.ObjectCMD Data
-    Imp.:+: Imp.CallCMD Data
+type CMD =
+        Soft.RefCMD         Data
+  H.:+: Soft.ArrCMD         Data
+  H.:+: Soft.ControlCMD     Data
 
-newtype Program a = Program { unProgram :: Imp.Program CMD a }
+type SoftwareCMD =
+        Soft.ControlCMD     Data
+  H.:+: Soft.PtrCMD
+  H.:+: Soft.CallCMD        Data
+  H.:+: Soft.ObjectCMD      Data
+  H.:+: Soft.FileCMD        Data
+
+type HardwareCMD =
+        Hard.ConditionalCMD Data
+  H.:+: Hard.LoopCMD        Data
+  H.:+: Hard.SignalCMD      Data
+  H.:+: Hard.StructuralCMD  Data
+
+newtype Program a = Program { unProgram :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
 
+newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program CMD) a }
+  deriving (Functor, Applicative, Monad)
 
+newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
+  deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances

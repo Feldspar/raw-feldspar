@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Feldspar.Compile where
+module Feldspar.Compile.Software where
 
 
 
@@ -37,6 +37,7 @@ import Feldspar.Representation hiding (Program)
 import Feldspar.Optimize
 import qualified Feldspar.Representation as Feld
 import qualified Feldspar.Frontend as Feld
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 
 
@@ -214,9 +215,16 @@ instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
 lower :: Program Feld.CMD a -> Target a
 lower = interpretWithMonad lowerInstr
 
--- | Translate a Feldspar program a program that uses 'TargetCMD'
+-- | Translate a Feldspar program into a program that uses 'TargetCMD'
 lowerTop :: Feld.Program a -> Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unProgram
+
+-- | Translate a Software program into a program that uses 'TargetCMD'
+lowerSoft :: Feld.Software a -> Program TargetCMD a
+lowerSoft = flip runReaderT Map.empty . interp2 . unSoftware
+  where
+    interp2 :: (Imp.HFunctor i, Lower i, Imp.HFunctor j, Lower j) => ProgramT i (Program j) a -> Target a
+    interp2 = Imp.interpretWithMonadT lowerInstr (interpretWithMonad lowerInstr)
 
 
 
@@ -353,17 +361,19 @@ runIO = Imp.interpret . lowerTop
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 compile :: Feld.Program a -> String
-compile = Imp.compile . lowerTop
+compile  = Imp.compile . lowerTop
+compile2 = Imp.compile . lowerSoft -- !
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: Feld.Program a -> IO ()
-icompile = putStrLn . compile
+icompile  = putStrLn . compile
+icompile2 = putStrLn . compile2  -- !
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
+compileAndCheck' :: ExternalCompilerOpts -> Feld.Program a -> IO ()
 compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
@@ -371,7 +381,7 @@ compileAndCheck :: Feld.Program a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
+runCompiled' :: ExternalCompilerOpts -> Feld.Program a -> IO ()
 runCompiled' opts = Imp.runCompiled' opts . lowerTop
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
@@ -381,7 +391,7 @@ runCompiled = runCompiled' mempty
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled'
-    :: Feld.ExternalCompilerOpts
+    :: ExternalCompilerOpts
     -> Feld.Program a  -- ^ Program to run
     -> String          -- ^ Input to send to @stdin@
     -> IO String       -- ^ Result from @stdout@
@@ -398,7 +408,7 @@ captureCompiled = captureCompiled' mempty
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
 compareCompiled'
-    :: Feld.ExternalCompilerOpts
+    :: ExternalCompilerOpts
     -> Feld.Program a  -- ^ Program to run
     -> String          -- ^ Input to send to @stdin@
     -> IO ()
