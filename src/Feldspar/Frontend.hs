@@ -210,6 +210,38 @@ class Monad m => Controls m
     -- | While loop.
     while :: m (Data Bool) -> m () -> m ()
 
+instance References (Program)
+  where
+    newRef   = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
+    initRef  = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
+    getRef   = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
+    setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
+    modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
+    unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
+
+instance Arrays (Program)
+  where
+    newArr :: forall a. Type a => Data Length -> Program (Arr a)
+    newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
+      where rep = virtRep :: VirtualRep SmallType a
+
+    getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
+
+    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
+    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
+      where rep = sugar a :: Virtual SmallType Data a
+
+    copyArr arr1 arr2 len = sequence_ $
+        zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
+          (unArr arr1)
+          (unArr arr2)
+
+instance Controls (Program)
+  where
+    iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
+    for  range body = Program $ Soft.for range (unProgram . body)
+    while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
+
 -- | Conditional statement that returns an expression
 ifE :: (References m, Controls m, Type a)
     => Data Bool   -- ^ Condition
@@ -237,6 +269,33 @@ assert cond msg = Program $ Soft.assert cond msg
 --------------------------------------------------------------------------------
 -- * Software specific operations.
 --------------------------------------------------------------------------------
+
+liftS :: Program a -> Software a
+liftS = Software . lift . unProgram
+
+instance References (Software)
+  where
+    newRef          = liftS newRef
+    initRef         = liftS . initRef
+    getRef          = liftS . getRef
+    setRef r        = liftS . setRef r
+    modifyRef r     = liftS . modifyRef r
+    unsafeFreezeRef = liftS . unsafeFreezeRef
+
+instance Arrays (Software)
+  where
+    newArr        = liftS . newArr
+    getArr i      = liftS . getArr i
+    setArr i v    = liftS . setArr i v
+    copyArr a1 a2 = liftS . copyArr a1 a2
+
+instance Controls (Software)
+  where
+    iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
+    for  range body = Software $ Soft.for range (unSoftware . body)
+    while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
+
+
 
 ----------------------------------------
 -- ** Pointer operations
@@ -468,75 +527,6 @@ modifySig s f = setSig s . f =<< unsafeFreezeSig s
 -- | Freeze the contents of a signal.
 unsafeFreezeSig :: Type a => Sig a -> Hardware (Data a)
 unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal) . unSig
-
---------------------------------------------------------------------------------
--- * ...
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
--- ** Programs.
-
--- | ...
-instance References (Program)
-  where
-    newRef   = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
-    initRef  = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
-    getRef   = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
-    setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
-    modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
-    unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
-
--- | ...
-instance Arrays (Program)
-  where
-    newArr :: forall a. Type a => Data Length -> Program (Arr a)
-    newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
-      where rep = virtRep :: VirtualRep SmallType a
-
-    getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
-
-    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
-    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
-      where rep = sugar a :: Virtual SmallType Data a
-
-    copyArr arr1 arr2 len = sequence_ $
-        zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
-          (unArr arr1)
-          (unArr arr2)
-
-instance Controls (Program)
-  where
-    iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
-    for  range body = Program $ Soft.for range (unProgram . body)
-    while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
-
---------------------------------------------------------------------------------
--- ** ...
-
-liftS :: Program a -> Software a
-liftS = Software . lift . unProgram
-
-instance References (Software)
-  where
-    newRef          = liftS newRef
-    initRef         = liftS . initRef
-    getRef          = liftS . getRef
-    setRef r        = liftS . setRef r
-    modifyRef r     = liftS . modifyRef r
-    unsafeFreezeRef = liftS . unsafeFreezeRef
-
-instance Arrays (Software)
-  where
-    newArr        = liftS . newArr
-    getArr i      = liftS . getArr i
-    setArr i v    = liftS . setArr i v
-    copyArr a1 a2 = liftS . copyArr a1 a2
-
-instance Controls (Software)
-  where
-    iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
-    for  range body = Software $ Soft.for range (unSoftware . body)
-    while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
 
 --------------------------------------------------------------------------------
 -- ** ...
