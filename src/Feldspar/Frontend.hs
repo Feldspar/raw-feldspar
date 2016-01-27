@@ -135,7 +135,7 @@ max a b = a>=b ? a $ b
 ----------------------------------------
 
 -- | Index into an array
-unsafeArrIx :: forall a . Type a => Arr a -> Data Index -> Data a
+unsafeArrIx :: Type a => Arr a -> Data Index -> Data a
 unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
   where
     arrIx :: SmallType b => Soft.Arr Index b -> Data b
@@ -450,7 +450,7 @@ newSig :: Type a => Hardware (Sig a)
 newSig = fmap Sig $ mapVirtualA (const (Hardware Hard.newSignal_)) virtRep
 
 -- | Create an initialized signal.
-initSig :: forall a. Type a => Data a -> Hardware (Sig a)
+initSig :: Type a => Data a -> Hardware (Sig a)
 initSig = fmap Sig . mapVirtualA (Hardware . Hard.newSignal) . sugar
 
 -- | Get the contents of a signal.
@@ -493,18 +493,12 @@ instance Arrays (Program)
     newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
       where rep = virtRep :: VirtualRep SmallType a
 
-    getArr :: forall a. Type a => Data Index -> Arr a -> Program (Data a)
     getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
 
     setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
     setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
       where rep = sugar a :: Virtual SmallType Data a
 
-    copyArr :: Type a
-        => Arr a        -- ^ Destination
-        -> Arr a        -- ^ Source
-        -> Data Length  -- ^ Number of elements
-        -> Program ()
     copyArr arr1 arr2 len = sequence_ $
         zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
           (unArr arr1)
