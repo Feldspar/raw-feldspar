@@ -191,19 +191,14 @@ class Monad m => Arrays m
     getArr :: Type a => Data Index -> Arr a -> m (Data a)
     -- | Set an element of an array.
     setArr :: Type a => Data Index -> Data a -> Arr a -> m ()
-
--- | Copy the contents of an array to another array. The number of elements to
--- copy must not be greater than the number of allocated elements in either
--- array.
-copyArr :: Type a
-    => Arr a        -- ^ Destination
-    -> Arr a        -- ^ Source
-    -> Data Length  -- ^ Number of elements
-    -> Program ()
-copyArr arr1 arr2 len = sequence_ $
-    zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
-      (unArr arr1)
-      (unArr arr2)
+    -- | Copy the contents of an array to another array. The number of elements to
+    -- copy must not be greater than the number of allocated elements in either
+    -- array.
+    copyArr :: Type a
+        => Arr a        -- ^ Destination
+        -> Arr a        -- ^ Source
+        -> Data Length  -- ^ Number of elements
+        -> m ()
 
 -- | Control flow.
 class Monad m => Controls m
@@ -505,6 +500,16 @@ instance Arrays (Program)
     setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
       where rep = sugar a :: Virtual SmallType Data a
 
+    copyArr :: Type a
+        => Arr a        -- ^ Destination
+        -> Arr a        -- ^ Source
+        -> Data Length  -- ^ Number of elements
+        -> Program ()
+    copyArr arr1 arr2 len = sequence_ $
+        zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
+          (unArr arr1)
+          (unArr arr2)
+
 instance Controls (Program)
   where
     iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
@@ -528,9 +533,10 @@ instance References (Software)
 
 instance Arrays (Software)
   where
-    newArr     = liftS . newArr
-    getArr i   = liftS . getArr i
-    setArr i v = liftS . setArr i v
+    newArr        = liftS . newArr
+    getArr i      = liftS . getArr i
+    setArr i v    = liftS . setArr i v
+    copyArr a1 a2 = liftS . copyArr a1 a2
 
 instance Controls (Software)
   where
@@ -555,9 +561,10 @@ instance References (Hardware)
 
 instance Arrays (Hardware)
   where
-    newArr     = liftH . newArr
-    getArr i   = liftH . getArr i
-    setArr i v = liftH . setArr i v
+    newArr        = liftH . newArr
+    getArr i      = liftH . getArr i
+    setArr i v    = liftH . setArr i v
+    copyArr a1 a2 = liftH . copyArr a1 a2
 
 instance Controls (Hardware)
   where
