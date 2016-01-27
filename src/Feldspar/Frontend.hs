@@ -159,11 +159,12 @@ resugar = Syntactic.resugar
 
 
 --------------------------------------------------------------------------------
--- * General operations.
+-- * Programs with computational effects
 --------------------------------------------------------------------------------
 
--- | Collection of genneral operations.
-type Any m = (References m, Arrays m, Controls m)
+-- | Monads that support computational effects: mutable data structures and
+-- control flow
+type MonadComp m = (References m, Arrays m, Controls m)
 
 -- | References.
 class Monad m => References m
@@ -217,39 +218,39 @@ class Monad m => Controls m
         -> String     -- ^ Message in case of failure
         -> m ()
 
-instance References (Program)
+instance References Comp
   where
-    newRef   = fmap Ref $ mapVirtualA (const (Program Soft.newRef)) virtRep
-    initRef  = fmap Ref . mapVirtualA (Program . Soft.initRef) . sugar
-    getRef   = fmap desugar . mapVirtualA (Program . Soft.getRef) . unRef
-    setRef r = sequence_ . zipListVirtual (\r' a' -> Program $ Soft.setRef r' a') (unRef r) . sugar
+    newRef   = fmap Ref $ mapVirtualA (const (Comp Soft.newRef)) virtRep
+    initRef  = fmap Ref . mapVirtualA (Comp . Soft.initRef) . sugar
+    getRef   = fmap desugar . mapVirtualA (Comp . Soft.getRef) . unRef
+    setRef r = sequence_ . zipListVirtual (\r' a' -> Comp $ Soft.setRef r' a') (unRef r) . sugar
     modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
-    unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Soft.unsafeFreezeRef) . unRef
+    unsafeFreezeRef = fmap desugar . mapVirtualA (Comp . Soft.unsafeFreezeRef) . unRef
 
-instance Arrays (Program)
+instance Arrays Comp
   where
-    newArr :: forall a. Type a => Data Length -> Program (Arr a)
-    newArr l = fmap Arr $ mapVirtualA (const (Program $ Soft.newArr l)) rep
+    newArr :: forall a. Type a => Data Length -> Comp (Arr a)
+    newArr l = fmap Arr $ mapVirtualA (const (Comp $ Soft.newArr l)) rep
       where rep = virtRep :: VirtualRep SmallType a
 
-    getArr i = fmap desugar . mapVirtualA (Program . Soft.getArr i) . unArr
+    getArr i = fmap desugar . mapVirtualA (Comp . Soft.getArr i) . unArr
 
-    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Program ()
-    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Program $ Soft.setArr i a' arr') (rep) (unArr arr)
+    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Comp ()
+    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Comp $ Soft.setArr i a' arr') (rep) (unArr arr)
       where rep = sugar a :: Virtual SmallType Data a
 
     copyArr arr1 arr2 len = sequence_ $
-        zipListVirtual (\a1 a2 -> Program $ Soft.copyArr a1 a2 len)
+        zipListVirtual (\a1 a2 -> Comp $ Soft.copyArr a1 a2 len)
           (unArr arr1)
           (unArr arr2)
 
-instance Controls (Program)
+instance Controls Comp
   where
-    iff c t f       = Program $ Soft.iff c (unProgram t) (unProgram f)
-    for  range body = Program $ Soft.for range (unProgram . body)
-    while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
-    break           = Program Soft.break
-    assert cond msg = Program $ Soft.assert cond msg
+    iff c t f       = Comp $ Soft.iff c (unComp t) (unComp f)
+    for  range body = Comp $ Soft.for range (unComp . body)
+    while cont body = Comp $ Soft.while (unComp cont) (unComp body)
+    break           = Comp Soft.break
+    assert cond msg = Comp $ Soft.assert cond msg
 
 -- | Conditional statement that returns an expression
 ifE :: (References m, Controls m, Type a)
@@ -268,8 +269,8 @@ ifE c t f = do
 -- * Software specific operations.
 --------------------------------------------------------------------------------
 
-liftS :: Program a -> Software a
-liftS = Software . lift . unProgram
+liftS :: Comp a -> Software a
+liftS = Software . lift . unComp
 
 instance References (Software)
   where
@@ -531,8 +532,8 @@ unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal
 --------------------------------------------------------------------------------
 -- ** ...
 
-liftH :: Program a -> Hardware a
-liftH = Hardware . lift . unProgram
+liftH :: Comp a -> Hardware a
+liftH = Hardware . lift . unComp
 
 instance References (Hardware)
   where

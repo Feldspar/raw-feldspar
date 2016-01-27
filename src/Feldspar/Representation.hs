@@ -161,9 +161,9 @@ data IOSym sig
     -- Array indexing
     UnsafeArrIx :: SmallType a => Soft.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
-    UnsafePerform :: Program (Data a) -> IOSym (Full a)
+    UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
-    UnsafePerformWith :: Program () -> IOSym (a :-> Full a)
+    UnsafePerformWith :: Comp () -> IOSym (a :-> Full a)
   -- The reason for having `UnsafeArrIx` instead of doing the same thing using
   -- `UnsafePerform` is that `UnsafeArrIx` can be compared for equality, which
   -- may help some optimizations.
@@ -230,7 +230,7 @@ type instance PredicateExp Data = SmallType
 
 
 --------------------------------------------------------------------------------
--- * Programs
+-- * Monadic programs
 --------------------------------------------------------------------------------
 
 type CMD =
@@ -251,7 +251,8 @@ type HardwareCMD =
   H.:+: Hard.SignalCMD      Data
   H.:+: Hard.StructuralCMD  Data
 
-newtype Program a = Program { unProgram :: H.Program CMD a }
+-- | Monad for computational effects: mutable data structures and control flow
+newtype Comp a = Comp { unComp :: H.Program CMD a }
   deriving (Functor, Applicative, Monad)
 
 newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program CMD) a }

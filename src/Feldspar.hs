@@ -13,7 +13,7 @@ module Feldspar
   , Arr
   , Data
   , Syntax
-  , Program
+  , Comp
   , Software
   , Hardware
     -- * Front end

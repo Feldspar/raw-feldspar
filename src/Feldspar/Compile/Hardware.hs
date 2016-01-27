@@ -241,8 +241,8 @@ lower :: (Lower instr, H.HFunctor instr, Harden a) => H.Program instr a -> Targe
 lower = fmap harden . H.interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program into a program that uses 'TargetCMD'.
-lowerTop :: Harden a => Feld.Program a -> H.Program TargetCMD (HW a)
-lowerTop = flip runReaderT Map.empty . lower . Feld.unProgram
+lowerTop :: Harden a => Comp a -> H.Program TargetCMD (HW a)
+lowerTop = flip runReaderT Map.empty . lower . unComp
 
 -- | Translate a Hardware program into a program that uses 'TargetCMD'.
 lowerHard :: Harden a => Feld.Hardware a -> H.Program TargetCMD (HW a)
@@ -400,15 +400,15 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad.
-runIO :: Harden a => Feld.Program a -> IO (HW a)
+runIO :: Harden a => Comp a -> IO (HW a)
 runIO = H.interpret . lowerTop
 
 -- | Compile a program to VHDL code represented as a string.
-compile :: Harden a => Feld.Program a -> String
+compile :: Harden a => Comp a -> String
 compile = Hard.compile . lowerTop
 
 -- | Compile a program to VHDL code and print it on the screen.
-icompile :: Harden a => Feld.Program a -> IO ()
+icompile :: Harden a => Comp a -> IO ()
 icompile = putStrLn . compile
 
 --------------------------------------------------------------------------------

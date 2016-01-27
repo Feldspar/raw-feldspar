@@ -216,8 +216,8 @@ lower :: Program Feld.CMD a -> Target a
 lower = interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program into a program that uses 'TargetCMD'
-lowerTop :: Feld.Program a -> Program TargetCMD a
-lowerTop = flip runReaderT Map.empty . lower . unProgram
+lowerTop :: Comp a -> Program TargetCMD a
+lowerTop = flip runReaderT Map.empty . lower . unComp
 
 -- | Translate a Software program into a program that uses 'TargetCMD'
 lowerSoft :: Feld.Software a -> Program TargetCMD a
@@ -331,11 +331,11 @@ transAST = goAST . optimize
             fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
-        = translateExp =<< lower (unProgram prog)
+        = translateExp =<< lower (unComp prog)
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
             a' <- goAST a
-            lower (unProgram prog)
+            lower (unComp prog)
             return a'
 
 -- | Translate a Feldspar expression
@@ -353,14 +353,14 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad
-runIO :: Feld.Program a -> IO a
+runIO :: Comp a -> IO a
 runIO = Imp.interpret . lowerTop
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-compile :: Feld.Program a -> String
+compile :: Comp a -> String
 compile  = Imp.compile . lowerTop
 compile2 = Imp.compile . lowerSoft -- !
 
@@ -368,57 +368,57 @@ compile2 = Imp.compile . lowerSoft -- !
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-icompile :: Feld.Program a -> IO ()
+icompile :: Comp a -> IO ()
 icompile  = putStrLn . compile
 icompile2 = putStrLn . compile2  -- !
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: ExternalCompilerOpts -> Feld.Program a -> IO ()
+compileAndCheck' :: ExternalCompilerOpts -> Comp a -> IO ()
 compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck :: Feld.Program a -> IO ()
+compileAndCheck :: Comp a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: ExternalCompilerOpts -> Feld.Program a -> IO ()
+runCompiled' :: ExternalCompilerOpts -> Comp a -> IO ()
 runCompiled' opts = Imp.runCompiled' opts . lowerTop
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled :: Feld.Program a -> IO ()
+runCompiled :: Comp a -> IO ()
 runCompiled = runCompiled' mempty
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled'
     :: ExternalCompilerOpts
-    -> Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
-    -> IO String       -- ^ Result from @stdout@
+    -> Comp a     -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
 captureCompiled' opts = Imp.captureCompiled' opts . lowerTop
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled
-    :: Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
-    -> IO String       -- ^ Result from @stdout@
+    :: Comp a     -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
 captureCompiled = captureCompiled' mempty
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
 compareCompiled'
     :: ExternalCompilerOpts
-    -> Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
+    -> Comp a  -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
 compareCompiled
-    :: Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
+    :: Comp a  -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty
 

@@ -25,20 +25,20 @@ class Storable a
 
     -- | Store a value to a fresh memory store. It is usually better to use
     -- 'initStore' instead of this function as it improves type inference.
-    initStoreRep  :: a -> Program (StoreRep a)
+    initStoreRep  :: a -> Comp (StoreRep a)
 
     -- | Read from a memory store. It is usually better to use 'readStore'
     -- instead of this function as it improves type inference.
-    readStoreRep  :: StoreRep a -> Program a
+    readStoreRep  :: StoreRep a -> Comp a
 
     -- | Unsafe freezing of a memory store. It is usually better to use
     -- 'unsafeFreezeStore' instead of this function as it improves type
     -- inference.
-    unsafeFreezeStoreRep :: StoreRep a -> Program a
+    unsafeFreezeStoreRep :: StoreRep a -> Comp a
 
     -- | Write to a memory store. It is usually better to use 'writeStore'
     -- instead of this function as it improves type inference.
-    writeStoreRep :: StoreRep a -> a -> Program ()
+    writeStoreRep :: StoreRep a -> a -> Comp ()
 
     -- | Copy the contents of a store to another store. It is usually better to
     -- use 'copyStore' instead of this function as it improves type inference.
@@ -46,7 +46,7 @@ class Storable a
         :: proxy a
         -> StoreRep a  -- ^ Destination
         -> StoreRep a  -- ^ Source
-        -> Program ()
+        -> Comp ()
 
 instance SmallType a => Storable (Data a)
   where
@@ -94,11 +94,11 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
         copyStoreRep (Proxy :: Proxy d) ld1 ld2
 
 -- | Cast between 'Storable' types that have the same memory representation
-castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Program b
+castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Comp b
 castStore = initStoreRep >=> unsafeFreezeStoreRep
 
 -- | Store a value to memory and read it back
-store :: Storable a => a -> Program a
+store :: Storable a => a -> Comp a
 store = castStore
 
 -- | Memory for storing values
@@ -108,20 +108,20 @@ newtype Store a = Store { unStore :: StoreRep a }
   -- methods is that they involve type families.
 
 -- | Store a value to a fresh 'Store'
-initStore :: Storable a => a -> Program (Store a)
+initStore :: Storable a => a -> Comp (Store a)
 initStore = fmap Store . initStoreRep
 
 -- | Read from a 'Store'
-readStore :: Storable a => Store a -> Program a
+readStore :: Storable a => Store a -> Comp a
 readStore = readStoreRep . unStore
 
 -- | Unsafe freezeing of a 'Store'. This operation is only safe if the 'Store'
 -- is not updated as long as the resulting value is alive.
-unsafeFreezeStore :: Storable a => Store a -> Program a
+unsafeFreezeStore :: Storable a => Store a -> Comp a
 unsafeFreezeStore = unsafeFreezeStoreRep . unStore
 
 -- | Write to a 'Store'
-writeStore :: Storable a => Store a -> a -> Program ()
+writeStore :: Storable a => Store a -> a -> Comp ()
 writeStore = writeStoreRep . unStore
 
 -- | Copy the contents of a 'Store' to another 'Store'. The size of the data in
@@ -129,10 +129,10 @@ writeStore = writeStoreRep . unStore
 copyStore :: Storable a
     => Store a  -- ^ Destination
     -> Store a  -- ^ Source
-    -> Program ()
+    -> Comp ()
 copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 
 -- | Update a 'Store' in-place
-inplace :: Storable a => Store a -> (a -> a) -> Program ()
+inplace :: Storable a => Store a -> (a -> a) -> Comp ()
 inplace store f = writeStore store . f =<< unsafeFreezeStore store
 

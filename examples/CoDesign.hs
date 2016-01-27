@@ -14,7 +14,7 @@ import Language.Embedded.Hardware.Command (wcompile)
 -- * ...
 --------------------------------------------------------------------------------
 
-simple :: Program ()
+simple :: Comp ()
 simple = do
   fls <- initRef false
   tru <- initRef true
