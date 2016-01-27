@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Feldspar.Compile.Software where
+module Feldspar.Software.Compile where
 
 
 
@@ -17,14 +17,13 @@ import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import qualified Control.Monad.Operational.Higher as Imp
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
 
 import Data.TypeRep
 
-import Control.Monad.Operational.Higher (interpretWithMonad)
+import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
 import qualified Language.Embedded.Imperative as Imp
@@ -33,9 +32,9 @@ import Language.Embedded.CExp
 import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
-import Feldspar.Representation hiding (Program)
+import Feldspar.Representation
+import Feldspar.Software.Representation
 import Feldspar.Optimize
-import qualified Feldspar.Representation as Feld
 import qualified Feldspar.Frontend as Feld
 import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
@@ -208,23 +207,23 @@ instance Lower (CallCMD Data)
 
 instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
   where
-    lowerInstr (Imp.Inl i) = lowerInstr i
-    lowerInstr (Imp.Inr i) = lowerInstr i
+    lowerInstr (Oper.Inl i) = lowerInstr i
+    lowerInstr (Oper.Inr i) = lowerInstr i
 
 -- | Translate a Feldspar program to the 'Target' monad
-lower :: Program Feld.CMD a -> Target a
-lower = interpretWithMonad lowerInstr
+lower :: Program CompCMD a -> Target a
+lower = Oper.interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program into a program that uses 'TargetCMD'
 lowerTop :: Comp a -> Program TargetCMD a
 lowerTop = flip runReaderT Map.empty . lower . unComp
 
 -- | Translate a Software program into a program that uses 'TargetCMD'
-lowerSoft :: Feld.Software a -> Program TargetCMD a
+lowerSoft :: Software a -> Program TargetCMD a
 lowerSoft = flip runReaderT Map.empty . interp2 . unSoftware
   where
-    interp2 :: (Imp.HFunctor i, Lower i, Imp.HFunctor j, Lower j) => ProgramT i (Program j) a -> Target a
-    interp2 = Imp.interpretWithMonadT lowerInstr (interpretWithMonad lowerInstr)
+    interp2 :: (Oper.HFunctor i, Lower i, Oper.HFunctor j, Lower j) => ProgramT i (Program j) a -> Target a
+    interp2 = Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
 
 
 
@@ -296,8 +295,8 @@ transAST = goAST . optimize
         | Just Condition <- prj cond = do
             env <- ask
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
-              (t',f') | Imp.Return (Actual t'') <- Imp.view t'
-                      , Imp.Return (Actual f'') <- Imp.view f'
+              (t',f') | Oper.Return (Actual t'') <- Oper.view t'
+                      , Oper.Return (Actual f'') <- Oper.view f'
                       -> do c' <- goSmallAST c
                             return $ Actual (c' ? t'' $ f'')
 

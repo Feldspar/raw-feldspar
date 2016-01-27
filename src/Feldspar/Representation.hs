@@ -18,8 +18,6 @@ import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
-import qualified Control.Monad.Operational.Higher as H
-
 import Data.TypeRep
 import Data.TypeRep.TH
 import Data.TypeRep.Types.Basic
@@ -31,13 +29,14 @@ import Data.TypeRep.Types.IntWord.Typeable ()
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
+import qualified Control.Monad.Operational.Higher as H
+
 import Language.Embedded.Hardware (HType)
 import Language.Embedded.Hardware.Interface (PredicateExp)
-import qualified Language.Embedded.Hardware as Hard
 
 import Language.Embedded.CExp (CType)
 import Language.Embedded.Expression (VarPred)
-import qualified Language.Embedded.Imperative.CMD as Soft
+import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
 
@@ -79,10 +78,10 @@ type Length = Word32
 type Index  = Word32
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Virtual SmallType Soft.Ref a }
+newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Ref a }
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Virtual SmallType (Soft.Arr Index) a }
+newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
 
 
 
@@ -159,7 +158,7 @@ data IOSym sig
     -- Result of an IO operation
     FreeVar :: SmallType a => String -> IOSym (Full a)
     -- Array indexing
-    UnsafeArrIx :: SmallType a => Soft.Arr Index a -> IOSym (Index :-> Full a)
+    UnsafeArrIx :: SmallType a => Imp.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
     UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
@@ -171,8 +170,8 @@ data IOSym sig
 instance Render IOSym
   where
     renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx (Soft.ArrComp arr)) = "UnsafeArrIx " ++ arr
-    renderSym (UnsafeArrIx _)                  = "UnsafeArrIx ..."
+    renderSym (UnsafeArrIx (Imp.ArrComp arr)) = "UnsafeArrIx " ++ arr
+    renderSym (UnsafeArrIx _)                 = "UnsafeArrIx ..."
       -- Should not happen...
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
@@ -188,7 +187,7 @@ instance Eval IOSym
 instance Equality IOSym
   where
     equal (FreeVar v1) (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx (Soft.ArrComp arr1)) (UnsafeArrIx (Soft.ArrComp arr2)) = arr1 == arr2
+    equal (UnsafeArrIx (Imp.ArrComp arr1)) (UnsafeArrIx (Imp.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
 
 type FeldConstructs
@@ -230,36 +229,19 @@ type instance PredicateExp Data = SmallType
 
 
 --------------------------------------------------------------------------------
--- * Monadic programs
+-- * Monadic computations
 --------------------------------------------------------------------------------
 
-type CMD =
-        Soft.RefCMD         Data
-  H.:+: Soft.ArrCMD         Data
-  H.:+: Soft.ControlCMD     Data
-
-type SoftwareCMD =
-        Soft.ControlCMD     Data
-  H.:+: Soft.PtrCMD
-  H.:+: Soft.CallCMD        Data
-  H.:+: Soft.ObjectCMD      Data
-  H.:+: Soft.FileCMD        Data
-
-type HardwareCMD =
-        Hard.ConditionalCMD Data
-  H.:+: Hard.LoopCMD        Data
-  H.:+: Hard.SignalCMD      Data
-  H.:+: Hard.StructuralCMD  Data
+type CompCMD
+  =     Imp.RefCMD     Data
+  H.:+: Imp.ArrCMD     Data
+  H.:+: Imp.ControlCMD Data
 
 -- | Monad for computational effects: mutable data structures and control flow
-newtype Comp a = Comp { unComp :: H.Program CMD a }
+newtype Comp a = Comp { unComp :: H.Program CompCMD a }
   deriving (Functor, Applicative, Monad)
 
-newtype Software a = Software { unSoftware :: H.ProgramT SoftwareCMD (H.Program CMD) a }
-  deriving (Functor, Applicative, Monad)
 
-newtype Hardware a = Hardware { unHardware :: H.ProgramT HardwareCMD (H.Program CMD) a }
-  deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
 -- Uninteresting instances

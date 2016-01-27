@@ -5,8 +5,9 @@ import Control.Applicative ((<$>))
 import qualified Prelude
 
 import Feldspar
-import qualified Feldspar.Compile.Hardware as HW
-import qualified Feldspar.Compile.Software as SW
+import Feldspar.Software
+import qualified Feldspar.Hardware.Compile as HW
+import qualified Feldspar.Software.Compile as SW
 
 import Language.Embedded.Hardware.Command (wcompile)
 

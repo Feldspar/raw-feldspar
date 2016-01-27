@@ -2,24 +2,21 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Feldspar.Compile.Hardware where
+module Feldspar.Hardware.Compile where
 
 import Control.Applicative ((<$>))
-import Control.Monad
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Identity (runIdentity)
 import qualified Control.Monad.Reader as Reader
 
 import qualified Control.Monad.Operational.Higher as H
 
-import Data.Functor
 import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
-import Language.Syntactic.TH
 
 import Data.TypeRep
 import Data.TypeRep.TH
@@ -31,19 +28,15 @@ import Language.Embedded.Hardware (HType)
 import qualified Language.Embedded.Hardware                   as Hard
 import qualified Language.Embedded.Hardware.Expression.Syntax as Hard
 
---------------------------------------------------------------------------------
-import qualified Language.Embedded.VHDL as VHDL
---------------------------------------------------------------------------------
-
 import qualified Language.Embedded.Imperative     as Soft
 import qualified Language.Embedded.Imperative.CMD as Soft
 
 import Data.VirtualContainer
 
 import Feldspar.Representation hiding (Program)
+import Feldspar.Hardware.Representation
 import Feldspar.Optimize
-import qualified Feldspar.Representation as Feld
-import qualified Feldspar.Frontend       as Feld
+import qualified Feldspar.Frontend as Feld
 
 --------------------------------------------------------------------------------
 -- * Target language.
@@ -245,7 +238,7 @@ lowerTop :: Harden a => Comp a -> H.Program TargetCMD (HW a)
 lowerTop = flip runReaderT Map.empty . lower . unComp
 
 -- | Translate a Hardware program into a program that uses 'TargetCMD'.
-lowerHard :: Harden a => Feld.Hardware a -> H.Program TargetCMD (HW a)
+lowerHard :: Harden a => Hardware a -> H.Program TargetCMD (HW a)
 lowerHard = flip runReaderT Map.empty . fmap harden . interp2 . unHardware
   where
     interp2 :: (H.HFunctor i, Lower i, H.HFunctor j, Lower j) => H.ProgramT i (H.Program j) a -> Target a
@@ -414,11 +407,11 @@ icompile = putStrLn . compile
 --------------------------------------------------------------------------------
 
 -- | ...
-compile2 :: Harden a => Feld.Hardware a -> String
+compile2 :: Harden a => Hardware a -> String
 compile2 = Hard.compile . lowerHard
 
 -- | ...
-icompile2 :: Harden a => Feld.Hardware a -> IO ()
+icompile2 :: Harden a => Hardware a -> IO ()
 icompile2 = putStrLn . compile2
 
 --------------------------------------------------------------------------------
