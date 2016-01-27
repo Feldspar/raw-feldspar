@@ -209,6 +209,13 @@ class Monad m => Controls m
     for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
     -- | While loop.
     while :: m (Data Bool) -> m () -> m ()
+    -- | Break out from a loop
+    break :: m ()
+    -- | Assertion
+    assert
+        :: Data Bool  -- ^ Expression that should be true
+        -> String     -- ^ Message in case of failure
+        -> m ()
 
 instance References (Program)
   where
@@ -238,9 +245,11 @@ instance Arrays (Program)
 
 instance Controls (Program)
   where
-    iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
+    iff c t f       = Program $ Soft.iff c (unProgram t) (unProgram f)
     for  range body = Program $ Soft.for range (unProgram . body)
     while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
+    break           = Program Soft.break
+    assert cond msg = Program $ Soft.assert cond msg
 
 -- | Conditional statement that returns an expression
 ifE :: (References m, Controls m, Type a)
@@ -252,17 +261,6 @@ ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
-
--- | Break out from a loop
-break :: Program ()
-break = Program Soft.break
-
--- | Assertion
-assert
-    :: Data Bool  -- ^ Expression that should be true
-    -> String     -- ^ Message in case of failure
-    -> Program ()
-assert cond msg = Program $ Soft.assert cond msg
 
 
 
@@ -291,9 +289,11 @@ instance Arrays (Software)
 
 instance Controls (Software)
   where
-    iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
+    iff c t f       = Software $ Soft.iff c (unSoftware t) (unSoftware f)
     for  range body = Software $ Soft.for range (unSoftware . body)
     while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
+    break           = Software Soft.break
+    assert cond msg = Software $ Soft.assert cond msg
 
 
 
@@ -552,8 +552,10 @@ instance Arrays (Hardware)
 
 instance Controls (Hardware)
   where
-    iff c t f  = Hardware $ Hard.iff c (unHardware t) (unHardware f)
+    iff c t f          = Hardware $ Hard.iff c (unHardware t) (unHardware f)
     for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
     while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
+    break              = liftH break
+    assert cond msg    = liftH $ assert cond msg
 
 --------------------------------------------------------------------------------
