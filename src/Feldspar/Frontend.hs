@@ -147,10 +147,10 @@ unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
 -- ** Syntactic conversion
 ----------------------------------------
 
-desugar :: Syntax a => a -> Data (Syntactic.Internal a)
+desugar :: Syntax a => a -> Data (Internal a)
 desugar = Data . Syntactic.desugar
 
-sugar :: Syntax a => Data (Syntactic.Internal a) -> a
+sugar :: Syntax a => Data (Internal a) -> a
 sugar = Syntactic.sugar . unData
 
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
