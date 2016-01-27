@@ -1,20 +1,14 @@
 module Simple where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Trans
 
-import Prelude ((.), ($))
 import qualified Prelude
 
 import Feldspar
-import Feldspar.Representation (unProgram)
 import qualified Feldspar.Compile.Hardware as HW
 import qualified Feldspar.Compile.Software as SW
 
-import Language.Embedded.Imperative.Frontend.General (stdin, stdout)
 import Language.Embedded.Hardware.Command (wcompile)
-
-import System.IO hiding (stdin, stdout)
 
 --------------------------------------------------------------------------------
 -- * ...
