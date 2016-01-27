@@ -1,5 +1,3 @@
-{-# LANGUAGE InstanceSigs #-}
-
 module Feldspar.Frontend where
 
 
@@ -155,96 +153,122 @@ resugar = Syntactic.resugar
 
 -- | Monads that support computational effects: mutable data structures and
 -- control flow
-type MonadComp m = (References m, Arrays m, Controls m)
-
--- | References.
-class Monad m => References m
+class Monad m => MonadComp m
   where
-    -- | Create an uninitialized reference.
-    newRef    :: Type a => m (Ref a)
-    -- | Create an initialized reference.
-    initRef   :: Type a => Data a -> m (Ref a)
-    -- | Get the contents of a reference.
-    getRef    :: Type a => Ref a -> m (Data a)
-    -- | Set the contents of a reference.
-    setRef    :: Type a => Ref a -> Data a -> m ()
-    -- | Modify the contents of reference.
-    modifyRef :: Type a => Ref a -> (Data a -> Data a) -> m ()
-    -- | Freeze the contents of reference (only safe if the reference is not updated
-    --   as long as the resulting value is alive).
-    unsafeFreezeRef :: Type a => Ref a -> m (Data a)
-
--- | Arrays.
-class Monad m => Arrays m
-  where
-    -- | Create an uninitialized array.
-    newArr :: Type a => Data Length -> m (Arr a)
-    -- | Get an element of an array.
-    getArr :: Type a => Data Index -> Arr a -> m (Data a)
-    -- | Set an element of an array.
-    setArr :: Type a => Data Index -> Data a -> Arr a -> m ()
-    -- | Copy the contents of an array to another array. The number of elements to
-    -- copy must not be greater than the number of allocated elements in either
-    -- array.
-    copyArr :: Type a
-        => Arr a        -- ^ Destination
-        -> Arr a        -- ^ Source
-        -> Data Length  -- ^ Number of elements
-        -> m ()
-
--- | Control flow.
-class Monad m => Controls m
-  where
-    -- | Conditional statement.
+    -- | Lift a 'Comp' computation
+    liftComp :: Comp a -> m a
+    -- | Conditional statement
     iff :: Data Bool -> m () -> m () -> m ()
-    -- | For loop.
+    -- | For loop
     for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
-    -- | While loop.
+    -- | While loop
     while :: m (Data Bool) -> m () -> m ()
-    -- | Break out from a loop
-    break :: m ()
-    -- | Assertion
-    assert
-        :: Data Bool  -- ^ Expression that should be true
-        -> String     -- ^ Message in case of failure
-        -> m ()
 
-instance References Comp
+instance MonadComp Comp
   where
-    newRef   = fmap Ref $ mapVirtualA (const (Comp Imp.newRef)) virtRep
-    initRef  = fmap Ref . mapVirtualA (Comp . Imp.initRef) . sugar
-    getRef   = fmap desugar . mapVirtualA (Comp . Imp.getRef) . unRef
-    setRef r = sequence_ . zipListVirtual (\r' a' -> Comp $ Imp.setRef r' a') (unRef r) . sugar
-    modifyRef r f   = setRef r . f =<< unsafeFreezeRef r
-    unsafeFreezeRef = fmap desugar . mapVirtualA (Comp . Imp.unsafeFreezeRef) . unRef
-
-instance Arrays Comp
-  where
-    newArr :: forall a. Type a => Data Length -> Comp (Arr a)
-    newArr l = fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
-      where rep = virtRep :: VirtualRep SmallType a
-
-    getArr i = fmap desugar . mapVirtualA (Comp . Imp.getArr i) . unArr
-
-    setArr :: forall a. Type a => Data Index -> Data a -> Arr a -> Comp ()
-    setArr i a arr = sequence_ $ zipListVirtual (\a' arr' -> Comp $ Imp.setArr i a' arr') (rep) (unArr arr)
-      where rep = sugar a :: Virtual SmallType Data a
-
-    copyArr arr1 arr2 len = sequence_ $
-        zipListVirtual (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
-          (unArr arr1)
-          (unArr arr2)
-
-instance Controls Comp
-  where
+    liftComp        = id
     iff c t f       = Comp $ Imp.iff c (unComp t) (unComp f)
     for  range body = Comp $ Imp.for range (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
-    break           = Comp Imp.break
-    assert cond msg = Comp $ Imp.assert cond msg
+
+-- | Break out from a loop
+break :: MonadComp m => m ()
+break = liftComp $ Comp Imp.break
+
+-- | Assertion
+assert :: MonadComp m
+    => Data Bool  -- ^ Expression that should be true
+    -> String     -- ^ Message in case of failure
+    -> m ()
+assert cond msg = liftComp $ Comp $ Imp.assert cond msg
+
+
+
+----------------------------------------
+-- ** References
+----------------------------------------
+
+-- | Create an uninitialized reference.
+newRef :: (Type a, MonadComp m) => m (Ref a)
+newRef = liftComp $ fmap Ref $ mapVirtualA (const (Comp Imp.newRef)) virtRep
+
+-- | Create an initialized reference.
+initRef :: (Type a, MonadComp m) => Data a -> m (Ref a)
+initRef = liftComp . fmap Ref . mapVirtualA (Comp . Imp.initRef) . sugar
+
+-- | Get the contents of a reference.
+getRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
+getRef = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getRef) . unRef
+
+-- | Set the contents of a reference.
+setRef :: (Type a, MonadComp m) => Ref a -> Data a -> m ()
+setRef r
+    = liftComp
+    . sequence_
+    . zipListVirtual (\r' a' -> Comp $ Imp.setRef r' a') (unRef r)
+    . sugar
+
+-- | Modify the contents of reference.
+modifyRef :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
+modifyRef r f = setRef r . f =<< unsafeFreezeRef r
+
+-- | Freeze the contents of reference (only safe if the reference is not updated
+--   as long as the resulting value is alive).
+unsafeFreezeRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
+unsafeFreezeRef
+    = liftComp
+    . fmap desugar
+    . mapVirtualA (Comp . Imp.unsafeFreezeRef)
+    . unRef
+
+
+
+----------------------------------------
+-- ** Arrays
+----------------------------------------
+
+-- | Create an uninitialized array
+newArr :: forall m a . (Type a, MonadComp m) => Data Length -> m (Arr a)
+newArr l = liftComp $ fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
+  where
+    rep = virtRep :: VirtualRep SmallType a
+
+-- | Get an element of an array
+getArr :: (Type a, MonadComp m) => Data Index -> Arr a -> m (Data a)
+getArr i = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getArr i) . unArr
+
+-- | Set an element of an array
+setArr :: forall m a . (Type a, MonadComp m) =>
+    Data Index -> Data a -> Arr a -> m ()
+setArr i a
+    = liftComp
+    . sequence_
+    . zipListVirtual (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
+    . unArr
+  where
+    rep = sugar a :: Virtual SmallType Data a
+
+-- | Copy the contents of an array to another array. The number of elements to
+-- copy must not be greater than the number of allocated elements in either
+-- array.
+copyArr :: (Type a, MonadComp m)
+    => Arr a        -- ^ Destination
+    -> Arr a        -- ^ Source
+    -> Data Length  -- ^ Number of elements
+    -> m ()
+copyArr arr1 arr2 len = liftComp $ sequence_ $
+    zipListVirtual (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
+      (unArr arr1)
+      (unArr arr2)
+
+
+
+----------------------------------------
+-- ** Control-flow
+----------------------------------------
 
 -- | Conditional statement that returns an expression
-ifE :: (References m, Controls m, Type a)
+ifE :: (Type a, MonadComp m)
     => Data Bool   -- ^ Condition
     -> m (Data a)  -- ^ True branch
     -> m (Data a)  -- ^ False branch

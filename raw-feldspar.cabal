@@ -30,7 +30,7 @@ library
     Feldspar.Software.Compile
     Feldspar.Software
     Feldspar.Hardware.Representation
-    Feldspar.Software.Frontend
+    Feldspar.Hardware.Frontend
     Feldspar.Hardware.Compile
     Feldspar.Hardware
     Feldspar.Vector

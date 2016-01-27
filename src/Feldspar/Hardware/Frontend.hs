@@ -1,6 +1,5 @@
 module Feldspar.Hardware.Frontend
   ( Hardware
-  , liftH
   , module Feldspar.Hardware.Frontend
   ) where
 
@@ -43,32 +42,5 @@ modifySig s f = setSig s . f =<< unsafeFreezeSig s
 -- | Freeze the contents of a signal.
 unsafeFreezeSig :: Type a => Sig a -> Hardware (Data a)
 unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal) . unSig
-
---------------------------------------------------------------------------------
--- ** ...
-
-instance References (Hardware)
-  where
-    newRef          = liftH newRef
-    initRef         = liftH . initRef
-    getRef          = liftH . getRef
-    setRef r        = liftH . setRef r
-    modifyRef r     = liftH . modifyRef r
-    unsafeFreezeRef = liftH . unsafeFreezeRef
-
-instance Arrays (Hardware)
-  where
-    newArr        = liftH . newArr
-    getArr i      = liftH . getArr i
-    setArr i v    = liftH . setArr i v
-    copyArr a1 a2 = liftH . copyArr a1 a2
-
-instance Controls (Hardware)
-  where
-    iff c t f          = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
-    while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
-    break              = liftH Feld.break
-    assert cond msg    = liftH $ assert cond msg
 
 --------------------------------------------------------------------------------

@@ -8,9 +8,10 @@ import Control.Monad.Trans
 
 import Control.Monad.Operational.Higher
 
-import Language.Embedded.Hardware
+import Language.Embedded.Hardware as Hard
 
 import Feldspar.Representation
+import Feldspar.Frontend
 
 
 
@@ -24,6 +25,10 @@ type HardwareCMD =
 newtype Hardware a = Hardware { unHardware :: ProgramT HardwareCMD (Program CompCMD) a }
   deriving (Functor, Applicative, Monad)
 
-liftH :: Comp a -> Hardware a
-liftH = Hardware . lift . unComp
+instance MonadComp Hardware
+  where
+    liftComp           = Hardware . lift . unComp
+    iff c t f          = Hardware $ Hard.iff c (unHardware t) (unHardware f)
+    for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
+    while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
 

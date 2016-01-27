@@ -2,7 +2,6 @@
 
 module Feldspar.Software.Frontend
   ( Software
-  , liftS
   , module Feldspar.Software.Frontend
   , module Language.Embedded.Imperative.Frontend.General
   ) where
@@ -19,34 +18,7 @@ import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation
-import Feldspar.Frontend
 import Feldspar.Software.Representation
-
-
-
-instance References Software
-  where
-    newRef          = liftS newRef
-    initRef         = liftS . initRef
-    getRef          = liftS . getRef
-    setRef r        = liftS . setRef r
-    modifyRef r     = liftS . modifyRef r
-    unsafeFreezeRef = liftS . unsafeFreezeRef
-
-instance Arrays Software
-  where
-    newArr        = liftS . newArr
-    getArr i      = liftS . getArr i
-    setArr i v    = liftS . setArr i v
-    copyArr a1 a2 = liftS . copyArr a1 a2
-
-instance Controls Software
-  where
-    iff c t f       = Software $ Imp.iff c (unSoftware t) (unSoftware f)
-    for  range body = Software $ Imp.for range (unSoftware . body)
-    while cont body = Software $ Imp.while (unSoftware cont) (unSoftware body)
-    break           = Software Imp.break
-    assert cond msg = Software $ Imp.assert cond msg
 
 
 

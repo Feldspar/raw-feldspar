@@ -6,9 +6,10 @@ module Feldspar.Software.Representation where
 
 import Control.Monad.Trans
 
-import Language.Embedded.Imperative
+import Language.Embedded.Imperative as Imp
 
 import Feldspar.Representation
+import Feldspar.Frontend
 
 
 
@@ -23,6 +24,10 @@ type SoftwareCMD
 newtype Software a = Software { unSoftware :: ProgramT SoftwareCMD (Program CompCMD) a }
   deriving (Functor, Applicative, Monad)
 
-liftS :: Comp a -> Software a
-liftS = Software . lift . unComp
+instance MonadComp Software
+  where
+    liftComp        = Software . lift . unComp
+    iff c t f       = Software $ Imp.iff c (unSoftware t) (unSoftware f)
+    for  range body = Software $ Imp.for range (unSoftware . body)
+    while cont body = Software $ Imp.while (unSoftware cont) (unSoftware body)
 
