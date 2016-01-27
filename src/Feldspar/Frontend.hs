@@ -166,7 +166,7 @@ resugar = Syntactic.resugar
 type Any m = (References m, Arrays m, Controls m)
 
 -- | References.
-class References m
+class Monad m => References m
   where
     -- | Create an uninitialized reference.
     newRef    :: Type a => m (Ref a)
@@ -183,7 +183,7 @@ class References m
     unsafeFreezeRef :: Type a => Ref a -> m (Data a)
 
 -- | Arrays.
-class Arrays m
+class Monad m => Arrays m
   where
     -- | Create an uninitialized array.
     newArr :: Type a => Data Length -> m (Arr a)
@@ -206,7 +206,7 @@ copyArr arr1 arr2 len = sequence_ $
       (unArr arr2)
 
 -- | Control flow.
-class Controls m
+class Monad m => Controls m
   where
     -- | Conditional statement.
     iff :: Data Bool -> m () -> m () -> m ()
