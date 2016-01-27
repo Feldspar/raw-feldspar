@@ -210,12 +210,21 @@ class Monad m => Controls m
   where
     -- | Conditional statement.
     iff :: Data Bool -> m () -> m () -> m ()
-    -- | Conditional statement that returns an expression.
-    ifE :: Type a => Data Bool -> m (Data a) -> m (Data a) -> m (Data a)
     -- | For loop.
     for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
     -- | While loop.
     while :: m (Data Bool) -> m () -> m ()
+
+-- | Conditional statement that returns an expression
+ifE :: (References m, Controls m, Type a)
+    => Data Bool   -- ^ Condition
+    -> m (Data a)  -- ^ True branch
+    -> m (Data a)  -- ^ False branch
+    -> m (Data a)
+ifE c t f = do
+    res <- newRef
+    iff c (t >>= setRef res) (f >>= setRef res)
+    unsafeFreezeRef res
 
 -- | Break out from a loop
 break :: Program ()
@@ -499,10 +508,6 @@ instance Arrays (Program)
 instance Controls (Program)
   where
     iff c t f = Program $ Soft.iff c (unProgram t) (unProgram f)
-    ifE c t f = do
-      res <- newRef
-      iff c (t >>= setRef res) (f >>= setRef res)
-      getRef res
     for  range body = Program $ Soft.for range (unProgram . body)
     while cont body = Program $ Soft.while (unProgram cont) (unProgram body)
 
@@ -530,10 +535,6 @@ instance Arrays (Software)
 instance Controls (Software)
   where
     iff c t f  = Software $ Soft.iff c (unSoftware t) (unSoftware f)
-    ifE c t f  = do
-      res <- newRef
-      iff c (t >>= setRef res) (f >>= setRef res)
-      getRef res
     for  range body = Software $ Soft.for range (unSoftware . body)
     while cont body = Software $ Soft.while (unSoftware cont) (unSoftware body)
 
@@ -561,10 +562,6 @@ instance Arrays (Hardware)
 instance Controls (Hardware)
   where
     iff c t f  = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    ifE c t f  = do
-      res <- newRef
-      iff c (t >>= setRef res) (f >>= setRef res)
-      getRef res
     for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
     while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
 
