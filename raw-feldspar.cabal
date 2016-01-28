@@ -19,14 +19,21 @@ source-repository head
 
 library
   exposed-modules:
-    Feldspar
     Data.VirtualContainer
     Feldspar.Representation
     Feldspar.Optimize
     Feldspar.Frontend
     Feldspar.Storable
+    Feldspar
+    Feldspar.Software.Representation
+    Feldspar.Software.Frontend
+    Feldspar.Software.Compile
+    Feldspar.Software
+    Feldspar.Hardware.Representation
+    Feldspar.Hardware.Frontend
+    Feldspar.Hardware.Compile
+    Feldspar.Hardware
     Feldspar.Vector
-    Feldspar.Compile
 
   other-modules:
     Data.VirtualContainer.TH
@@ -51,7 +58,8 @@ library
   build-depends:
     base < 5,
     containers,
-    imperative-edsl,
+    imperative-edsl >=0.4.1,
+    hardware-edsl >=0.1.0.1,
     mtl,
     open-typerep >= 0.5,
     operational-alacarte,

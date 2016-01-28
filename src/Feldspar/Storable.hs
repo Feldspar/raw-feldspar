@@ -25,28 +25,28 @@ class Storable a
 
     -- | Store a value to a fresh memory store. It is usually better to use
     -- 'initStore' instead of this function as it improves type inference.
-    initStoreRep  :: a -> Program (StoreRep a)
+    initStoreRep :: MonadComp m => a -> m (StoreRep a)
 
     -- | Read from a memory store. It is usually better to use 'readStore'
     -- instead of this function as it improves type inference.
-    readStoreRep  :: StoreRep a -> Program a
+    readStoreRep :: MonadComp m => StoreRep a -> m a
 
     -- | Unsafe freezing of a memory store. It is usually better to use
     -- 'unsafeFreezeStore' instead of this function as it improves type
     -- inference.
-    unsafeFreezeStoreRep :: StoreRep a -> Program a
+    unsafeFreezeStoreRep :: MonadComp m => StoreRep a -> m a
 
     -- | Write to a memory store. It is usually better to use 'writeStore'
     -- instead of this function as it improves type inference.
-    writeStoreRep :: StoreRep a -> a -> Program ()
+    writeStoreRep :: MonadComp m => StoreRep a -> a -> m ()
 
     -- | Copy the contents of a store to another store. It is usually better to
     -- use 'copyStore' instead of this function as it improves type inference.
-    copyStoreRep
-        :: proxy a
+    copyStoreRep :: MonadComp m
+        => proxy a
         -> StoreRep a  -- ^ Destination
         -> StoreRep a  -- ^ Source
-        -> Program ()
+        -> m ()
 
 instance SmallType a => Storable (Data a)
   where
@@ -94,11 +94,12 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
         copyStoreRep (Proxy :: Proxy d) ld1 ld2
 
 -- | Cast between 'Storable' types that have the same memory representation
-castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b) => a -> Program b
+castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b, MonadComp m) =>
+    a -> m b
 castStore = initStoreRep >=> unsafeFreezeStoreRep
 
 -- | Store a value to memory and read it back
-store :: Storable a => a -> Program a
+store :: (Storable a, MonadComp m) => a -> m a
 store = castStore
 
 -- | Memory for storing values
@@ -108,31 +109,31 @@ newtype Store a = Store { unStore :: StoreRep a }
   -- methods is that they involve type families.
 
 -- | Store a value to a fresh 'Store'
-initStore :: Storable a => a -> Program (Store a)
+initStore :: (Storable a, MonadComp m) => a -> m (Store a)
 initStore = fmap Store . initStoreRep
 
 -- | Read from a 'Store'
-readStore :: Storable a => Store a -> Program a
+readStore :: (Storable a, MonadComp m) => Store a -> m a
 readStore = readStoreRep . unStore
 
 -- | Unsafe freezeing of a 'Store'. This operation is only safe if the 'Store'
 -- is not updated as long as the resulting value is alive.
-unsafeFreezeStore :: Storable a => Store a -> Program a
+unsafeFreezeStore :: (Storable a, MonadComp m) => Store a -> m a
 unsafeFreezeStore = unsafeFreezeStoreRep . unStore
 
 -- | Write to a 'Store'
-writeStore :: Storable a => Store a -> a -> Program ()
+writeStore :: (Storable a, MonadComp m) => Store a -> a -> m ()
 writeStore = writeStoreRep . unStore
 
 -- | Copy the contents of a 'Store' to another 'Store'. The size of the data in
 -- the source must not exceed the allocated size of the destination store.
-copyStore :: Storable a
+copyStore :: (Storable a, MonadComp m)
     => Store a  -- ^ Destination
     -> Store a  -- ^ Source
-    -> Program ()
+    -> m ()
 copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 
 -- | Update a 'Store' in-place
-inplace :: Storable a => Store a -> (a -> a) -> Program ()
+inplace :: (Storable a, MonadComp m) => Store a -> (a -> a) -> m ()
 inplace store f = writeStore store . f =<< unsafeFreezeStore store
 

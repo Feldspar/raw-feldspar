@@ -13,24 +13,13 @@ module Feldspar
   , Arr
   , Data
   , Syntax
-  , Program
+  , Comp
     -- * Front end
   , module Feldspar.Frontend
-  , module Language.Embedded.Imperative.Frontend.General
+  , Border (..)
+  , IxRange
     -- * Storable types
   , module Feldspar.Storable
-    -- * Back ends
-  , runIO
-  , compile
-  , icompile
-  , compileAndCheck'
-  , compileAndCheck
-  , runCompiled'
-  , runCompiled
-  , captureCompiled'
-  , captureCompiled
-  , compareCompiled'
-  , compareCompiled
   ) where
 
 import Prelude.EDSL
@@ -42,10 +31,9 @@ import Data.Word
 
 import Language.Syntactic
 
-import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
+import Language.Embedded.Imperative (Border (..), IxRange)
 
 import Feldspar.Representation
-import Feldspar.Compile
 import Feldspar.Frontend
 import Feldspar.Storable
 

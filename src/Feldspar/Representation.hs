@@ -29,10 +29,14 @@ import Data.TypeRep.Types.IntWord.Typeable ()
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
-import Language.Embedded.Expression
-import qualified Language.Embedded.Imperative as Imp
-import qualified Language.Embedded.Imperative.CMD as Imp
+import qualified Control.Monad.Operational.Higher as H
+
+import Language.Embedded.Hardware (HType)
+import Language.Embedded.Hardware.Interface (PredicateExp)
+
 import Language.Embedded.CExp (CType)
+import Language.Embedded.Expression (VarPred)
+import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
 
@@ -58,8 +62,8 @@ class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) =>
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
 
 -- | Small Feldspar types
-class    (Type a, CType a) => SmallType a
-instance (Type a, CType a) => SmallType a
+class    (Type a, CType a, HType a) => SmallType a
+instance (Type a, CType a, HType a) => SmallType a
 
 instance ShowClass Type      where showClass _ = "Type"
 instance ShowClass SmallType where showClass _ = "SmallType"
@@ -156,9 +160,9 @@ data IOSym sig
     -- Array indexing
     UnsafeArrIx :: SmallType a => Imp.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
-    UnsafePerform :: Program (Data a) -> IOSym (Full a)
+    UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
-    UnsafePerformWith :: Program () -> IOSym (a :-> Full a)
+    UnsafePerformWith :: Comp () -> IOSym (a :-> Full a)
   -- The reason for having `UnsafeArrIx` instead of doing the same thing using
   -- `UnsafePerform` is that `UnsafeArrIx` can be compared for equality, which
   -- may help some optimizations.
@@ -219,24 +223,22 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
-type instance VarPred Data = SmallType
+type instance VarPred      Data = SmallType
+type instance PredicateExp Data = SmallType
 
 
 
 --------------------------------------------------------------------------------
--- * Programs
+-- * Monadic computations
 --------------------------------------------------------------------------------
 
-type CMD
-    =       Imp.RefCMD Data
-    Imp.:+: Imp.ArrCMD Data
-    Imp.:+: Imp.ControlCMD Data
-    Imp.:+: Imp.PtrCMD
-    Imp.:+: Imp.FileCMD Data
-    Imp.:+: Imp.ObjectCMD Data
-    Imp.:+: Imp.CallCMD Data
+type CompCMD
+  =     Imp.RefCMD     Data
+  H.:+: Imp.ArrCMD     Data
+  H.:+: Imp.ControlCMD Data
 
-newtype Program a = Program { unProgram :: Imp.Program CMD a }
+-- | Monad for computational effects: mutable data structures and control flow
+newtype Comp a = Comp { unComp :: H.Program CompCMD a }
   deriving (Functor, Applicative, Monad)
 
 

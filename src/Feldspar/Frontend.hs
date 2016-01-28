@@ -1,18 +1,8 @@
-{-# LANGUAGE CPP #-}
-
-module Feldspar.Frontend
-  ( module Feldspar.Frontend
-  , ExternalCompilerOpts (..)
-  ) where
+module Feldspar.Frontend where
 
 
-
-import Prelude (Integral, error, reverse)
+import Prelude (Integral, error, (=<<), sequence_)
 import Prelude.EDSL
-
-import Control.Monad
-
-import Data.Proxy
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -20,11 +10,8 @@ import qualified Language.Syntactic as Syntactic
 
 import Language.Syntactic.TypeRep
 
-import qualified Control.Monad.Operational.Higher as Imp
+import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
-import qualified Language.Embedded.Imperative.CMD as Imp
-import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
-import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 import Data.VirtualContainer
 import Feldspar.Representation
@@ -137,7 +124,7 @@ max a b = a>=b ? a $ b
 ----------------------------------------
 
 -- | Index into an array
-unsafeArrIx :: forall a . Type a => Arr a -> Data Index -> Data a
+unsafeArrIx :: Type a => Arr a -> Data Index -> Data a
 unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
   where
     arrIx :: SmallType b => Imp.Arr Index b -> Data b
@@ -149,10 +136,10 @@ unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
 -- ** Syntactic conversion
 ----------------------------------------
 
-desugar :: Syntax a => a -> Data (Syntactic.Internal a)
+desugar :: Syntax a => a -> Data (Internal a)
 desugar = Data . Syntactic.desugar
 
-sugar :: Syntax a => Data (Syntactic.Internal a) -> a
+sugar :: Syntax a => Data (Internal a) -> a
 sugar = Syntactic.sugar . unData
 
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
@@ -161,40 +148,78 @@ resugar = Syntactic.resugar
 
 
 --------------------------------------------------------------------------------
--- * Programs
+-- * Programs with computational effects
 --------------------------------------------------------------------------------
+
+-- | Monads that support computational effects: mutable data structures and
+-- control flow
+class Monad m => MonadComp m
+  where
+    -- | Lift a 'Comp' computation
+    liftComp :: Comp a -> m a
+    -- | Conditional statement
+    iff :: Data Bool -> m () -> m () -> m ()
+    -- | For loop
+    for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
+    -- | While loop
+    while :: m (Data Bool) -> m () -> m ()
+
+instance MonadComp Comp
+  where
+    liftComp        = id
+    iff c t f       = Comp $ Imp.iff c (unComp t) (unComp f)
+    for  range body = Comp $ Imp.for range (unComp . body)
+    while cont body = Comp $ Imp.while (unComp cont) (unComp body)
+
+-- | Break out from a loop
+break :: MonadComp m => m ()
+break = liftComp $ Comp Imp.break
+
+-- | Assertion
+assert :: MonadComp m
+    => Data Bool  -- ^ Expression that should be true
+    -> String     -- ^ Message in case of failure
+    -> m ()
+assert cond msg = liftComp $ Comp $ Imp.assert cond msg
+
+
 
 ----------------------------------------
 -- ** References
 ----------------------------------------
 
--- | Create an uninitialized reference
-newRef :: Type a => Program (Ref a)
-newRef = fmap Ref $ mapVirtualA (const (Program Imp.newRef)) virtRep
+-- | Create an uninitialized reference.
+newRef :: (Type a, MonadComp m) => m (Ref a)
+newRef = liftComp $ fmap Ref $ mapVirtualA (const (Comp Imp.newRef)) virtRep
 
--- | Create an initialized reference
-initRef :: Type a => Data a -> Program (Ref a)
-initRef = fmap Ref . mapVirtualA (Program . Imp.initRef) . sugar
+-- | Create an initialized reference.
+initRef :: (Type a, MonadComp m) => Data a -> m (Ref a)
+initRef = liftComp . fmap Ref . mapVirtualA (Comp . Imp.initRef) . sugar
 
--- | Get the contents of a reference
-getRef :: Type a => Ref a -> Program (Data a)
-getRef = fmap desugar . mapVirtualA (Program . Imp.getRef) . unRef
+-- | Get the contents of a reference.
+getRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
+getRef = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getRef) . unRef
 
--- | Set the contents of a reference
-setRef :: Type a => Ref a -> Data a -> Program ()
+-- | Set the contents of a reference.
+setRef :: (Type a, MonadComp m) => Ref a -> Data a -> m ()
 setRef r
-    = sequence_
-    . zipListVirtual (\r' a' -> Program $ Imp.setRef r' a') (unRef r)
+    = liftComp
+    . sequence_
+    . zipListVirtual (\r' a' -> Comp $ Imp.setRef r' a') (unRef r)
     . sugar
 
--- | Modify the contents of reference
-modifyRef :: Type a => Ref a -> (Data a -> Data a) -> Program ()
+-- | Modify the contents of reference.
+modifyRef :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
--- as long as the resulting value is alive)
-unsafeFreezeRef :: Type a => Ref a -> Program (Data a)
-unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . unRef
+--   as long as the resulting value is alive).
+unsafeFreezeRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
+unsafeFreezeRef
+    = liftComp
+    . fmap desugar
+    . mapVirtualA (Comp . Imp.unsafeFreezeRef)
+    . unRef
 
 
 
@@ -203,286 +228,53 @@ unsafeFreezeRef = fmap desugar . mapVirtualA (Program . Imp.unsafeFreezeRef) . u
 ----------------------------------------
 
 -- | Create an uninitialized array
-newArr_ :: forall a . Type a => Program (Arr a)
-newArr_ = fmap Arr $ mapVirtualA (const (Program Imp.newArr_)) rep
-  where
-    rep = virtRep :: VirtualRep SmallType a
-
--- | Create an uninitialized array of unknown size
-newArr :: forall a . Type a => Data Length -> Program (Arr a)
-newArr l = fmap Arr $ mapVirtualA (const (Program $ Imp.newArr l)) rep
+newArr :: forall m a . (Type a, MonadComp m) => Data Length -> m (Arr a)
+newArr l = liftComp $ fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Get an element of an array
-getArr :: Type a => Data Index -> Arr a -> Program (Data a)
-getArr i = fmap desugar . mapVirtualA (Program . Imp.getArr i) . unArr
+getArr :: (Type a, MonadComp m) => Data Index -> Arr a -> m (Data a)
+getArr i = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getArr i) . unArr
 
 -- | Set an element of an array
-setArr :: forall a . Type a => Data Index -> Data a -> Arr a -> Program ()
-setArr i a arr = sequence_ $
-    zipListVirtual (\a' arr' -> Program $ Imp.setArr i a' arr') aS (unArr arr)
+setArr :: forall m a . (Type a, MonadComp m) =>
+    Data Index -> Data a -> Arr a -> m ()
+setArr i a
+    = liftComp
+    . sequence_
+    . zipListVirtual (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
+    . unArr
   where
-    aS = sugar a :: Virtual SmallType Data a
+    rep = sugar a :: Virtual SmallType Data a
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either
 -- array.
-copyArr :: Type a
+copyArr :: (Type a, MonadComp m)
     => Arr a        -- ^ Destination
     -> Arr a        -- ^ Source
     -> Data Length  -- ^ Number of elements
-    -> Program ()
-copyArr arr1 arr2 len = sequence_ $
-    zipListVirtual (\a1 a2 -> Program $ Imp.copyArr a1 a2 len)
+    -> m ()
+copyArr arr1 arr2 len = liftComp $ sequence_ $
+    zipListVirtual (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
       (unArr arr1)
       (unArr arr2)
 
 
 
 ----------------------------------------
--- ** Control flow
+-- ** Control-flow
 ----------------------------------------
 
--- | Conditional statement
-iff
-    :: Data Bool   -- ^ Condition
-    -> Program ()  -- ^ True branch
-    -> Program ()  -- ^ False branch
-    -> Program ()
-iff c t f = Program $ Imp.iff c (unProgram t) (unProgram f)
-
 -- | Conditional statement that returns an expression
-ifE :: Type a
-    => Data Bool         -- ^ Condition
-    -> Program (Data a)  -- ^ True branch
-    -> Program (Data a)  -- ^ False branch
-    -> Program (Data a)
+ifE :: (Type a, MonadComp m)
+    => Data Bool   -- ^ Condition
+    -> m (Data a)  -- ^ True branch
+    -> m (Data a)  -- ^ False branch
+    -> m (Data a)
 ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
-
--- | For loop
-for :: (Integral n, SmallType n)
-    => IxRange (Data n)        -- ^ Index range
-    -> (Data n -> Program ())  -- ^ Loop body
-    -> Program ()
-for range body = Program $ Imp.for range (unProgram . body)
-
--- | While loop
-while
-    :: Program (Data Bool)  -- ^ Continue condition
-    -> Program ()           -- ^ Loop body
-    -> Program ()
-while cont body = Program $ Imp.while (unProgram cont) (unProgram body)
-
--- | Break out from a loop
-break :: Program ()
-break = Program Imp.break
-
--- | Assertion
-assert
-    :: Data Bool  -- ^ Expression that should be true
-    -> String     -- ^ Message in case of failure
-    -> Program ()
-assert cond msg = Program $ Imp.assert cond msg
-
-
-
-----------------------------------------
--- ** Pointer operations
-----------------------------------------
-
--- | Swap two pointers
---
--- This is generally an unsafe operation. E.g. it can be used to make a
--- reference to a data structure escape the scope of the data.
---
--- The 'IsPointer' class ensures that the operation is only possible for types
--- that are represented as pointers in C.
-unsafeSwap :: IsPointer a => a -> a -> Program ()
-unsafeSwap a b = Program $ Imp.unsafeSwap a b
-
-
-
-----------------------------------------
--- ** File handling
-----------------------------------------
-
--- | Open a file
-fopen :: FilePath -> IOMode -> Program Handle
-fopen file = Program . Imp.fopen file
-
--- | Close a file
-fclose :: Handle -> Program ()
-fclose = Program . Imp.fclose
-
--- | Check for end of file
-feof :: Handle -> Program (Data Bool)
-feof = Program . Imp.feof
-
-class PrintfType r
-  where
-    fprf :: Handle -> String -> [Imp.PrintfArg Data] -> r
-
-instance (a ~ ()) => PrintfType (Program a)
-  where
-    fprf h form = Program . Imp.singleE . Imp.FPrintf h form . reverse
-
-instance (Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
-  where
-    fprf h form as = \a -> fprf h form (Imp.PrintfArg a : as)
-
--- | Print to a handle. Accepts a variable number of arguments.
-fprintf :: PrintfType r => Handle -> String -> r
-fprintf h format = fprf h format []
-
--- | Put a single value to a handle
-fput :: (Formattable a, SmallType a)
-    => Handle
-    -> String  -- Prefix
-    -> Data a  -- Expression to print
-    -> String  -- Suffix
-    -> Program ()
-fput h pre a post = Program $ Imp.fput h pre a post
-
--- | Get a single value from a handle
-fget :: (Formattable a, SmallType a) => Handle -> Program (Data a)
-fget = Program . Imp.fget
-
--- | Print to @stdout@. Accepts a variable number of arguments.
-printf :: PrintfType r => String -> r
-printf = fprintf Imp.stdout
-
-
-
-----------------------------------------
--- ** Abstract objects
-----------------------------------------
-
-newObject
-    :: String  -- ^ Object type
-    -> Program Object
-newObject = Program . Imp.newObject
-
-initObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Program Object
-initObject fun ty args = Program $ Imp.initObject fun ty args
-
-initUObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Program Object
-initUObject fun ty args = Program $ Imp.initUObject fun ty args
-
-
-
-----------------------------------------
--- ** External function calls (C-specific)
-----------------------------------------
-
--- | Add an @#include@ statement to the generated code
-addInclude :: String -> Program ()
-addInclude = Program . Imp.addInclude
-
--- | Add a global definition to the generated code
---
--- Can be used conveniently as follows:
---
--- > {-# LANGUAGE QuasiQuotes #-}
--- >
--- > import Feldspar.IO
--- >
--- > prog = do
--- >     ...
--- >     addDefinition myCFunction
--- >     ...
--- >   where
--- >     myCFunction = [cedecl|
--- >       void my_C_function( ... )
--- >       {
--- >           // C code
--- >           // goes here
--- >       }
--- >       |]
-addDefinition :: Definition -> Program ()
-addDefinition = Program . Imp.addDefinition
-
--- | Declare an external function
-addExternFun :: forall proxy res . SmallType res
-    => String         -- ^ Function name
-    -> proxy res      -- ^ Proxy for expression and result type
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Program ()
-addExternFun fun res args = Program $ Imp.addExternFun fun res' args
-  where
-    res' = Proxy :: Proxy (Data res)
-
--- | Declare an external procedure
-addExternProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Program ()
-addExternProc proc args = Program $ Imp.addExternProc proc args
-
--- | Call a function
-callFun :: SmallType a
-    => String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
-    -> Program (Data a)
-callFun fun as = Program $ Imp.callFun fun as
-
--- | Call a procedure
-callProc
-    :: String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
-    -> Program ()
-callProc fun as = Program $ Imp.callProc fun as
-
--- | Declare and call an external function
-externFun :: SmallType res
-    => String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
-    -> Program (Data res)
-externFun fun args = Program $ Imp.externFun fun args
-
--- | Declare and call an external procedure
-externProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
-    -> Program ()
-externProc proc args = Program $ Imp.externProc proc args
-
--- | Get current time as number of seconds passed today
-getTime :: Program (Data Double)
-getTime = Program Imp.getTime
-
--- | Constant string argument
-strArg :: String -> FunArg Data
-strArg = Imp.strArg
-
--- | Value argument
-valArg :: SmallType a => Data a -> FunArg Data
-valArg = Imp.valArg
-
--- | Reference argument
-refArg :: SmallType a => Ref a -> FunArg Data
-refArg (Ref r) = Imp.refArg (viewActual r)
-
--- | Array argument
-arrArg :: SmallType a => Arr a -> FunArg Data
-arrArg (Arr a) = Imp.arrArg (viewActual a)
-
--- | Abstract object argument
-objArg :: Object -> FunArg Data
-objArg = Imp.objArg
-
--- | Modifier that takes the address of another argument
-addr :: FunArg Data -> FunArg Data
-addr = Imp.addr
 

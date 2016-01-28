@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Feldspar.Compile where
+module Feldspar.Software.Compile where
 
 
 
@@ -17,14 +17,13 @@ import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import qualified Control.Monad.Operational.Higher as Imp
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
 
 import Data.TypeRep
 
-import Control.Monad.Operational.Higher (interpretWithMonad)
+import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
 import qualified Language.Embedded.Imperative as Imp
@@ -33,10 +32,11 @@ import Language.Embedded.CExp
 import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
-import Feldspar.Representation hiding (Program)
+import Feldspar.Representation
+import Feldspar.Software.Representation
 import Feldspar.Optimize
-import qualified Feldspar.Representation as Feld
 import qualified Feldspar.Frontend as Feld
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 
 
@@ -207,16 +207,19 @@ instance Lower (CallCMD Data)
 
 instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
   where
-    lowerInstr (Imp.Inl i) = lowerInstr i
-    lowerInstr (Imp.Inr i) = lowerInstr i
+    lowerInstr (Oper.Inl i) = lowerInstr i
+    lowerInstr (Oper.Inr i) = lowerInstr i
 
 -- | Translate a Feldspar program to the 'Target' monad
-lower :: Program Feld.CMD a -> Target a
-lower = interpretWithMonad lowerInstr
+lower :: Program CompCMD a -> Target a
+lower = Oper.interpretWithMonad lowerInstr
 
--- | Translate a Feldspar program a program that uses 'TargetCMD'
-lowerTop :: Feld.Program a -> Program TargetCMD a
-lowerTop = flip runReaderT Map.empty . lower . unProgram
+-- | Translate a Feldspar program into a program that uses 'TargetCMD'
+lowerTop :: Software a -> Program TargetCMD a
+lowerTop
+    = flip runReaderT Map.empty
+    . Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
+    . unSoftware
 
 
 
@@ -288,8 +291,8 @@ transAST = goAST . optimize
         | Just Condition <- prj cond = do
             env <- ask
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
-              (t',f') | Imp.Return (Actual t'') <- Imp.view t'
-                      , Imp.Return (Actual f'') <- Imp.view f'
+              (t',f') | Oper.Return (Actual t'') <- Oper.view t'
+                      , Oper.Return (Actual f'') <- Oper.view f'
                       -> do c' <- goSmallAST c
                             return $ Actual (c' ? t'' $ f'')
 
@@ -323,11 +326,11 @@ transAST = goAST . optimize
             fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
-        = translateExp =<< lower (unProgram prog)
+        = translateExp =<< lower (unComp prog)
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
             a' <- goAST a
-            lower (unProgram prog)
+            lower (unComp prog)
             return a'
 
 -- | Translate a Feldspar expression
@@ -345,70 +348,70 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad
-runIO :: Feld.Program a -> IO a
-runIO = Imp.interpret . lowerTop
+runIO :: MonadSoftware m => m a -> IO a
+runIO = Imp.interpret . lowerTop . liftSoftware
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-compile :: Feld.Program a -> String
-compile = Imp.compile . lowerTop
+compile :: MonadSoftware m => m a -> String
+compile  = Imp.compile . lowerTop . liftSoftware
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-icompile :: Feld.Program a -> IO ()
-icompile = putStrLn . compile
+icompile :: MonadSoftware m => m a -> IO ()
+icompile  = putStrLn . compile
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
-compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
+compileAndCheck' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
+compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop . liftSoftware
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck :: Feld.Program a -> IO ()
+compileAndCheck :: MonadSoftware m => m a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: Feld.ExternalCompilerOpts -> Feld.Program a -> IO ()
-runCompiled' opts = Imp.runCompiled' opts . lowerTop
+runCompiled' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
+runCompiled' opts = Imp.runCompiled' opts . lowerTop . liftSoftware
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled :: Feld.Program a -> IO ()
+runCompiled :: MonadSoftware m => m a -> IO ()
 runCompiled = runCompiled' mempty
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled'
-    :: Feld.ExternalCompilerOpts
-    -> Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
-    -> IO String       -- ^ Result from @stdout@
-captureCompiled' opts = Imp.captureCompiled' opts . lowerTop
+captureCompiled' :: MonadSoftware m
+    => ExternalCompilerOpts
+    -> m a        -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
+captureCompiled' opts = Imp.captureCompiled' opts . lowerTop . liftSoftware
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled
-    :: Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
-    -> IO String       -- ^ Result from @stdout@
+captureCompiled :: MonadSoftware m
+    => m a        -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
 captureCompiled = captureCompiled' mempty
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
-compareCompiled'
-    :: Feld.ExternalCompilerOpts
-    -> Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
+compareCompiled' :: MonadSoftware m
+    => ExternalCompilerOpts
+    -> m a     -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
+compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftSoftware
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
-compareCompiled
-    :: Feld.Program a  -- ^ Program to run
-    -> String          -- ^ Input to send to @stdin@
+compareCompiled :: MonadSoftware m
+    => m a     -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty
 
