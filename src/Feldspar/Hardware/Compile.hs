@@ -233,13 +233,9 @@ instance                Harden ()             where harden = id
 lower :: (Lower instr, H.HFunctor instr, Harden a) => H.Program instr a -> Target (HW a)
 lower = fmap harden . H.interpretWithMonad lowerInstr
 
--- | Translate a Feldspar program into a program that uses 'TargetCMD'.
-lowerTop :: Harden a => Comp a -> H.Program TargetCMD (HW a)
-lowerTop = flip runReaderT Map.empty . lower . unComp
-
 -- | Translate a Hardware program into a program that uses 'TargetCMD'.
-lowerHard :: Harden a => Hardware a -> H.Program TargetCMD (HW a)
-lowerHard = flip runReaderT Map.empty . fmap harden . interp2 . unHardware
+lowerTop :: Harden a => Hardware a -> H.Program TargetCMD (HW a)
+lowerTop = flip runReaderT Map.empty . fmap harden . interp2 . unHardware
   where
     interp2 :: (H.HFunctor i, Lower i, H.HFunctor j, Lower j) => H.ProgramT i (H.Program j) a -> Target a
     interp2 = H.interpretWithMonadT lowerInstr (H.interpretWithMonad lowerInstr)
@@ -393,26 +389,16 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad.
-runIO :: Harden a => Comp a -> IO (HW a)
-runIO = H.interpret . lowerTop
+runIO :: (MonadHardware m, Harden a) => m a -> IO (HW a)
+runIO = H.interpret . lowerTop . liftHardware
 
 -- | Compile a program to VHDL code represented as a string.
-compile :: Harden a => Comp a -> String
-compile = Hard.compile . lowerTop
+compile :: (MonadHardware m, Harden a) => m a -> String
+compile = Hard.compile . lowerTop . liftHardware
 
 -- | Compile a program to VHDL code and print it on the screen.
-icompile :: Harden a => Comp a -> IO ()
+icompile :: (MonadHardware m, Harden a) => m a -> IO ()
 icompile = putStrLn . compile
-
---------------------------------------------------------------------------------
-
--- | ...
-compile2 :: Harden a => Hardware a -> String
-compile2 = Hard.compile . lowerHard
-
--- | ...
-icompile2 :: Harden a => Hardware a -> IO ()
-icompile2 = putStrLn . compile2
 
 --------------------------------------------------------------------------------
 -- Stuff

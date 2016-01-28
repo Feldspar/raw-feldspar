@@ -5,8 +5,6 @@ module Feldspar.Hardware
   , runIO
   , compile
   , icompile
-  , compile2
-  , icompile2
   ) where
 
 
