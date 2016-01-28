@@ -215,15 +215,11 @@ lower :: Program CompCMD a -> Target a
 lower = Oper.interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program into a program that uses 'TargetCMD'
-lowerTop :: Comp a -> Program TargetCMD a
-lowerTop = flip runReaderT Map.empty . lower . unComp
-
--- | Translate a Software program into a program that uses 'TargetCMD'
-lowerSoft :: Software a -> Program TargetCMD a
-lowerSoft = flip runReaderT Map.empty . interp2 . unSoftware
-  where
-    interp2 :: (Oper.HFunctor i, Lower i, Oper.HFunctor j, Lower j) => ProgramT i (Program j) a -> Target a
-    interp2 = Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
+lowerTop :: Software a -> Program TargetCMD a
+lowerTop
+    = flip runReaderT Map.empty
+    . Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
+    . unSoftware
 
 
 
@@ -352,72 +348,70 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad
-runIO :: Comp a -> IO a
+runIO :: Software a -> IO a
 runIO = Imp.interpret . lowerTop
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-compile :: Comp a -> String
+compile :: Software a -> String
 compile  = Imp.compile . lowerTop
-compile2 = Imp.compile . lowerSoft -- !
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-icompile :: Comp a -> IO ()
+icompile :: Software a -> IO ()
 icompile  = putStrLn . compile
-icompile2 = putStrLn . compile2  -- !
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: ExternalCompilerOpts -> Comp a -> IO ()
+compileAndCheck' :: ExternalCompilerOpts -> Software a -> IO ()
 compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck :: Comp a -> IO ()
+compileAndCheck :: Software a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: ExternalCompilerOpts -> Comp a -> IO ()
+runCompiled' :: ExternalCompilerOpts -> Software a -> IO ()
 runCompiled' opts = Imp.runCompiled' opts . lowerTop
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled :: Comp a -> IO ()
+runCompiled :: Software a -> IO ()
 runCompiled = runCompiled' mempty
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled'
     :: ExternalCompilerOpts
-    -> Comp a     -- ^ Program to run
-    -> String     -- ^ Input to send to @stdin@
-    -> IO String  -- ^ Result from @stdout@
+    -> Software a  -- ^ Program to run
+    -> String      -- ^ Input to send to @stdin@
+    -> IO String   -- ^ Result from @stdout@
 captureCompiled' opts = Imp.captureCompiled' opts . lowerTop
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
 captureCompiled
-    :: Comp a     -- ^ Program to run
-    -> String     -- ^ Input to send to @stdin@
-    -> IO String  -- ^ Result from @stdout@
+    :: Software a  -- ^ Program to run
+    -> String      -- ^ Input to send to @stdin@
+    -> IO String   -- ^ Result from @stdout@
 captureCompiled = captureCompiled' mempty
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
 compareCompiled'
     :: ExternalCompilerOpts
-    -> Comp a  -- ^ Program to run
-    -> String  -- ^ Input to send to @stdin@
+    -> Software a  -- ^ Program to run
+    -> String      -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
 compareCompiled
-    :: Comp a  -- ^ Program to run
-    -> String  -- ^ Input to send to @stdin@
+    :: Software a  -- ^ Program to run
+    -> String      -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty
 
