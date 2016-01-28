@@ -17,6 +17,10 @@ import Feldspar.Frontend
 
 
 
+--------------------------------------------------------------------------------
+-- * Class
+--------------------------------------------------------------------------------
+
 -- | Storable types
 class Storable a
   where
@@ -92,6 +96,12 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
         copyStoreRep (Proxy :: Proxy c) lc1 lc2
         copyStoreRep (Proxy :: Proxy d) ld1 ld2
+
+
+
+--------------------------------------------------------------------------------
+-- * User interface
+--------------------------------------------------------------------------------
 
 -- | Cast between 'Storable' types that have the same memory representation
 castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b, MonadComp m) =>

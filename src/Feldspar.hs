@@ -2,6 +2,11 @@ module Feldspar
   ( module Prelude.EDSL
   , module Control.Monad
     -- * Types
+    -- ** Syntax
+  , Data
+  , Syntax
+  , Comp
+    -- ** Values
   , module Data.Int
   , module Data.Word
   , Internal
@@ -11,9 +16,6 @@ module Feldspar
   , Index
   , Ref
   , Arr
-  , Data
-  , Syntax
-  , Comp
     -- * Front end
   , module Feldspar.Frontend
   , Border (..)
