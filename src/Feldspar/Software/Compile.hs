@@ -348,70 +348,70 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad
-runIO :: Software a -> IO a
-runIO = Imp.interpret . lowerTop
+runIO :: MonadSoftware m => m a -> IO a
+runIO = Imp.interpret . lowerTop . liftSoftware
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-compile :: Software a -> String
-compile  = Imp.compile . lowerTop
+compile :: MonadSoftware m => m a -> String
+compile  = Imp.compile . lowerTop . liftSoftware
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-icompile :: Software a -> IO ()
+icompile :: MonadSoftware m => m a -> IO ()
 icompile  = putStrLn . compile
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: ExternalCompilerOpts -> Software a -> IO ()
-compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop
+compileAndCheck' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
+compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop . liftSoftware
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck :: Software a -> IO ()
+compileAndCheck :: MonadSoftware m => m a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: ExternalCompilerOpts -> Software a -> IO ()
-runCompiled' opts = Imp.runCompiled' opts . lowerTop
+runCompiled' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
+runCompiled' opts = Imp.runCompiled' opts . lowerTop . liftSoftware
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled :: Software a -> IO ()
+runCompiled :: MonadSoftware m => m a -> IO ()
 runCompiled = runCompiled' mempty
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled'
-    :: ExternalCompilerOpts
-    -> Software a  -- ^ Program to run
-    -> String      -- ^ Input to send to @stdin@
-    -> IO String   -- ^ Result from @stdout@
-captureCompiled' opts = Imp.captureCompiled' opts . lowerTop
+captureCompiled' :: MonadSoftware m
+    => ExternalCompilerOpts
+    -> m a        -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
+captureCompiled' opts = Imp.captureCompiled' opts . lowerTop . liftSoftware
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled
-    :: Software a  -- ^ Program to run
-    -> String      -- ^ Input to send to @stdin@
-    -> IO String   -- ^ Result from @stdout@
+captureCompiled :: MonadSoftware m
+    => m a        -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
 captureCompiled = captureCompiled' mempty
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
-compareCompiled'
-    :: ExternalCompilerOpts
-    -> Software a  -- ^ Program to run
-    -> String      -- ^ Input to send to @stdin@
+compareCompiled' :: MonadSoftware m
+    => ExternalCompilerOpts
+    -> m a     -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled' opts = Imp.compareCompiled' opts . lowerTop
+compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftSoftware
 
 -- | Compare the content written to 'stdout' from interpretation in 'IO' and
 -- from running the compiled C code
-compareCompiled
-    :: Software a  -- ^ Program to run
-    -> String      -- ^ Input to send to @stdin@
+compareCompiled :: MonadSoftware m
+    => m a     -- ^ Program to run
+    -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty
 

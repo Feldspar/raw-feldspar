@@ -76,6 +76,7 @@ test_scProd2 = do
     v2 <- store $ map i2n (2 ... n+1)
     printf "result: %.3f\n" $ scProd v1 v2
 
+map_inplace :: Software ()
 map_inplace = do
     svec <- initStore (0...19)
     inplace svec $ map (*33)
