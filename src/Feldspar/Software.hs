@@ -7,8 +7,6 @@ module Feldspar.Software
   , runIO
   , compile
   , icompile
-  , compile2
-  , icompile2
   , compileAndCheck'
   , compileAndCheck
   , runCompiled'

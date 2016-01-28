@@ -8,11 +8,12 @@ import qualified Prelude
 import Control.Applicative ((<$>))
 
 import Feldspar
+import Feldspar.Software
 import Feldspar.Vector
 
 
 
-sumInput :: Program ()
+sumInput :: Software ()
 sumInput = do
     done <- initRef false
     sum  <- initRef (0 :: Data Word32)
@@ -26,12 +27,12 @@ sumInput = do
 --     printSum sum
     printf "The sum of your numbers is %d.\n" =<< getRef sum
 
-abort :: Program ()
+abort :: Software ()
 abort = do
     addInclude "<stdlib.h>"
     callProc "abort" []
 
-printSum :: Ref Word32 -> Program ()
+printSum :: Ref Word32 -> Software ()
 printSum s = do
     addDefinition printSum_def
     callProc "printSum" [refArg s]
@@ -54,7 +55,7 @@ run_sumInput  = runCompiled sumInput
 fib :: Data Word32 -> Data Word32
 fib n = fst $ forLoop (i2n n) (0,1) $ \_ (a,b) -> (b,a+b)
 
-printFib :: Program ()
+printFib :: Software ()
 printFib = do
     printf "Enter a positive number: "
     n <- fget stdin
