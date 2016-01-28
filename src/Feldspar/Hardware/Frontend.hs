@@ -1,5 +1,6 @@
 module Feldspar.Hardware.Frontend
   ( Hardware
+  , MonadHardware (..)
   , module Feldspar.Hardware.Frontend
   ) where
 

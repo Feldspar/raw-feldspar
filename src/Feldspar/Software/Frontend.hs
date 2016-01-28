@@ -2,6 +2,7 @@
 
 module Feldspar.Software.Frontend
   ( Software
+  , MonadSoftware (..)
   , module Feldspar.Software.Frontend
   , module Language.Embedded.Imperative.Frontend.General
   ) where

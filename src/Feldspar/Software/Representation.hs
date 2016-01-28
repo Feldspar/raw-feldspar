@@ -31,3 +31,10 @@ instance MonadComp Software
     for  range body = Software $ Imp.for range (unSoftware . body)
     while cont body = Software $ Imp.while (unSoftware cont) (unSoftware body)
 
+class Monad m => MonadSoftware m
+  where
+    liftSoftware :: m a -> Software a
+
+instance MonadSoftware Comp     where liftSoftware = liftComp
+instance MonadSoftware Software where liftSoftware = id
+

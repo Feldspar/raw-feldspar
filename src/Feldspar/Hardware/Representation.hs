@@ -32,3 +32,10 @@ instance MonadComp Hardware
     for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
     while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
 
+class Monad m => MonadHardware m
+  where
+    liftHardware :: m a -> Hardware a
+
+instance MonadHardware Comp     where liftHardware = liftComp
+instance MonadHardware Hardware where liftHardware = id
+
