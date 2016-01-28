@@ -4,7 +4,6 @@ import Control.Applicative ((<$>))
 
 import qualified Prelude
 
-import Feldspar
 import Feldspar.Software
 import Feldspar.Hardware (liftHardware)
 import qualified Feldspar.Hardware.Compile as HW

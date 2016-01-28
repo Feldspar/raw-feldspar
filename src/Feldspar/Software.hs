@@ -2,7 +2,8 @@
 
 module Feldspar.Software
   ( -- * Front end
-    module Feldspar.Software.Frontend
+    module Feldspar
+  , module Feldspar.Software.Frontend
     -- * Back ends
   , runIO
   , compile
@@ -19,6 +20,7 @@ module Feldspar.Software
 
 
 
+import Feldspar
 import Feldspar.Software.Representation
 import Feldspar.Software.Compile
 import Feldspar.Software.Frontend

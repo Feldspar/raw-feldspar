@@ -7,7 +7,6 @@ module Demo where
 import qualified Prelude
 import Control.Applicative ((<$>))
 
-import Feldspar
 import Feldspar.Software
 import Feldspar.Vector
 

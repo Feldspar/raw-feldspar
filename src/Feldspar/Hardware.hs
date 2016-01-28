@@ -1,6 +1,7 @@
 module Feldspar.Hardware
   ( -- * Front end
-    module Feldspar.Hardware.Frontend
+    module Feldspar
+  , module Feldspar.Hardware.Frontend
     -- * Back ends
   , runIO
   , compile
@@ -9,6 +10,7 @@ module Feldspar.Hardware
 
 
 
+import Feldspar
 import Feldspar.Hardware.Representation
 import Feldspar.Hardware.Compile
 import Feldspar.Hardware.Frontend
