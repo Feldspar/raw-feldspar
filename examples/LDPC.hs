@@ -2,9 +2,14 @@ module LDPC where
 
 import Feldspar
 
+import Prelude hiding ((==))
+
 --------------------------------------------------------------------------------
 -- * Matrices.
 --------------------------------------------------------------------------------
+--
+-- *** The matrices used in LDPC are typically sparse. Our model should reflect
+--     this.
 
 -- | Representation of matrices as a row & col count and indexing function.
 data Matrix a = Matrix (Data Index) (Data Index) (Data Index -> Data Index -> a)
@@ -48,23 +53,59 @@ freezeMatrix :: Type a => Data Length -> Data Length -> Arr a -> Matrix (Data a)
 freezeMatrix rows cols array = Matrix rows cols $ \r c -> unsafeArrIx array (r * cols + c)
 
 --------------------------------------------------------------------------------
--- ** Find an LU decomposition of a sparse matrix.
+-- ** Frontend stuff. 
 
-decompose
-  :: Mat a   -- ^ Input matrix, M by N.
-  -> Int     -- ^ K
-  -> Int     -- ^ Size of sub-matrix to find LU decomposition of
-  -> Int     -- ^ Number of columns to abandom.
-  -> Int     -- ^ Whent to abandom said columns.
-  -> ( Mat a -- ^ L matrix, M by K.
-     , Mat a -- ^ U matrix, K by N.
-     )
-decompose = undefined
+matrix_get :: Data Index -> Data Index -> Matrix (Data a) -> Data a
+matrix_get row col (Matrix _ _ ixf) = ixf row col
 
 --------------------------------------------------------------------------------
--- * Encoding.
+-- * LDPC.
 --------------------------------------------------------------------------------
 
+type Array = Arr -- names
+type Bit   = Bool
 
+high, low :: Data Bit
+high = value True
+low  = value False
+
+--------------------------------------------------------------------------------
+
+check :: MonadComp m => Matrix (Data Bit) -> Array Bit -> m (Data Bool)
+check m@(Matrix rows cols _) a = do
+  mul <- matrix_mul_vec m a
+  chk <- initRef low
+  for (0, 1, Excl cols) $ \i ->
+    undefined
+  getRef chk
+
+matrix_mul_vec :: forall m. MonadComp m => Matrix (Data Bit) -> Array Bit -> m (Array Bit)
+matrix_mul_vec (Matrix rows cols ixf) vec = do
+  out <- newArr cols :: m (Array Bit)
+  for (0, 1, Excl cols) $ \i -> do
+    iff (unsafeArrIx vec i)
+      (do sum <- initRef low
+          for (0, 1, Excl rows) $ \j -> 
+            -- *** This should be an (^=), i.e. xor assignment.
+            do iff (unsafeArrIx vec i == ixf j i)
+                 (setRef sum high)
+                 (setRef sum low)
+            -- ***
+          end <- unsafeFreezeRef sum
+          setArr i end out)
+      (do setArr i low out)
+  return out
+
+--------------------------------------------------------------------------------
+-- ** Encoding.
+
+-- | One iteration of probability propagation.
+iterp :: ()
+iterp = undefined
+  
+--------------------------------------------------------------------------------
+-- ** Decoding.
+
+-- ...
 
 --------------------------------------------------------------------------------

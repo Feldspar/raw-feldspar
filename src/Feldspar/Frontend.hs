@@ -443,8 +443,6 @@ unsafeFreezeArr
 initIArr :: (SmallType a, MonadComp m) => [a] -> m (IArr a)
 initIArr = liftComp . fmap (IArr . Actual) . Comp . Imp.initIArr
 
-
-
 ----------------------------------------
 -- ** Control-flow
 ----------------------------------------
