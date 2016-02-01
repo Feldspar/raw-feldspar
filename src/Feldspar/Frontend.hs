@@ -261,7 +261,9 @@ copyArr arr1 arr2 len = liftComp $ sequence_ $
       (unArr arr1)
       (unArr arr2)
 
-
+-- | ... text ...
+unsafeFreezeArr :: (Type a, MonadComp m) => Data Index -> Arr a -> m (Data a)
+unsafeFreezeArr i = liftComp . fmap desugar . mapVirtualA (Comp . Imp.unsafeGetArr i) . unArr
 
 ----------------------------------------
 -- ** Control-flow
