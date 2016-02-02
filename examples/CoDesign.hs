@@ -6,6 +6,7 @@ import qualified Prelude
 
 import Feldspar
 import Feldspar.Software
+import qualified Feldspar.Hardware.Representation as HW
 import qualified Feldspar.Hardware.Compile as HW
 import qualified Feldspar.Software.Compile as SW
 
@@ -52,7 +53,7 @@ testSimple :: IO ()
 testSimple = do
   SW.icompile simple
   putStrLn ""
-  wcompile (HW.lowerTop simple)
+  wcompile (HW.lowerTop $ HW.liftHardware simple)
 
 testSoftware :: IO ()
 testSoftware = SW.icompile software
