@@ -49,6 +49,12 @@ Indexed _ ixf ! i = ixf i
 
 infixl 9 !
 
+head :: Vector a -> a
+head = (!0)
+
+tail :: Vector a -> Vector a
+tail (Indexed l ixf) = Indexed (l-1) (ixf . (+1))
+
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
 
