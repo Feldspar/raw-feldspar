@@ -4,7 +4,7 @@ import Data.Word
 
 import Feldspar hiding (when)
 
-import Prelude  hiding ((==), (>=), until, not)
+import Prelude  hiding ((==), (>=), until, not, while, break)
 
 --------------------------------------------------------------------------------
 -- * Matrices.
@@ -57,11 +57,6 @@ instance Syntax a => Storable (Matrix a)
 -- | Create a matrix of some row & col count 
 unsafeFreezeMatrix :: Type a => Data Length -> Data Length -> Arr a -> Matrix (Data a)
 unsafeFreezeMatrix rows cols array = Matrix rows cols $ \r c -> unsafeArrIx array (r * cols + c)
-
---------------------------------------------------------------------------------
--- ** Matrix frontend.
-
--- ...
 
 --------------------------------------------------------------------------------
 -- ** Matrix LDPC specific functions.
@@ -127,6 +122,9 @@ matrix_check mat@(Matrix rows cols _) arr = do
 
 ----------------------------------------
 
+loop :: MonadComp m => m () -> m ()
+loop = while (return high)
+
 when :: MonadComp m => Data Bit -> m () -> m ()
 when b m = iff b m (return ())
 
@@ -137,40 +135,49 @@ at = unsafeArrIx
 -- * LDPC.
 --------------------------------------------------------------------------------
 
--- | Matrix over likelihoods or probabilites.
-type PMat = Matrix (Data Double, Data Double)
+--------------------------------------------------------------------------------
+-- ** Decoding.
 
-likelihood :: PMat -> Data Index -> Data Index -> Data Double
-likelihood (Matrix _ _ ixf) row col = snd $ ixf row col
-
-probability :: PMat -> Data Index -> Data Index -> Data Double
-probability (Matrix _ _ ixf) row col = fst $ ixf row col
+decode :: MonadComp m => Mat Bit -> Arr Double -> m (Arr Bit)
+decode mat@(Matrix _ _ _) lr = do
+  (guess, pmat) <- init_prp mat lr
+  loop $ do
+    c <- matrix_check mat guess
+    when c
+      break
+    iter_prp mat pmat lr guess
+  return guess
 
 --------------------------------------------------------------------------------
--- ** Encoding.
+-- *** Probability propagation.
 
+-- | Matrix over likelihoods or probabilites.
+type PMat = Matrix (Data Double, Data Double)
+  
 -- | Initialize probability propagation.
 init_prp :: forall m. MonadComp m => Mat Bit -> Arr Double -> m (Arr Bit, PMat)
 init_prp mat@(Matrix rows cols _) arr = do
   pr  <- newArr (cols * rows) :: m (Arr Double)
   lr  <- newArr (cols * rows) :: m (Arr Double)
   dec <- newArr cols          :: m (Arr Bit)
+
+  -- Set initial pr and lr fields.
   upward cols $ \j ->
     do matrix_cols mat j $ \i ->
          do let ix = i * cols + j
             setArr ix (arr `at` j) pr
             setArr ix 1 lr
        setArr j (arr `at` j >= 1) dec
-  -- *** ----------------------------------------
-  let pmat = Matrix rows cols $ \row col ->
+       
+  -- Construct pr/lr matrix from pr and lr arrays.
+  return (dec, Matrix rows cols $ \row col ->
                let ix = row * cols + col
-                in (pr `at` ix, lr `at` ix)
-  -- *** ----------------------------------------
-  return (dec, pmat)
+                in (pr `at` ix, lr `at` ix))
 
-iter_prp :: forall m. MonadComp m => Mat Bit -> PMat -> Arr Double -> m (Arr Bit)
-iter_prp mat@(Matrix rows cols _) pmat arr = do
-  (_, _, parr) <- initStoreRep pmat
+-- | Perform one iteration of the probability propagation.
+iter_prp :: forall m. MonadComp m => Mat Bit -> PMat -> Arr Double -> Arr Bit -> m ()
+iter_prp mat@(Matrix rows cols _) pmat arr guess = do
+  lmat@(_, _, parr) <- initStoreRep pmat
 
   -- Recompute likelihood ratios.
   upward rows $ \i ->
@@ -194,7 +201,6 @@ iter_prp mat@(Matrix rows cols _) pmat arr = do
             modifyRef dl $ \v -> v * (0.5 * (1 + pr) - 1)
 
   -- Recompute probability ratios and make guess.
-  guess <- newArr cols :: m (Arr Bit)
   upward cols $ \j ->
     do prr <- initRef (arr `at` j)
        matrix_cols mat j $ \i ->
@@ -211,7 +217,8 @@ iter_prp mat@(Matrix rows cols _) pmat arr = do
             setPR  parr ix prv
             setRef prr (getLR parr ix)
 
-  return guess
+  -- Write changes from lowered pr/lr matrix to original.
+  writeStoreRep lmat pmat
 
 setLR :: MonadComp m => Arr (Double, Double) -> Data Index -> Data Double -> m ()
 setLR parr ix lr = setArr ix (desugar (getPR parr ix, lr)) parr
@@ -224,19 +231,5 @@ getLR parr ix = snd (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
     
 getPR :: Arr (Double, Double) -> Data Index -> Data Double
 getPR parr ix = fst (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
-
---------------------------------------------------------------------------------
-
-{-
-init_prp m@(Matrix rows cols _) a = do
-  let lr = newMat rows cols (\_ _ -> 1 :: Data Double)
-  let pr = newMat rows cols (\_ c -> unsafeArrIx a c)
-  return (lr, pr)
--}
-
---------------------------------------------------------------------------------
--- ** Decoding.
-
--- ...
 
 --------------------------------------------------------------------------------
