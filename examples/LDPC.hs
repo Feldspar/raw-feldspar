@@ -4,7 +4,7 @@ import Data.Word
 
 import Feldspar hiding (when)
 
-import Prelude  hiding ((==), until)
+import Prelude  hiding ((==), (>=), until, not)
 
 --------------------------------------------------------------------------------
 -- * Matrices.
@@ -16,13 +16,17 @@ import Prelude  hiding ((==), until)
 -- | Representation of matrices as a row & col count and indexing function.
 data Matrix a = Matrix (Data Length) (Data Length) (Data Index -> Data Index -> a)
 
+instance Functor Matrix
+  where
+    fmap f (Matrix rows cols ixf) = Matrix rows cols (\row col -> f $ ixf row col)
+
 -- | Short-hand for matrices over Feldspar values.
 type Mat    a = Matrix (Data a)
 
 -- | Storable instance to declare memory representation of matrices.
-instance Type a => Storable (Matrix (Data a))
+instance Syntax a => Storable (Matrix a)
   where
-    type StoreRep (Matrix (Data a)) = (Ref Length, Ref Length, Arr a)
+    type StoreRep (Matrix a) = (Ref Length, Ref Length, Arr (Internal a))
     initStoreRep m@(Matrix rows cols _) =
       do a <- newArr (rows * cols)
          r <- initRef rows
@@ -33,16 +37,16 @@ instance Type a => Storable (Matrix (Data a))
     readStoreRep (rows, cols, array) =
       do r <- unsafeFreezeRef rows
          c <- unsafeFreezeRef cols
-         return $ unsafeFreezeMatrix r c array
+         return $ fmap sugar $ unsafeFreezeMatrix r c array
     unsafeFreezeStoreRep (rows, cols, array) =
       do r <- unsafeFreezeRef rows
          c <- unsafeFreezeRef cols
-         return $ unsafeFreezeMatrix r c array
+         return $ fmap sugar $ unsafeFreezeMatrix r c array
     writeStoreRep (rows, cols, array) (Matrix r c ixf) =
       do offset <- unsafeFreezeRef cols
          for (0, 1, Excl r) $ \i ->
            for (0, 1, Excl c) $ \j ->
-             setArr (i * offset + j) (ixf i j) array
+             setArr (i * offset + j) (desugar $ ixf i j) array
     copyStoreRep _ (rd, cd, dst) (rs, cs, src) =
       do rows <- unsafeFreezeRef rs
          cols <- unsafeFreezeRef cs
@@ -68,9 +72,8 @@ high, low :: Data Bit
 high = value True
 low  = value False
 
--- *** should be a primary.
 xor :: Data Bit -> Data Bit -> Data Bit
-xor = error "LDPC: missing xor"
+xor x y = not x == y
 
 ----------------------------------------
 
@@ -100,16 +103,27 @@ matrix_cols_rev (Matrix rows _ ixf) col f =
 
 ----------------------------------------
 
-matrix_mul_vec :: forall m. MonadComp m => Mat Bit -> Arr Bit -> m (Arr Bit)
-matrix_mul_vec m@(Matrix rows cols ixf) arr = do
-  out <- newArr rows :: m (Arr Bit)
+-- | Multiply a mod2 matrix and array.
+matrix_mul_vec :: MonadComp m => Mat Bit -> Arr Bit -> m (Arr Bit)
+matrix_mul_vec mat@(Matrix rows cols ixf) arr = do
+  out <- newArr rows
   upward rows $ \i ->
     setArr i low out
   upward cols $ \j ->
     when (arr `at` j) $
-      matrix_cols m j $ \x ->
+      matrix_cols mat j $ \x ->
         setArr x (out `at` x `xor` high) out
   return out
+
+-- | Check if a codeword is correct according to some parity check matrix.
+matrix_check :: MonadComp m => Mat Bit -> Arr Bit -> m (Data Bit)
+matrix_check mat@(Matrix rows cols _) arr = do
+  mul <- matrix_mul_vec mat arr
+  chk <- initRef high
+  upward rows $ \i ->
+    when (mul `at` i) $
+      setRef chk low
+  unsafeFreezeRef chk
 
 ----------------------------------------
 
@@ -122,65 +136,104 @@ at = unsafeArrIx
 --------------------------------------------------------------------------------
 -- * LDPC.
 --------------------------------------------------------------------------------
-{-
--- | Multiply a mod2 matrix and vector.
-matrix_mul_vec :: forall m. MonadComp m => Matrix (Data Bit) -> Array Bit -> m (Array Bit)
-matrix_mul_vec (Matrix rows cols ixf) vec = do
-  out <- newArr cols :: m (Array Bit)
-  for (0, 1, Excl cols) $ \i -> do
-    iff (unsafeArrIx vec i)
-      (do sum <- initRef low
-          for (0, 1, Excl rows) $ \j -> 
-            -- *** This should be an (^=), i.e. xor assignment.
-            do iff (unsafeArrIx vec i == ixf j i)
-                 (setRef sum low)
-                 (setRef sum high)
-            -- ***
-          end <- unsafeFreezeRef sum
-          setArr i end out)
-      (do setArr i low out)
-  return out
--}
+
+-- | Matrix over likelihoods or probabilites.
+type PMat = Matrix (Data Double, Data Double)
+
+likelihood :: PMat -> Data Index -> Data Index -> Data Double
+likelihood (Matrix _ _ ixf) row col = snd $ ixf row col
+
+probability :: PMat -> Data Index -> Data Index -> Data Double
+probability (Matrix _ _ ixf) row col = fst $ ixf row col
+
 --------------------------------------------------------------------------------
 -- ** Encoding.
-{-
--- | Matrix over likelihoods or probabilites.
-type PMat = Matrix (Data Double)
-
--- | One iteration of probability propagation.
-iterp :: ()
-iterp = undefined
 
 -- | Initialize probability propagation.
-init_prp :: MonadComp m => Matrix (Data Bit) -> Array Double -> m (PMat, PMat)
+init_prp :: forall m. MonadComp m => Mat Bit -> Arr Double -> m (Arr Bit, PMat)
+init_prp mat@(Matrix rows cols _) arr = do
+  pr  <- newArr (cols * rows) :: m (Arr Double)
+  lr  <- newArr (cols * rows) :: m (Arr Double)
+  dec <- newArr cols          :: m (Arr Bit)
+  upward cols $ \j ->
+    do matrix_cols mat j $ \i ->
+         do let ix = i * cols + j
+            setArr ix (arr `at` j) pr
+            setArr ix 1 lr
+       setArr j (arr `at` j >= 1) dec
+  -- *** ----------------------------------------
+  let pmat = Matrix rows cols $ \row col ->
+               let ix = row * cols + col
+                in (pr `at` ix, lr `at` ix)
+  -- *** ----------------------------------------
+  return (dec, pmat)
+
+iter_prp :: forall m. MonadComp m => Mat Bit -> PMat -> Arr Double -> m (Arr Bit)
+iter_prp mat@(Matrix rows cols _) pmat arr = do
+  (_, _, parr) <- initStoreRep pmat
+
+  -- Recompute likelihood ratios.
+  upward rows $ \i ->
+    do dl <- initRef (1 :: Data Double)
+       matrix_rows mat i $ \j ->
+         do let ix = i * cols + j
+            let pr = getPR parr ix
+            dlv <- unsafeFreezeRef dl
+            setLR parr ix dlv
+            modifyRef dl $ \v -> v * (0.5 * (1 + pr) - 1)
+       setRef dl (1 :: Data Double)
+       t <- newRef
+       matrix_rows_rev mat i $ \j ->
+         do let ix = i * cols + j
+            let pr = getPR parr ix
+            let lr = getLR parr ix
+            dlv <- unsafeFreezeRef dl
+            tv  <- unsafeFreezeRef t
+            setRef t (lr * dlv)
+            setLR parr ix $ (1 - tv) / (1 + tv)
+            modifyRef dl $ \v -> v * (0.5 * (1 + pr) - 1)
+
+  -- Recompute probability ratios and make guess.
+  guess <- newArr cols :: m (Arr Bit)
+  upward cols $ \j ->
+    do prr <- initRef (arr `at` j)
+       matrix_cols mat j $ \i ->
+         do let ix = i * cols + j
+            prv <- unsafeFreezeRef prr
+            setPR  parr ix prv
+            setRef prr (getLR parr ix)
+       prob <- getRef prr
+       setArr j (prob >= 1) guess      -- make educated guess.
+       setRef prr (1 :: Data Double)
+       matrix_cols_rev mat j $ \i ->
+         do let ix = i * cols + j
+            prv <- unsafeFreezeRef prr
+            setPR  parr ix prv
+            setRef prr (getLR parr ix)
+
+  return guess
+
+setLR :: MonadComp m => Arr (Double, Double) -> Data Index -> Data Double -> m ()
+setLR parr ix lr = setArr ix (desugar (getPR parr ix, lr)) parr
+
+setPR :: MonadComp m => Arr (Double, Double) -> Data Index -> Data Double -> m ()
+setPR parr ix pr = setArr ix (desugar (pr, getLR parr ix)) parr
+
+getLR :: Arr (Double, Double) -> Data Index -> Data Double
+getLR parr ix = snd (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
+    
+getPR :: Arr (Double, Double) -> Data Index -> Data Double
+getPR parr ix = fst (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
+
+--------------------------------------------------------------------------------
+
+{-
 init_prp m@(Matrix rows cols _) a = do
   let lr = newMat rows cols (\_ _ -> 1 :: Data Double)
   let pr = newMat rows cols (\_ c -> unsafeArrIx a c)
   return (lr, pr)
-
--- | Perform one step of the probability propagation.
-iter_prp :: MonadComp m => Matrix (Data Bit) -> (PMat, PMat) -> Array Double -> m (Array Double)
-iter_prp m@(Matrix rows cols _) ((Matrix _ _ ixLr), (Matrix _ _ ixPr)) a = do
-  -- Recompute likelihood ratios.
-  for (0, 1, Excl rows) $ \i ->
-    do dl <- initRef (0 :: Data Double)
-       for (0, 1, Excl cols) $ \j ->
-         undefined
-  -- Recompute probability ratios and guess.
-  undefined
-
--- | Check number of incorrect bits in a codeword.
-check :: MonadComp m => Matrix (Data Bit) -> Array Bit -> m (Data Word16)
-check m@(Matrix rows cols _) a = do
-  mul <- matrix_mul_vec m a
-  chk <- initRef (0 :: Data Word16)
-  for (0, 1, Excl cols) $ \i ->
-    do iff (unsafeArrIx mul i)
-         (do x <- unsafeFreezeRef chk
-             setRef chk (x + 1))
-         (return ())
-  getRef chk
 -}
+
 --------------------------------------------------------------------------------
 -- ** Decoding.
 
