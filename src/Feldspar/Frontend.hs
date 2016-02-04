@@ -89,6 +89,12 @@ instance (SmallType a, Num a) => Num (Data a)
     abs    = error "abs not yet defined for Data"
     signum = error "signum not yet defined for Data"
 
+instance (SmallType a, Fractional a) => Fractional (Data a)
+  where
+    fromRational = value . fromRational
+    (/)   = error "(/) not yet defined for Data"
+    recip = error "recip not yet defined for Data"
+
 -- | Integral type casting
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
 i2n = sugarSymTR I2N
