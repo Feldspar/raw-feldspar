@@ -226,6 +226,11 @@ instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 type instance VarPred      Data = SmallType
 type instance PredicateExp Data = SmallType
 
+-- | Evaluate an expression
+eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
+eval = evalClosed . desugar
+  -- Note that a `Syntax` constraint would rule out evaluating functions
+
 
 
 --------------------------------------------------------------------------------
