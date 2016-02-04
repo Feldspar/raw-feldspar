@@ -136,8 +136,18 @@ at = unsafeArrIx
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
+-- ** Encoding.
+
+-- | ...
+encode :: MonadComp m => Mat Bit -> Arr Bit -> m (Arr Bit)
+encode mat@(Matrix _ _ _) msg = do
+  
+  undefined
+
+--------------------------------------------------------------------------------
 -- ** Decoding.
 
+-- | ...
 decode :: MonadComp m => Mat Bit -> Arr Double -> m (Arr Bit)
 decode mat@(Matrix _ _ _) lr = do
   (guess, pmat) <- init_prp mat lr
@@ -170,6 +180,7 @@ init_prp mat@(Matrix rows cols _) arr = do
        setArr j (arr `at` j >= 1) dec
        
   -- Construct pr/lr matrix from pr and lr arrays.
+  -- *** ToDo: express using zip.
   return (dec, Matrix rows cols $ \row col ->
                let ix = row * cols + col
                 in (pr `at` ix, lr `at` ix))
@@ -218,6 +229,7 @@ iter_prp mat@(Matrix rows cols _) pmat arr guess = do
             setRef prr (getLR parr ix)
 
   -- Write changes from lowered pr/lr matrix to original.
+  -- *** ToDo: update using unsafe to avoid extra code.
   writeStoreRep lmat pmat
 
 setLR :: MonadComp m => Arr (Double, Double) -> Data Index -> Data Double -> m ()
