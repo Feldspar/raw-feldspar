@@ -4,6 +4,8 @@ module Feldspar.Frontend where
 import Prelude (Integral, error, (=<<), sequence_)
 import Prelude.EDSL
 
+import Data.Int
+
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
@@ -72,6 +74,13 @@ false = value False
 
 true :: Data Bool
 true = value True
+
+instance Syntactic.Syntactic ()
+  where
+    type Domain ()   = FeldDomain
+    type Internal () = Int32
+    desugar () = unData 0
+    sugar   _  = ()
 
 
 
