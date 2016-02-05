@@ -15,7 +15,7 @@ import Feldspar.Frontend
 
 type SoftwareCMD
     =   ControlCMD Data
-    :+: PtrCMD
+    :+: PtrCMD     Data
     :+: CallCMD    Data
     :+: ObjectCMD  Data
     :+: FileCMD    Data

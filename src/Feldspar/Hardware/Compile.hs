@@ -114,7 +114,6 @@ instance Lower (Soft.ArrCMD Data)
 --     lowerInstr (Soft.UnsafeGetArr i a) = do
 --       i' <- translateSmallExp i
 --       fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
-    lowerInstr (Soft.NewArr_)          = error "lower: hardware arrays must have a length."
     lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment."
 
 instance Lower (Soft.ControlCMD Data)

@@ -81,7 +81,7 @@ type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
     Imp.:+: ControlCMD CExp
-    Imp.:+: PtrCMD
+    Imp.:+: PtrCMD CExp
     Imp.:+: FileCMD CExp
     Imp.:+: ObjectCMD CExp
     Imp.:+: CallCMD CExp
@@ -135,7 +135,6 @@ instance Lower (RefCMD Data)
 instance Lower (ArrCMD Data)
   where
     lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
-    lowerInstr NewArr_        = lift newArr_
     lowerInstr (GetArr i arr) = do
         i' <- translateSmallExp i
         fmap liftVar $ lift $ getArr i' arr
@@ -167,8 +166,9 @@ instance Lower (ControlCMD Data)
         lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
 
-instance Lower PtrCMD
+instance Lower (PtrCMD Data)
   where
+    lowerInstr NewPtr        = lift newPtr
     lowerInstr (SwapPtr a b) = lift $ unsafeSwap a b
 
 instance Lower (FileCMD Data)
