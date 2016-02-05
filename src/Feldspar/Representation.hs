@@ -27,6 +27,7 @@ import Data.TypeRep.Types.Tuple
 import Data.TypeRep.Types.Tuple.Typeable ()
 import Data.TypeRep.Types.IntWord
 import Data.TypeRep.Types.IntWord.Typeable ()
+import Language.Syntactic.TypeRep (sugarSymTR)
 import Language.Syntactic.TypeRep.Sugar.BindingTR ()
 import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
@@ -36,7 +37,7 @@ import Language.Embedded.Hardware (HType)
 import Language.Embedded.Hardware.Interface (PredicateExp)
 
 import Language.Embedded.CExp (CType)
-import Language.Embedded.Expression (VarPred)
+import Language.Embedded.Expression (VarPred, EvalExp (..))
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
@@ -247,6 +248,11 @@ type instance PredicateExp Data = SmallType
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
+
+instance EvalExp Data
+  where
+    litExp = sugarSymTR . Literal
+    evalExp = eval
 
 
 

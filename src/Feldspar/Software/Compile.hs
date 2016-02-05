@@ -352,6 +352,20 @@ translateSmallExp = fmap viewActual . translateExp
 runIO :: MonadSoftware m => m a -> IO a
 runIO = Imp.interpret . lowerTop . liftSoftware
 
+-- | Interpret a program in the 'IO' monad
+runIO_soft :: MonadSoftware m => m a -> IO a
+runIO_soft
+    = Oper.interpretWithMonadT Oper.interp Imp.interpret
+    . unSoftware
+    . liftSoftware
+  -- Unlike `runIO`, this function does the interpretation directly, without
+  -- first lowering the program. This might be faster, but I haven't done any
+  -- measurements to se if it is.
+  --
+  -- One disadvantage with `runIO_soft` is that it cannot handle expressions
+  -- involving `IOSym`. But at the moment of writing this, we're not using those
+  -- symbols for anything anyway.
+
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
