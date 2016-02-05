@@ -180,17 +180,6 @@ instance MonadComp Comp
     for  range body = Comp $ Imp.for range (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
 
--- | Break out from a loop
-break :: MonadComp m => m ()
-break = liftComp $ Comp Imp.break
-
--- | Assertion
-assert :: MonadComp m
-    => Data Bool  -- ^ Expression that should be true
-    -> String     -- ^ Message in case of failure
-    -> m ()
-assert cond msg = liftComp $ Comp $ Imp.assert cond msg
-
 
 
 ----------------------------------------
@@ -286,4 +275,15 @@ ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
+
+-- | Break out from a loop
+break :: MonadComp m => m ()
+break = liftComp $ Comp Imp.break
+
+-- | Assertion
+assert :: MonadComp m
+    => Data Bool  -- ^ Expression that should be true
+    -> String     -- ^ Message in case of failure
+    -> m ()
+assert cond msg = liftComp $ Comp $ Imp.assert cond msg
 
