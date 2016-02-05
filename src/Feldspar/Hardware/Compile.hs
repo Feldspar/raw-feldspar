@@ -111,9 +111,9 @@ instance Lower (Soft.ArrCMD Data)
     lowerInstr (Soft.GetArr i a)       = do
       i' <- translateSmallExp i
       fmap liftVar $ Reader.lift $ Hard.getArray i' (hardenArray a)
-    lowerInstr (Soft.UnsafeGetArr i a) = do
-      i' <- translateSmallExp i
-      fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
+--     lowerInstr (Soft.UnsafeGetArr i a) = do
+--       i' <- translateSmallExp i
+--       fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
     lowerInstr (Soft.NewArr_)          = error "lower: hardware arrays must have a length."
     lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment."
 
@@ -341,7 +341,7 @@ translateAST = goAST . optimize
     go t free Nil
         | Just (FreeVar v) <- prj free = return $ Actual $ Hard.variable v
     go t arrIx (i :* Nil)
-        | Just (UnsafeArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
+        | Just (ArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
 {-
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf

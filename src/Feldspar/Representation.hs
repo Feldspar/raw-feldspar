@@ -10,6 +10,7 @@ module Feldspar.Representation where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
+import Data.Array ((!))
 import Data.List (genericTake)
 import Data.Word
 
@@ -83,6 +84,9 @@ newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Ref a }
 -- | Mutable array
 newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
 
+-- | Immutable array
+newtype IArr a = IArr { unIArr :: Virtual SmallType (Imp.IArr Index) a }
+
 
 
 --------------------------------------------------------------------------------
@@ -134,6 +138,24 @@ instance Eval Primitive
     evalSym Le  = (<=)
     evalSym Ge  = (>=)
 
+-- Array indexing
+data Array sig
+  where
+    ArrIx :: SmallType a => Imp.IArr Index a -> Array (Index :-> Full a)
+
+instance Render Array
+  where
+    renderSym (ArrIx (Imp.IArrComp arr)) = "ArrIx " ++ arr
+    renderArgs = renderArgsSmart
+
+instance Eval Array
+  where
+    evalSym (ArrIx (Imp.IArrEval arr)) = (arr!)
+
+instance Equality Array
+  where
+    equal (ArrIx (Imp.IArrComp arr1)) (ArrIx (Imp.IArrComp arr2)) = arr1 == arr2
+
 -- | Conditionals
 data Condition sig
   where
@@ -157,8 +179,6 @@ data IOSym sig
   where
     -- Result of an IO operation
     FreeVar :: SmallType a => String -> IOSym (Full a)
-    -- Array indexing
-    UnsafeArrIx :: SmallType a => Imp.Arr Index a -> IOSym (Index :-> Full a)
     -- Turn a program into a pure value
     UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
@@ -169,10 +189,7 @@ data IOSym sig
 
 instance Render IOSym
   where
-    renderSym (FreeVar v) = v
-    renderSym (UnsafeArrIx (Imp.ArrComp arr)) = "UnsafeArrIx " ++ arr
-    renderSym (UnsafeArrIx _)                 = "UnsafeArrIx ..."
-      -- Should not happen...
+    renderSym (FreeVar v)           = v
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
 
@@ -187,7 +204,6 @@ instance Eval IOSym
 instance Equality IOSym
   where
     equal (FreeVar v1) (FreeVar v2) = v1 == v2
-    equal (UnsafeArrIx (Imp.ArrComp arr1)) (UnsafeArrIx (Imp.ArrComp arr2)) = arr1 == arr2
     equal _ _ = False
 
 type FeldConstructs
@@ -196,6 +212,7 @@ type FeldConstructs
     :+: Let
     :+: Tuple
     :+: Primitive
+    :+: Array
     :+: Condition
     :+: ForLoop
     :+: IOSym
@@ -273,6 +290,10 @@ deriveEquality ''Primitive
 
 instance StringTree Primitive
 
+deriveSymbol ''Array
+
+instance StringTree Array
+
 deriveSymbol    ''Condition
 deriveRender id ''Condition
 deriveEquality  ''Condition
@@ -290,6 +311,7 @@ deriveSymbol ''IOSym
 instance StringTree IOSym
 
 instance EvalEnv Primitive env
+instance EvalEnv Array env
 instance EvalEnv Condition env
 instance EvalEnv ForLoop env
 instance EvalEnv IOSym env

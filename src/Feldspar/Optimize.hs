@@ -258,7 +258,7 @@ cmInterface = defaultInterfaceDecor
             -- Any unary `Tuple` symbol must be a selector (because there are no
             -- 1-tuples).
     sharable (SymP _ I2N :$ _) _ = False
-    sharable (SymP _ (UnsafeArrIx _) :$ _) _ = False
+    sharable (SymP _ (ArrIx _) :$ _) _ = False
     sharable _ _ = True
 
 -- | Optimize a Feldspar expression

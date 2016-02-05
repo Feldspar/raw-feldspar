@@ -145,6 +145,7 @@ instance Lower (ArrCMD Data)
         lift $ setArr i' a' arr
     lowerInstr (CopyArr dst src n) =
         lift . copyArr dst src =<< translateSmallExp n
+    lowerInstr (UnsafeFreezeArr arr) = lift $ unsafeFreezeArr arr
 
 instance Lower (ControlCMD Data)
   where
@@ -287,6 +288,10 @@ transAST = goAST . optimize
         | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
         | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
         | Just Ge  <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
+    go t arrIx (i :* Nil)
+        | Just (Feldspar.Representation.ArrIx arr) <- prj arrIx = do
+            i' <- goSmallAST i
+            return $ Actual (arr #! i')
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
@@ -320,10 +325,6 @@ transAST = goAST . optimize
              unsafeFreezeRefV state
     go t free Nil
         | Just (FreeVar v) <- prj free = return $ Actual $ variable v
-    go t arrIx (i :* Nil)
-        | Just (UnsafeArrIx arr) <- prj arrIx = do
-            i' <- goSmallAST i
-            fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unComp prog)
