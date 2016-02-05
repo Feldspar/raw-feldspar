@@ -111,10 +111,10 @@ instance Lower (Soft.ArrCMD Data)
     lowerInstr (Soft.GetArr i a)       = do
       i' <- translateSmallExp i
       fmap liftVar $ Reader.lift $ Hard.getArray i' (hardenArray a)
---     lowerInstr (Soft.UnsafeGetArr i a) = do
---       i' <- translateSmallExp i
---       fmap liftVar $ Reader.lift $ Hard.unsafeGetArray i' (hardenArray a)
-    lowerInstr (Soft.CopyArr a b l)    = error "lower-todo: copy by selected-name assignment."
+    lowerInstr (Soft.CopyArr dst src n) =
+      Reader.lift . Hard.copyArray (hardenArray dst) (hardenArray src) =<< translateSmallExp n
+    lowerInstr (Soft.UnsafeFreezeArr a) =
+      Reader.lift $ fmap softenIArray $ Hard.unsafeFreezeArray (hardenArray a)
 
 instance Lower (Soft.ControlCMD Data)
   where
@@ -212,6 +212,10 @@ softenArray :: SmallType a => Hard.Array i a -> Soft.Arr i a
 softenArray (Hard.ArrayC i) = Soft.ArrComp ('a' : show i)
 softenArray (Hard.ArrayE i) = Soft.ArrEval i
 
+softenIArray :: SmallType a => Hard.IArray i a -> Soft.IArr i a
+softenIArray (Hard.IArrayC i) = Soft.IArrComp ('a' : show i)
+softenIArray (Hard.IArrayE i) = Soft.IArrEval i
+
 --------------------------------------------------------------------------------
 
 type family HW a
@@ -306,6 +310,8 @@ translateAST = goAST . optimize
         | Just Gt  <- prj op = liftVirt2 (Hard.gt)  <$> goAST a <*> goAST b
         | Just Le  <- prj op = liftVirt2 (Hard.lte) <$> goAST a <*> goAST b
         | Just Ge  <- prj op = liftVirt2 (Hard.gte) <$> goAST a <*> goAST b
+    go t arrIx (i :* Nil)
+        | Just (ArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- Reader.ask
@@ -338,19 +344,18 @@ translateAST = goAST . optimize
                 setRefV state s'
              getRefV state
     go t free Nil
-        | Just (FreeVar v) <- prj free = return $ Actual $ Hard.variable v
-    go t arrIx (i :* Nil)
-        | Just (ArrIx arr) <- prj arrIx = error "translateAST-todo: array indexing in expressions"
+        | Just (FreeVar v) <- prj free
+        = return $ Actual $ Hard.variable v
 {-
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
-        = translateExp =<< lower (unProgram prog)
+        = translateExp =<< lower (unComp prog)
+-}
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
             a' <- goAST a
-            lower (unProgram prog)
+            lower (unComp prog)
             return a'
--}
 
 -- | Add a local alias to the environment
 localAlias :: Type a

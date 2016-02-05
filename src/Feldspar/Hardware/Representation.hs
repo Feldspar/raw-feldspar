@@ -13,15 +13,18 @@ import Language.Embedded.Hardware as Hard
 import Feldspar.Representation
 import Feldspar.Frontend
 
+--------------------------------------------------------------------------------
+-- * Hardware programs.
+--------------------------------------------------------------------------------
 
-
+-- | Commands used in hardware programs.
 type HardwareCMD =
       ConditionalCMD Data
   :+: LoopCMD        Data
   :+: SignalCMD      Data
   :+: StructuralCMD  Data
 
--- | Monad for computations in hardware
+-- | Monad for computations in hardware.
 newtype Hardware a = Hardware { unHardware :: ProgramT HardwareCMD (Program CompCMD) a }
   deriving (Functor, Applicative, Monad)
 
@@ -39,3 +42,4 @@ class Monad m => MonadHardware m
 instance MonadHardware Comp     where liftHardware = liftComp
 instance MonadHardware Hardware where liftHardware = id
 
+--------------------------------------------------------------------------------

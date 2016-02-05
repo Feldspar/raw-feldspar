@@ -4,8 +4,6 @@ module Feldspar.Hardware.Frontend
   , module Feldspar.Hardware.Frontend
   ) where
 
-
-
 import qualified Language.Embedded.Hardware as Hard
 
 import Data.VirtualContainer
@@ -13,7 +11,9 @@ import Feldspar.Representation
 import Feldspar.Frontend as Feld
 import Feldspar.Hardware.Representation
 
-
+--------------------------------------------------------------------------------
+-- * Frontend for hardware specific operations.
+--------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 -- ** Signals.
