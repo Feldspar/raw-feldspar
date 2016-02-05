@@ -16,7 +16,7 @@ data Annotation a
 -- | Signatures.
 data Signature m a
   where
-    Unit    :: Signature m (m ())
+    Unit    :: m () -> Signature m (m ())
     Ret     :: SmallType a => Data a -> Signature m (m (Data a))
     LamData :: SmallType a => (Data a -> Signature m b) -> Signature m (Data a -> b)
     LamRef  :: SmallType a => (Ref a  -> Signature m b) -> Signature m (Ref a  -> b)
@@ -25,7 +25,7 @@ data Signature m a
 --------------------------------------------------------------------------------
 -- ** Combinators.
 
-unit :: Signature m (m ())
+unit :: m () -> Signature m (m ())
 unit = Unit
 
 ret  :: SmallType a => Data a -> Signature m (m (Data a))
@@ -41,7 +41,6 @@ lama :: SmallType a => (Arr a -> Signature m b) -> Signature m (Arr a -> b)
 lama = LamArr
 
 --------------------------------------------------------------------------------
-
 
 
 {-

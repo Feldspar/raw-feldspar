@@ -3,6 +3,7 @@ module LDPC where
 import Data.Word
 
 import Feldspar hiding (when)
+import Feldspar.Signature
 
 import Prelude  hiding ((==), (>=), until, not, while, break)
 
@@ -259,5 +260,71 @@ getLR parr ix = snd (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
     
 getPR :: Arr (Double, Double) -> Data Index -> Data Double
 getPR parr ix = fst (sugar $ unsafeArrIx parr ix :: (Data Double, Data Double))
+
+--------------------------------------------------------------------------------
+-- * ...
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+-- | Pass paramaters as one would in C.
+encode_wrap
+  :: forall m. MonadComp m
+  => Arr Bit     -- Matrix contents with
+  -> Ref Length  -- M rows and
+  -> Ref Length  -- N columns.
+  -> Arr Index   -- Ordering of generator matrix.
+  -> Arr Bit     -- Source message.
+  -> Arr Bit     -- Destination for codeword.
+  -> m ()
+encode_wrap marr row col order msg code =
+  do mat <- readStoreRep (row, col, marr) :: m (Mat Bit)
+     new <- encode mat order msg
+     len <- getRef row
+     copyArr new code len
+
+encode_sig
+  :: MonadComp m => Signature m (Arr Bit -> Ref Length -> Ref Length -> Arr Index -> Arr Bit -> Arr Bit -> m ())
+encode_sig =
+  lama $ \ar   ->
+  lamr $ \rr   ->
+  lamr $ \rc   ->
+  lama $ \o    ->
+  lama $ \msg  ->
+  lama $ \code ->
+  unit $ encode_wrap ar rr rc o msg code
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+decode_wrap
+  :: forall m. MonadComp m
+  => Arr Bit
+  -> Ref Length
+  -> Ref Length
+  -> Arr Double
+  -> Arr Bit
+  -> m ()
+decode_wrap marr row col pr msg =
+  do mat <- readStoreRep (row, col, marr) :: m (Mat Bit)
+     new <- decode mat pr
+     len <- getRef row
+     copyArr new msg len
+
+decode_sig
+  :: MonadComp m => Signature m (Arr Bit -> Ref Length -> Ref Length -> Arr Double -> Arr Bit -> m ())
+decode_sig =
+  lama $ \ar  ->
+  lamr $ \rr  ->
+  lamr $ \rc  ->
+  lama $ \pr  ->
+  lama $ \msg -> 
+  unit $ decode_wrap ar rr rc pr msg
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+
 
 --------------------------------------------------------------------------------
