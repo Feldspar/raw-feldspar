@@ -133,11 +133,11 @@ max a b = a>=b ? a $ b
 ----------------------------------------
 
 -- | Index into an array
-unsafeArrIx :: Type a => Arr a -> Data Index -> Data a
-unsafeArrIx arr i = desugar $ mapVirtual arrIx $ unArr arr
+arrIx :: Type a => IArr a -> Data Index -> Data a
+arrIx arr i = desugar $ mapVirtual ix $ unIArr arr
   where
-    arrIx :: SmallType b => Imp.Arr Index b -> Data b
-    arrIx arr = sugarSymTR (UnsafeArrIx arr) i
+    ix :: SmallType b => Imp.IArr Index b -> Data b
+    ix arr = sugarSymTR (ArrIx arr) i
 
 
 
@@ -258,6 +258,28 @@ copyArr arr1 arr2 len = liftComp $ sequence_ $
     zipListVirtual (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
       (unArr arr1)
       (unArr arr2)
+
+-- | Freeze a mutable array to an immutable one. This involves copying the array
+-- to a newly allocated one.
+freezeArr :: (Type a, MonadComp m)
+    => Arr a
+    -> Data Length  -- ^ Length of array
+    -> m (IArr a)
+freezeArr arr n
+    = liftComp
+    $ fmap IArr
+    $ mapVirtualA (Comp . flip Imp.freezeArr n)
+    $ unArr arr
+
+-- | Freeze a mutable array to an immutable one without making a copy. This is
+-- generally only safe if the the mutable array is not updated as long as the
+-- immutable array is alive.
+unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
+unsafeFreezeArr
+    = liftComp
+    . fmap IArr
+    . mapVirtualA (Comp . Imp.unsafeFreezeArr)
+    . unArr
 
 
 

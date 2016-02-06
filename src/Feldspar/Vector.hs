@@ -8,8 +8,17 @@ import Feldspar
 
 
 
-freezeVec :: Type a => Data Length -> Arr a -> Vector (Data a)
-freezeVec len arr = Indexed len $ \i -> unsafeArrIx arr i
+freezeVec :: (MonadComp m, Type a) =>
+    Data Length -> Arr a -> m (Vector (Data a))
+freezeVec len arr = do
+    iarr <- freezeArr arr len
+    return $ Indexed len $ \i -> arrIx iarr i
+
+unsafeFreezeVec :: (MonadComp m, Type a) =>
+    Data Length -> Arr a -> m (Vector (Data a))
+unsafeFreezeVec len arr = do
+    iarr <- unsafeFreezeArr arr
+    return $ Indexed len $ \i -> arrIx iarr i
 
 data Vector a
   where
@@ -27,10 +36,10 @@ instance Type a => Storable (Vector (Data a))
         len = length vec
     readStoreRep (lenRef,arr) = do
         len <- unsafeFreezeRef lenRef
-        return $ freezeVec len arr
+        freezeVec len arr
     unsafeFreezeStoreRep (lenRef,arr) = do
         len <- unsafeFreezeRef lenRef
-        return $ freezeVec len arr
+        unsafeFreezeVec len arr
     writeStoreRep (lenRef,arr) (Indexed l ixf) =
         for (0, 1, Excl l) $ \i -> setArr i (ixf i) arr
     copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do

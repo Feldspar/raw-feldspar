@@ -17,6 +17,7 @@ module Feldspar
   , Ref
   , Arr
     -- * Front end
+  , eval
   , module Feldspar.Frontend
   , Border (..)
   , IxRange

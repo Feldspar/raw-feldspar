@@ -81,7 +81,7 @@ type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
     Imp.:+: ControlCMD CExp
-    Imp.:+: PtrCMD
+    Imp.:+: PtrCMD CExp
     Imp.:+: FileCMD CExp
     Imp.:+: ObjectCMD CExp
     Imp.:+: CallCMD CExp
@@ -135,7 +135,6 @@ instance Lower (RefCMD Data)
 instance Lower (ArrCMD Data)
   where
     lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
-    lowerInstr NewArr_        = lift newArr_
     lowerInstr (GetArr i arr) = do
         i' <- translateSmallExp i
         fmap liftVar $ lift $ getArr i' arr
@@ -145,6 +144,7 @@ instance Lower (ArrCMD Data)
         lift $ setArr i' a' arr
     lowerInstr (CopyArr dst src n) =
         lift . copyArr dst src =<< translateSmallExp n
+    lowerInstr (UnsafeFreezeArr arr) = lift $ unsafeFreezeArr arr
 
 instance Lower (ControlCMD Data)
   where
@@ -166,8 +166,9 @@ instance Lower (ControlCMD Data)
         lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
 
-instance Lower PtrCMD
+instance Lower (PtrCMD Data)
   where
+    lowerInstr NewPtr        = lift newPtr
     lowerInstr (SwapPtr a b) = lift $ unsafeSwap a b
 
 instance Lower (FileCMD Data)
@@ -287,6 +288,10 @@ transAST = goAST . optimize
         | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
         | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
         | Just Ge  <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
+    go t arrIx (i :* Nil)
+        | Just (Feldspar.Representation.ArrIx arr) <- prj arrIx = do
+            i' <- goSmallAST i
+            return $ Actual (arr #! i')
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
@@ -320,10 +325,6 @@ transAST = goAST . optimize
              unsafeFreezeRefV state
     go t free Nil
         | Just (FreeVar v) <- prj free = return $ Actual $ variable v
-    go t arrIx (i :* Nil)
-        | Just (UnsafeArrIx arr) <- prj arrIx = do
-            i' <- goSmallAST i
-            fmap Actual $ lift $ getArr i' arr
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< lower (unComp prog)
@@ -350,6 +351,20 @@ translateSmallExp = fmap viewActual . translateExp
 -- | Interpret a program in the 'IO' monad
 runIO :: MonadSoftware m => m a -> IO a
 runIO = Imp.interpret . lowerTop . liftSoftware
+
+-- | Interpret a program in the 'IO' monad
+runIO_soft :: MonadSoftware m => m a -> IO a
+runIO_soft
+    = Oper.interpretWithMonadT Oper.interp Imp.interpret
+    . unSoftware
+    . liftSoftware
+  -- Unlike `runIO`, this function does the interpretation directly, without
+  -- first lowering the program. This might be faster, but I haven't done any
+  -- measurements to se if it is.
+  --
+  -- One disadvantage with `runIO_soft` is that it cannot handle expressions
+  -- involving `IOSym`. But at the moment of writing this, we're not using those
+  -- symbols for anything anyway.
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
