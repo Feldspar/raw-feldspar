@@ -140,25 +140,15 @@ at = unsafeArrIx
 -- ** Encoding.
 
 -- | Encode a message using a sparse generator matrix.
+-- *** ToDo: LU decomposition of x and y, not sure if needed.
 encode :: forall m. MonadComp m => Mat Bit -> Arr Index -> Arr Bit -> m (Arr Bit)
 encode mat@(Matrix cols rows _) order msg = do
   code <- newArr rows :: m (Arr Bit)
-  x    <- newArr rows :: m (Arr Bit)
-  y    <- newArr rows :: m (Arr Bit)
-
-  -- ...
   upward rows $ \i ->
     setArr i low x
   for (rows, 1, Excl cols) $ \j ->
-    do let ix = order `at` j
-       v <- unsafeFreezeArr (j - rows) msg
-       setArr ix v code
-       when v $
-         matrix_cols mat ix $ \i ->
-           setArr i (x `at` i `xor` high) x
-
-  -- ...
-  -- *** ToDo: LU decomposition of x and y, not sure if needed.
+    do v <- unsafeFreezeArr (j - rows) msg
+       setArr (order `at` j) v code
   return code
 
 --------------------------------------------------------------------------------
