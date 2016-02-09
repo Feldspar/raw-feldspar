@@ -164,9 +164,12 @@ instance Eval Array
   where
     evalSym (ArrIx (Imp.IArrEval arr)) = (arr!)
 
+-- | Can only return 'True' if the array has a syntactic representation (i.e.
+-- when compiling)
 instance Equality Array
   where
     equal (ArrIx (Imp.IArrComp arr1)) (ArrIx (Imp.IArrComp arr2)) = arr1 == arr2
+    equal _ _ = False
 
 -- | Conditionals
 data Condition sig
