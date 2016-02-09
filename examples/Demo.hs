@@ -24,7 +24,8 @@ sumInput = do
           (modifyRef sum (+n))
 --     abort
 --     printSum sum
-    printf "The sum of your numbers is %d.\n" =<< getRef sum
+    s <- getRef sum
+    printf "The sum of your numbers is %d.\n" (s :: Data Word32)
 
 abort :: Software ()
 abort = do

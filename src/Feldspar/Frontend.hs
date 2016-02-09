@@ -144,8 +144,8 @@ max a b = a>=b ? a $ b
 ----------------------------------------
 
 -- | Index into an array
-arrIx :: Type a => IArr a -> Data Index -> Data a
-arrIx arr i = desugar $ mapVirtual ix $ unIArr arr
+arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
+arrIx arr i = resugar $ mapVirtual ix $ unIArr arr
   where
     ix :: SmallType b => Imp.IArr Index b -> Data b
     ix arr = sugarSymTR (ArrIx arr) i
@@ -202,31 +202,31 @@ newRef :: (Type a, MonadComp m) => m (Ref a)
 newRef = liftComp $ fmap Ref $ mapVirtualA (const (Comp Imp.newRef)) virtRep
 
 -- | Create an initialized reference.
-initRef :: (Type a, MonadComp m) => Data a -> m (Ref a)
-initRef = liftComp . fmap Ref . mapVirtualA (Comp . Imp.initRef) . sugar
+initRef :: (Syntax a, MonadComp m) => a -> m (Ref (Internal a))
+initRef = liftComp . fmap Ref . mapVirtualA (Comp . Imp.initRef) . resugar
 
 -- | Get the contents of a reference.
-getRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
-getRef = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getRef) . unRef
+getRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
+getRef = liftComp . fmap resugar . mapVirtualA (Comp . Imp.getRef) . unRef
 
 -- | Set the contents of a reference.
-setRef :: (Type a, MonadComp m) => Ref a -> Data a -> m ()
+setRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> a -> m ()
 setRef r
     = liftComp
     . sequence_
     . zipListVirtual (\r' a' -> Comp $ Imp.setRef r' a') (unRef r)
-    . sugar
+    . resugar
 
 -- | Modify the contents of reference.
-modifyRef :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
+modifyRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> (a -> a) -> m ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
 --   as long as the resulting value is alive).
-unsafeFreezeRef :: (Type a, MonadComp m) => Ref a -> m (Data a)
+unsafeFreezeRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
 unsafeFreezeRef
     = liftComp
-    . fmap desugar
+    . fmap resugar
     . mapVirtualA (Comp . Imp.unsafeFreezeRef)
     . unRef
 
@@ -243,19 +243,19 @@ newArr l = liftComp $ fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Get an element of an array
-getArr :: (Type a, MonadComp m) => Data Index -> Arr a -> m (Data a)
-getArr i = liftComp . fmap desugar . mapVirtualA (Comp . Imp.getArr i) . unArr
+getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
+getArr i = liftComp . fmap resugar . mapVirtualA (Comp . Imp.getArr i) . unArr
 
 -- | Set an element of an array
-setArr :: forall m a . (Type a, MonadComp m) =>
-    Data Index -> Data a -> Arr a -> m ()
+setArr :: forall m a . (Syntax a, MonadComp m) =>
+    Data Index -> a -> Arr (Internal a) -> m ()
 setArr i a
     = liftComp
     . sequence_
     . zipListVirtual (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
     . unArr
   where
-    rep = sugar a :: Virtual SmallType Data a
+    rep = resugar a :: Virtual SmallType Data (Internal a)
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either
@@ -299,11 +299,11 @@ unsafeFreezeArr
 ----------------------------------------
 
 -- | Conditional statement that returns an expression
-ifE :: (Type a, MonadComp m)
-    => Data Bool   -- ^ Condition
-    -> m (Data a)  -- ^ True branch
-    -> m (Data a)  -- ^ False branch
-    -> m (Data a)
+ifE :: (Syntax a, MonadComp m)
+    => Data Bool  -- ^ Condition
+    -> m a        -- ^ True branch
+    -> m a        -- ^ False branch
+    -> m a
 ifE c t f = do
     res <- newRef
     iff c (t >>= setRef res) (f >>= setRef res)

@@ -59,7 +59,8 @@ instance SmallType a => Storable (Data a)
     readStoreRep         = getRef
     unsafeFreezeStoreRep = getRef
     writeStoreRep        = setRef
-    copyStoreRep _ dst src = setRef src =<< unsafeFreezeRef dst
+    copyStoreRep _ dst src =
+        setRef src . (id :: Data a -> Data a) =<< unsafeFreezeRef dst
 
 instance (Storable a, Storable b) => Storable (a,b)
   where
