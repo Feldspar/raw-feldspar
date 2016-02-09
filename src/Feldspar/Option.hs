@@ -105,6 +105,7 @@ optionM noneCase someCase opt = ifE (isSome opt)
     (someCase (fromSome opt))
     (noneCase)
 
+-- | Assert that an optional value is valid, and return its value
 fromSomeAssert :: MonadComp m => String -> Option a -> m a
 fromSomeAssert msg o = do
     assert (isSome o) msg

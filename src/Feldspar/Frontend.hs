@@ -113,36 +113,47 @@ instance (SmallType a, Num a) => Num (Data a)
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
 i2n = sugarSymTR I2N
 
+-- | Boolean negation
 not :: Data Bool -> Data Bool
 not = sugarSymTR Not
 
+-- | Boolean conjunction
 (&&) :: Data Bool -> Data Bool -> Data Bool
 (&&) = sugarSymTR And
 
+-- | Boolean disjunction
 (||) :: Data Bool -> Data Bool -> Data Bool
 (||) = sugarSymTR Or
 
+-- | Equality
 (==) :: SmallType a => Data a -> Data a -> Data Bool
 (==) = sugarSymTR Eq
 
+-- | Inequality
 (/=) :: SmallType a => Data a -> Data a -> Data Bool
 a /= b = not (a==b)
 
+-- | Less than
 (<) :: SmallType a => Data a -> Data a -> Data Bool
 (<) = sugarSymTR Lt
 
+-- | Greater than
 (>) :: SmallType a => Data a -> Data a -> Data Bool
 (>) = sugarSymTR Gt
 
+-- | Less than or equal
 (<=) :: SmallType a => Data a -> Data a -> Data Bool
 (<=) = sugarSymTR Le
 
+-- | Greater than or equal
 (>=) :: SmallType a => Data a -> Data a -> Data Bool
 (>=) = sugarSymTR Ge
 
+-- | Return the smallest of two values
 min :: SmallType a => Data a -> Data a -> Data a
 min a b = a<=b ? a $ b
 
+-- | Return the greatest of two values
 max :: SmallType a => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
 
