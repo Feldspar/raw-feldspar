@@ -272,8 +272,9 @@ transAST = goAST . optimize
         | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
         | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
     go t op (a :* Nil)
-        | Just I2N <- prj op = liftVirt i2n  <$> goAST a
-        | Just Not <- prj op = liftVirt not_ <$> goAST a
+        | Just Neg <- prj op = liftVirt negate <$> goAST a
+        | Just I2N <- prj op = liftVirt i2n    <$> goAST a
+        | Just Not <- prj op = liftVirt not_   <$> goAST a
     go t op (a :* b :* Nil)
         | Just Add <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
         | Just Sub <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
