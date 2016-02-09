@@ -366,6 +366,13 @@ runIO_soft
   -- involving `IOSym`. But at the moment of writing this, we're not using those
   -- symbols for anything anyway.
 
+-- | Like 'runIO' but with explicit input/output connected to @stdin@/@stdout@
+captureIO :: MonadSoftware m
+    => m a        -- ^ Program to run
+    -> String     -- ^ Input to send to @stdin@
+    -> IO String  -- ^ Result from @stdout@
+captureIO = Imp.captureIO . lowerTop . liftSoftware
+
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
