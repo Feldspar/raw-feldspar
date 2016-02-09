@@ -88,10 +88,34 @@ map_inplace = do
 
 ------------------------------------------------------------
 
+type Array a = (Data Length, IArr a)
+
+indexO :: Syntax a => Array (Internal a) -> Data Index -> Option a
+indexO (len,arr) i = Option (i<len) (arrIx arr i)
+
+funO :: Array Int32 -> Data Index -> Option (Data Int32)
+funO arr i = do
+    a <- indexO arr i
+    b <- indexO arr (i+1)
+    c <- indexO arr (i+2)
+    d <- indexO arr (i+3)
+    return (a+b+c+d)
+
+test_option :: Software ()
+test_option = do
+    a <- unsafeFreezeArr =<< initArr [1..10]
+    let arr = (10,a) :: Array Int32
+    i <- store 4
+    b <- fromSomeAssert "out of bounds" $ funO arr i
+    printf "%d\n" b
+
+------------------------------------------------------------
+
 testAll = do
     compareCompiled sumInput     (runIO sumInput) (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
     compareCompiled printFib     (runIO printFib)     "7\n"
     compareCompiled test_scProd1 (runIO test_scProd1) "20\n"
     compareCompiled test_scProd2 (runIO test_scProd2) "20\n"
     compareCompiled map_inplace  (runIO map_inplace)  ""
+    compareCompiled test_option  (runIO test_option)  ""
 
