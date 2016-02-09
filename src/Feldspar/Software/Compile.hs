@@ -281,6 +281,8 @@ transAST = goAST . optimize
         | Just Sub <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
         | Just Mul <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
         | Just Eq  <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
+        | Just And <- prj op = liftVirt2 (#&&) <$> goAST a <*> goAST b
+        | Just Or  <- prj op = liftVirt2 (#||) <$> goAST a <*> goAST b
         | Just Lt  <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
         | Just Gt  <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
         | Just Le  <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b

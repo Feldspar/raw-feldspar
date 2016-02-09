@@ -116,8 +116,17 @@ i2n = sugarSymTR I2N
 not :: Data Bool -> Data Bool
 not = sugarSymTR Not
 
+(&&) :: Data Bool -> Data Bool -> Data Bool
+(&&) = sugarSymTR And
+
+(||) :: Data Bool -> Data Bool -> Data Bool
+(||) = sugarSymTR Or
+
 (==) :: SmallType a => Data a -> Data a -> Data Bool
 (==) = sugarSymTR Eq
+
+(/=) :: SmallType a => Data a -> Data a -> Data Bool
+a /= b = not (a==b)
 
 (<) :: SmallType a => Data a -> Data a -> Data Bool
 (<) = sugarSymTR Lt

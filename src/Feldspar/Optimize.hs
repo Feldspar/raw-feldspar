@@ -117,6 +117,16 @@ simplifyUp (SymP t Not :$ (SymP _ Gt :$ a :$ b)) = simplifyUp $ SymP t Le :$ a :
 simplifyUp (SymP t Not :$ (SymP _ Le :$ a :$ b)) = simplifyUp $ SymP t Gt :$ a :$ b
 simplifyUp (SymP t Not :$ (SymP _ Ge :$ a :$ b)) = simplifyUp $ SymP t Lt :$ a :$ b
 
+simplifyUp (SymP _ And :$ LitP t False :$ _) = LitP t False
+simplifyUp (SymP _ And :$ _ :$ LitP t False) = LitP t False
+simplifyUp (SymP _ And :$ LitP t True :$ b)  = b
+simplifyUp (SymP _ And :$ a :$ LitP t True)  = a
+
+simplifyUp (SymP _ Or :$ LitP t False :$ b) = b
+simplifyUp (SymP _ Or :$ a :$ LitP t False) = a
+simplifyUp (SymP _ Or :$ LitP t True :$ _)  = LitP t True
+simplifyUp (SymP _ Or :$ _ :$ LitP t True)  = LitP t True
+
 simplifyUp (SymP _ Condition :$ LitP _ True  :$ t :$ _) = t
 simplifyUp (SymP _ Condition :$ LitP _ False :$ _ :$ f) = f
 simplifyUp (SymP _ Condition :$ c :$ t :$ f) | equal t f = t

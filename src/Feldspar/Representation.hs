@@ -115,6 +115,8 @@ data Primitive sig
     I2N :: (SmallType a, SmallType b,
             Integral a, Num b)  => Primitive (a :-> Full b)
     Not ::                         Primitive (Bool :-> Full Bool)
+    And ::                         Primitive (Bool :-> Bool :-> Full Bool)
+    Or  ::                         Primitive (Bool :-> Bool :-> Full Bool)
     Eq  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Lt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
     Gt  :: SmallType a          => Primitive (a :-> a :-> Full Bool)
@@ -129,6 +131,8 @@ instance Render Primitive
     renderSym Neg = "Neg"
     renderSym I2N = "I2N"
     renderSym Not = "Not"
+    renderSym And = "And"
+    renderSym Or  = "Or"
     renderSym Eq  = "(==)"
     renderSym Lt  = "(<)"
     renderSym Gt  = "(>)"
@@ -144,6 +148,8 @@ instance Eval Primitive
     evalSym Neg = negate
     evalSym I2N = fromInteger . toInteger
     evalSym Not = not
+    evalSym And = (&&)
+    evalSym Or  = (||)
     evalSym Eq  = (==)
     evalSym Lt  = (<)
     evalSym Gt  = (>)
