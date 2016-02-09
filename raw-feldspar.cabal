@@ -35,6 +35,7 @@ library
     Feldspar.Hardware.Compile
     Feldspar.Hardware
     Feldspar.Vector
+    Feldspar.Option
 
   other-modules:
     Data.Inhabited.TH

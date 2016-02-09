@@ -9,6 +9,7 @@ import Control.Applicative ((<$>))
 
 import Feldspar.Software
 import Feldspar.Vector
+import Feldspar.Option
 
 
 
