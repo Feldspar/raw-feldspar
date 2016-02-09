@@ -16,6 +16,7 @@ module Feldspar
   , Index
   , Ref
   , Arr
+  , IArr
     -- * Front end
   , eval
   , module Feldspar.Frontend

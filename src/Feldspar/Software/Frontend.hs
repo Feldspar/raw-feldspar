@@ -13,7 +13,7 @@ import Data.Proxy
 
 import qualified Control.Monad.Operational.Higher as Oper
 
-import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr)
+import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr, IArr)
 import qualified Language.Embedded.Imperative as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
