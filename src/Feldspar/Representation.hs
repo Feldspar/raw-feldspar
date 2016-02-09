@@ -42,6 +42,7 @@ import qualified Language.Embedded.Imperative.CMD as Imp
 
 import qualified Language.C.Quote as C
 
+import qualified Data.Inhabited as Inhabited
 import Data.VirtualContainer
 
 
@@ -62,8 +63,8 @@ pFeldTypes :: Proxy FeldTypes
 pFeldTypes = Proxy
 
 -- | Feldspar types
-class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
-instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a) => Type a
+class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
+instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
 
 -- | Small Feldspar types
 class    (Type a, CType a, HType a) => SmallType a

@@ -19,6 +19,7 @@ source-repository head
 
 library
   exposed-modules:
+    Data.Inhabited
     Data.VirtualContainer
     Feldspar.Representation
     Feldspar.Optimize
@@ -36,6 +37,7 @@ library
     Feldspar.Vector
 
   other-modules:
+    Data.Inhabited.TH
     Data.VirtualContainer.TH
 
   default-language: Haskell2010

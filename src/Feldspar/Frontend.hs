@@ -15,6 +15,7 @@ import Language.Syntactic.TypeRep
 import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
 
+import qualified Data.Inhabited as Inhabited
 import Data.VirtualContainer
 import Feldspar.Representation
 
@@ -81,6 +82,16 @@ instance Syntactic.Syntactic ()
     type Internal () = Int32
     desugar () = unData 0
     sugar   _  = ()
+
+-- | Example value
+--
+-- 'example' can be used similarly to 'undefined' in normal Haskell, i.e. to
+-- create an expression whose value is irrelevant.
+--
+-- Note that it is generally not possible to use 'undefined' in Feldspar
+-- expressions, as this will crash the compiler.
+example :: Syntax a => a
+example = value Inhabited.example
 
 
 

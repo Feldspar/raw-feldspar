@@ -17,6 +17,7 @@ module Feldspar
   , Ref
   , Arr
   , IArr
+  , Inhabited
     -- * Front end
   , eval
   , module Feldspar.Frontend
@@ -37,6 +38,7 @@ import Language.Syntactic
 
 import Language.Embedded.Imperative (Border (..), IxRange)
 
+import Data.Inhabited
 import Feldspar.Representation
 import Feldspar.Frontend
 import Feldspar.Storable
