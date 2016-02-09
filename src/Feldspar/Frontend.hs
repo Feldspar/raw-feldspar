@@ -242,6 +242,10 @@ newArr l = liftComp $ fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
+-- | Create and initialize an array
+initArr :: (SmallType a, MonadComp m) => [a] -> m (Arr a)
+initArr = liftComp . fmap (Arr . Actual) . Comp . Imp.initArr
+
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
 getArr i = liftComp . fmap resugar . mapVirtualA (Comp . Imp.getArr i) . unArr

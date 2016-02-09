@@ -134,6 +134,7 @@ instance Lower (RefCMD Data)
 instance Lower (ArrCMD Data)
   where
     lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
+    lowerInstr (InitArr as)   = lift $ initArr as
     lowerInstr (GetArr i arr) = do
         i' <- translateSmallExp i
         fmap liftVar $ lift $ getArr i' arr
