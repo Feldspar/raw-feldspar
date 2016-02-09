@@ -220,8 +220,12 @@ simplifyM res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t <$> simplifyM (S
 simplifyM a = simpleMatch
     ( \s@(_ :&: t) as -> do
         (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
-        case prj s of
-            Just (_ :: IOSym sig) -> tellUnsafe >> return a'
+        case () of
+            _ | Just (_ :: Array sig) <- prj s -> tellUnsafe >> return a'
+                  -- Array indexing is actually not unsafe. It's more like an
+                  -- expression with a free variable. But setting the unsafe
+                  -- flag does the trick.
+            _ | Just (_ :: IOSym sig) <- prj s -> tellUnsafe >> return a'
             _ | null vs && not unsafe
               , Right Dict <- pwit pShow t
                 -> return $ LitP t $ evalClosed a'
