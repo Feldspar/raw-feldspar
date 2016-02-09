@@ -81,10 +81,9 @@ type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
     Imp.:+: ControlCMD CExp
-    Imp.:+: PtrCMD CExp
+    Imp.:+: PtrCMD
     Imp.:+: FileCMD CExp
-    Imp.:+: ObjectCMD CExp
-    Imp.:+: CallCMD CExp
+    Imp.:+: C_CMD CExp
 
 type Env = Map Name VExp'
 
@@ -166,9 +165,8 @@ instance Lower (ControlCMD Data)
         lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
 
-instance Lower (PtrCMD Data)
+instance Lower PtrCMD
   where
-    lowerInstr NewPtr        = lift newPtr
     lowerInstr (SwapPtr a b) = lift $ unsafeSwap a b
 
 instance Lower (FileCMD Data)
@@ -182,29 +180,26 @@ instance Lower (FileCMD Data)
 transPrintfArgs :: [PrintfArg Data] -> Target [PrintfArg CExp]
 transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
 
-instance Lower (ObjectCMD Data)
+instance Lower (C_CMD Data)
   where
-    lowerInstr (NewObject t) = lift $ newObject t
-    lowerInstr (InitObject name True t as) = do
-        lift . initObject name t =<< transFunArgs as
-    lowerInstr (InitObject name False t as) = do
-        lift . initUObject name t =<< transFunArgs as
-
-transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
-transFunArgs = mapM $ mapMArg predCast translateSmallExp
-  where
-    predCast :: VarPredCast Data CExp
-    predCast _ a = a
-
-instance Lower (CallCMD Data)
-  where
+    lowerInstr (NewObject p t) = lift $ newObject p t
+--     lowerInstr (InitObject name True t as) = do
+--         lift . initObject name t =<< transFunArgs as
+--     lowerInstr (InitObject name False t as) = do
+--         lift . initUObject name t =<< transFunArgs as
     lowerInstr (AddInclude incl)   = lift $ addInclude incl
     lowerInstr (AddDefinition def) = lift $ addDefinition def
     lowerInstr (AddExternFun f (_ :: proxy (Data res)) as) =
         lift . addExternFun f (Proxy :: Proxy (CExp res)) =<< transFunArgs as
     lowerInstr (AddExternProc p as) = lift . addExternProc p =<< transFunArgs as
     lowerInstr (CallFun f as)  = fmap liftVar . lift . callFun f =<< transFunArgs as
-    lowerInstr (CallProc p as) = lift . callProc p =<< transFunArgs as
+--     lowerInstr (CallProc p as) = lift . callProc p =<< transFunArgs as
+
+transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
+transFunArgs = mapM $ mapMArg predCast translateSmallExp
+  where
+    predCast :: VarPredCast Data CExp
+    predCast _ a = a
 
 instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
   where
@@ -420,19 +415,21 @@ captureCompiled :: MonadSoftware m
     -> IO String  -- ^ Result from @stdout@
 captureCompiled = captureCompiled' mempty
 
--- | Compare the content written to 'stdout' from interpretation in 'IO' and
--- from running the compiled C code
+-- | Compare the content written to @stdout@ from the reference program and from
+-- running the compiled C code
 compareCompiled' :: MonadSoftware m
     => ExternalCompilerOpts
     -> m a     -- ^ Program to run
+    -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftSoftware
 
--- | Compare the content written to 'stdout' from interpretation in 'IO' and
--- from running the compiled C code
+-- | Compare the content written to @stdout@ from the reference program and from
+-- running the compiled C code
 compareCompiled :: MonadSoftware m
     => m a     -- ^ Program to run
+    -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
 compareCompiled = compareCompiled' mempty

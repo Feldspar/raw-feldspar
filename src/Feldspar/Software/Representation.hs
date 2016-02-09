@@ -15,10 +15,9 @@ import Feldspar.Frontend
 
 type SoftwareCMD
     =   ControlCMD Data
-    :+: PtrCMD     Data
-    :+: CallCMD    Data
-    :+: ObjectCMD  Data
+    :+: PtrCMD
     :+: FileCMD    Data
+    :+: C_CMD      Data
 
 -- | Monad for computations in software
 newtype Software a = Software { unSoftware :: ProgramT SoftwareCMD (Program CompCMD) a }

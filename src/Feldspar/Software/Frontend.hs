@@ -90,33 +90,24 @@ printf = fprintf Imp.stdout
 
 
 --------------------------------------------------------------------------------
--- * Abstract objects
+-- * C-specific commands
 --------------------------------------------------------------------------------
 
+-- | Create a null pointer
+newPtr :: SmallType a => Software (Ptr a)
+newPtr = Software Imp.newPtr
+
+-- | Cast a pointer to an array
+ptrToArr :: SmallType a => Ptr a -> Software (Arr a)
+ptrToArr = fmap (Arr . Actual) . Software . Imp.ptrToArr
+
+-- | Create a pointer to an abstract object. The only thing one can do with such
+-- objects is to pass them to 'callFun' or 'callProc'.
 newObject
     :: String  -- ^ Object type
+    -> Bool    -- ^ Pointed?
     -> Software Object
-newObject = Software . Imp.newObject
-
-initObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Software Object
-initObject fun ty args = Software $ Imp.initObject fun ty args
-
-initUObject
-    :: String        -- ^ Function name
-    -> String        -- ^ Object type
-    -> [FunArg Data] -- ^ Arguments
-    -> Software Object
-initUObject fun ty args = Software $ Imp.initUObject fun ty args
-
-
-
---------------------------------------------------------------------------------
--- * External function calls (C-specific)
---------------------------------------------------------------------------------
+newObject t p = Software $ Imp.newObject t p
 
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Software ()
@@ -176,6 +167,14 @@ callProc
     -> Software ()
 callProc fun as = Software $ Imp.callProc fun as
 
+-- | Call a procedure and assign its result
+callProcAssign :: Assignable obj
+    => obj            -- ^ Object to which the result should be assigned
+    -> String         -- ^ Procedure name
+    -> [FunArg Data]  -- ^ Arguments
+    -> Software ()
+callProcAssign obj fun as = Software $ Imp.callProcAssign obj fun as
+
 -- | Declare and call an external function
 externFun :: SmallType res
     => String         -- ^ Procedure name
@@ -217,4 +216,8 @@ objArg = Imp.objArg
 -- | Modifier that takes the address of another argument
 addr :: FunArg Data -> FunArg Data
 addr = Imp.addr
+
+-- | Modifier that dereferences another argument
+deref :: FunArg Data -> FunArg Data
+deref = Imp.deref
 

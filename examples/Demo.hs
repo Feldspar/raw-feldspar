@@ -87,9 +87,9 @@ map_inplace = do
 ------------------------------------------------------------
 
 testAll = do
-    compareCompiled sumInput (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
-    compareCompiled printFib "7\n"
-    compareCompiled test_scProd1 "20\n"
-    compareCompiled test_scProd2 "20\n"
-    compareCompiled map_inplace ""
+    compareCompiled sumInput     (runIO sumInput) (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
+    compareCompiled printFib     (runIO printFib)     "7\n"
+    compareCompiled test_scProd1 (runIO test_scProd1) "20\n"
+    compareCompiled test_scProd2 (runIO test_scProd2) "20\n"
+    compareCompiled map_inplace  (runIO map_inplace)  ""
 

@@ -40,6 +40,8 @@ import Language.Embedded.CExp (CType)
 import Language.Embedded.Expression (VarPred, EvalExp (..))
 import qualified Language.Embedded.Imperative.CMD as Imp
 
+import qualified Language.C.Quote as C
+
 import Data.VirtualContainer
 
 
@@ -87,6 +89,14 @@ newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
 
 -- | Immutable array
 newtype IArr a = IArr { unIArr :: Virtual SmallType (Imp.IArr Index) a }
+
+instance SmallType a => C.ToIdent (Ref a)  where toIdent (Ref (Actual r))  = C.toIdent r
+instance SmallType a => C.ToIdent (Arr a)  where toIdent (Arr (Actual a))  = C.toIdent a
+instance SmallType a => C.ToIdent (IArr a) where toIdent (IArr (Actual a)) = C.toIdent a
+
+instance SmallType a => Imp.Assignable (Ref a)
+instance SmallType a => Imp.Assignable (Arr a)
+instance SmallType a => Imp.Assignable (IArr a)
 
 
 

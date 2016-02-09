@@ -61,6 +61,7 @@ library
     containers,
     imperative-edsl >=0.4.1,
     hardware-edsl >=0.1.0.1,
+    language-c-quote,
     mtl,
     open-typerep >= 0.5,
     operational-alacarte,
