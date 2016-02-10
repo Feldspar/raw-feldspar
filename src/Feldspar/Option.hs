@@ -1,118 +1,104 @@
-{-# LANGUAGE CPP #-}
-
--- Copyright (c) 2009-2011, ERICSSON AB
--- All rights reserved.
---
--- Redistribution and use in source and binary forms, with or without
--- modification, are permitted provided that the following conditions are met:
---
---     * Redistributions of source code must retain the above copyright notice,
---       this list of conditions and the following disclaimer.
---     * Redistributions in binary form must reproduce the above copyright
---       notice, this list of conditions and the following disclaimer in the
---       documentation and/or other materials provided with the distribution.
---     * Neither the name of the ERICSSON AB nor the names of its contributors
---       may be used to endorse or promote products derived from this software
---       without specific prior written permission.
---
--- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
--- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
--- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
--- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
--- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
--- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
--- SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
--- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
--- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
--- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
--- | Optional values
-
-module Feldspar.Option where
+module Feldspar.Option
+  ( Option
+  , none
+  , some
+  , guarded
+  , option
+  , caseOption
+  , fromSome
+  , optionM
+  , caseOptionM
+  , fromSomeM
+  ) where
 
 
 
-import Prelude ()
+import Control.Monad.Operational.Higher
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
-import Control.Monad
-
-import qualified Language.Syntactic as Syntactic
-
-import Feldspar.Representation
 import Feldspar
 
 
 
--- | Optional value
---
--- (Analogous to 'Maybe' in normal Haskell.)
-data Option a = Option { isSome :: Data Bool, fromSome :: a }
+data Opt (prog :: * -> *) a
+    = None String
+    | Some a
+    | Guard String (Data Bool) a
 
-instance Syntax a => Syntactic.Syntactic (Option a)
+instance HFunctor Opt
   where
-    type Domain (Option a)   = FeldDomain
-    type Internal (Option a) = (Bool, Internal a)
-    desugar = Syntactic.desugar . desugarOption . fmap Syntactic.resugar
-    sugar   = fmap Syntactic.resugar . sugarOption . Syntactic.sugar
+    hfmap f (None msg)      = None msg
+    hfmap f (Some a)        = Some a
+    hfmap f (Guard msg c a) = Guard msg c a
 
-instance Functor Option
-  where
-    fmap f opt = opt {fromSome = f (fromSome opt)}
+-- | Optional value, analogous to @`Either` `String` a@ in normal Haskell
+newtype Option a = Option (Program Opt a)
+  deriving (Functor, Applicative, Monad)
 
-instance Applicative Option
-  where
-    pure  = return
-    (<*>) = ap
+-- | Construct a missing 'Option' value (analogous to 'Left' in normal Haskell)
+none :: String -> Option a
+none = Option . singleton . None
 
-instance Monad Option
-  where
-    return = some
-    a >>= k = b { isSome = isSome a && isSome b }
-      where
-        b = k (fromSome a)
-      -- TODO If `isSome` was a difference list, the condition would always be
-      --      right-nested which would ensure maximal benefit from
-      --      short-cirtuiting (I think).
-
--- | One-layer desugaring of 'Option'
-desugarOption :: Type a => Option (Data a) -> Data (Bool,a)
-desugarOption a = resugar (isSome a, fromSome a)
-
--- | One-layer sugaring of 'Option'
-sugarOption :: Type a => Data (Bool,a) -> Option (Data a)
-sugarOption (resugar -> (valid,a)) = Option valid a
-
--- | Analogous to 'Just' in normal Haskell
+-- | Construct a present 'Option' value (analogous to 'Right' in normal Haskell)
 some :: a -> Option a
-some = Option true
+some = Option . singleton . Some
 
--- | Analogous to 'Nothing' in normal Haskell
-none :: Syntax a => Option a
-none = Option false example
+-- | Construct an 'Option' from a guard and a value. The value will not be
+-- evaluated if the guard is false.
+guarded :: String -> Data Bool -> a -> Option a
+guarded msg c a = Option $ singleton $ Guard msg c a
 
--- | Analogous to 'maybe' in normal Haskell
-option :: Syntax b => b -> (a -> b) -> Option a -> b
-option noneCase someCase opt = isSome opt
-    ? someCase (fromSome opt)
-    $ noneCase
+-- | Deconstruct an 'Option' value (analogous to 'either' in normal Haskell)
+option :: Syntax b
+    => (String -> b)  -- ^ 'none' case
+    -> (a -> b)       -- ^ 'some' case
+    -> Option a
+    -> b
+option noneCase someCase (Option opt) = go (view opt)
+  where
+    go (Return a)             = someCase a
+    go (None msg      :>>= k) = noneCase msg
+    go (Some a        :>>= k) = go $ view $ k a
+    go (Guard msg c a :>>= k) = cond c (go $ view $ k a) (noneCase msg)
 
--- | Monadic version of 'option'
-optionM :: (MonadComp m, Syntax b) => m b -> (a -> m b) -> Option a -> m b
-optionM noneCase someCase opt = ifE (isSome opt)
-    (someCase (fromSome opt))
-    (noneCase)
+-- | Deconstruct an 'Option' value
+caseOption :: Syntax b
+    => Option a
+    -> (String -> b)  -- ^ 'none' case
+    -> (a -> b)       -- ^ 'some' case
+    -> b
+caseOption o n s = option n s o
 
--- | Assert that an optional value is valid, and return its value
-fromSomeAssert :: MonadComp m => String -> Option a -> m a
-fromSomeAssert msg o = do
-    assert (isSome o) msg
-    return $ fromSome o
+-- | Extract the value of an 'Option' that is assumed to be present
+fromSome :: Syntax a => Option a -> a
+fromSome = option (const example) id
 
--- | Take the most defined of two optional values, with preference to the first
--- one
-oplus :: Syntax a => Option a -> Option a -> Option a
-oplus a b = isSome a ? a $ b
+-- | Deconstruct an 'Option' value (analogous to 'maybe' in normal Haskell)
+optionM :: MonadComp m
+    => (String -> m ())  -- ^ 'none' case
+    -> (a -> m ())       -- ^ 'some' case
+    -> Option a
+    -> m ()
+optionM noneCase someCase (Option opt) = go $ view opt
+  where
+    go (Return a)             = someCase a
+    go (None msg      :>>= k) = noneCase msg
+    go (Some a        :>>= k) = go $ view $ k a
+    go (Guard msg c a :>>= k) = iff c (go $ view $ k a) (noneCase msg)
+
+-- | Deconstruct an 'Option' value
+caseOptionM :: MonadComp m
+    => Option a
+    -> (String -> m ())  -- ^ 'none' case
+    -> (a -> m ())       -- ^ 'some' case
+    -> m ()
+caseOptionM o n s = optionM n s o
+
+-- | Extract the value of an 'Option' that is assumed to be present
+fromSomeM :: (Syntax a, MonadComp m) => Option a -> m a
+fromSomeM opt = do
+    r <- newRef
+    caseOptionM opt
+        (const $ return ())
+        (setRef r)
+    unsafeFreezeRef r
 
