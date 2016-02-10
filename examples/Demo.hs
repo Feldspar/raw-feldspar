@@ -5,7 +5,6 @@ module Demo where
 
 
 import qualified Prelude
-import Control.Applicative ((<$>))
 import Control.Monad.Trans
 
 import Feldspar.Software

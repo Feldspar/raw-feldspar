@@ -1,7 +1,5 @@
 module Simple where
 
-import Control.Applicative ((<$>))
-
 import qualified Prelude
 
 import Feldspar.Software
