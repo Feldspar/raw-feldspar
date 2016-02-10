@@ -89,6 +89,7 @@ test-suite Examples
 
   build-depends:
     base,
+    mtl,
     open-typerep,
     raw-feldspar,
     syntactic,

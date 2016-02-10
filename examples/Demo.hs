@@ -6,6 +6,7 @@ module Demo where
 
 import qualified Prelude
 import Control.Applicative ((<$>))
+import Control.Monad.Trans
 
 import Feldspar.Software
 import Feldspar.Vector
@@ -118,6 +119,16 @@ test_optionM = do
         (assert false)
         (printf "%d\n")
 
+readPositive :: OptionT Software (Data Int32)
+readPositive = do
+    i <- lift $ fget stdin
+    guarded "negative" (i>=0) (i :: Data Int32)
+
+test_optionT = optionT (assert false) (\_ -> return ()) $ do
+    i1 <- readPositive
+    i2 <- readPositive
+    lift $ printf "%d\n" (i1+i2)
+
 ------------------------------------------------------------
 
 testAll = do
@@ -129,4 +140,5 @@ testAll = do
     compareCompiled test_option  (runIO test_option)  ""
     compareCompiled test_optionM (runIO test_optionM) ""
     compareCompiled test_optionM (runIO test_option)  ""
+    compareCompiled test_optionT (runIO test_optionT) "34\n45\n"
 
