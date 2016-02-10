@@ -241,6 +241,10 @@ setRef r
 modifyRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> (a -> a) -> m ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
 
+-- | A version of 'modifyRef' that fixes the value type to @`Data` a@
+modifyRefD :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
+modifyRefD r f = setRef r . f =<< unsafeFreezeRef r
+
 -- | Freeze the contents of reference (only safe if the reference is not updated
 --   as long as the resulting value is alive).
 unsafeFreezeRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
