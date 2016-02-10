@@ -1,4 +1,4 @@
-module Simple where
+module CoDesign where
 
 import qualified Prelude
 
@@ -23,7 +23,7 @@ simple = do
     iff b
       (do setRef tru false
           setRef fls true)
-      (do modifyRef end (+1))
+      (do modifyRefD end (+1))
 
 software :: Software ()
 software = do
@@ -37,7 +37,7 @@ software = do
       (setRef done true)
       (modifyRef sum (+n))
   x <- getRef sum
-  printf "The sum of your numbers is %d.\n" x
+  printf "The sum of your numbers is %d.\n" (x :: Data Word32)
 
 abort :: Software ()
 abort = do
@@ -54,5 +54,9 @@ testSimple = do
 
 testSoftware :: IO ()
 testSoftware = SW.icompile software
+
+testAll = do
+    testSimple
+    testSoftware
 
 --------------------------------------------------------------------------------

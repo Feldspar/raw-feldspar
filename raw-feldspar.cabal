@@ -89,6 +89,7 @@ test-suite Examples
 
   build-depends:
     base,
+    hardware-edsl,
     mtl,
     open-typerep,
     raw-feldspar,
