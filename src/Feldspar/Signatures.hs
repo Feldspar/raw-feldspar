@@ -88,9 +88,9 @@ data Function sig
 
 
 inFunction :: MonadComp m => Signature m sig -> m (FunName m sig)
-inFunction = undefined
+inFunction = return $ InFunction Nothing
 
 callFunction :: MonadComp m => FunName m sig -> FunArg m sig -> m (FunResult m sig)
-callFunction = undefined
+callFunction = CallFunction 
 
 --------------------------------------------------------------------------------
