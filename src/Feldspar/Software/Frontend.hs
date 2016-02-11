@@ -18,10 +18,10 @@ import qualified Language.Embedded.Imperative as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
+
 import Feldspar.Representation
+import Feldspar.Signatures
 import Feldspar.Software.Representation
-
-
 
 --------------------------------------------------------------------------------
 -- * Pointer operations
@@ -161,14 +161,14 @@ addExternProc
     -> [FunArg Data]  -- ^ Arguments (only used to determine types)
     -> Software ()
 addExternProc proc args = Software $ Imp.addExternProc proc args
-
+{-
 -- | Call a function
 callFun :: SmallType a
     => String         -- ^ Function name
     -> [FunArg Data]  -- ^ Arguments
     -> Software (Data a)
 callFun fun as = Software $ Imp.callFun fun as
-
+-}
 -- | Call a procedure
 callProc
     :: String         -- ^ Function name
@@ -218,3 +218,10 @@ objArg = Imp.objArg
 addr :: FunArg Data -> FunArg Data
 addr = Imp.addr
 
+--------------------------------------------------------------------------------
+-- ** Functions.
+
+addF :: (FunctionCMD (IExp instr) :<: instr) => Signature m a -> ProgramT instr m (Maybe String)
+addF = Oper.singleE . AddFun
+
+--------------------------------------------------------------------------------

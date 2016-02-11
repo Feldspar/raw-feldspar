@@ -14,8 +14,8 @@ import Data.Array ((!))
 import Data.List (genericTake)
 import Data.Word
 
-import Language.Syntactic
-import Language.Syntactic.Functional
+import Language.Syntactic            hiding (Lam, Signature)
+import Language.Syntactic.Functional hiding (Lam)
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
@@ -41,8 +41,6 @@ import Language.Embedded.Expression (VarPred, EvalExp (..))
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
-
-
 
 --------------------------------------------------------------------------------
 -- * Object-language types
@@ -139,7 +137,9 @@ instance Eval Primitive
     evalSym Le  = (<=)
     evalSym Ge  = (>=)
 
--- Array indexing
+--------------------------------------------------------------------------------
+-- ** Array indexing.
+
 data Array sig
   where
     ArrIx :: SmallType a => Imp.IArr Index a -> Array (Index :-> Full a)
@@ -157,7 +157,9 @@ instance Equality Array
   where
     equal (ArrIx (Imp.IArrComp arr1)) (ArrIx (Imp.IArrComp arr2)) = arr1 == arr2
 
--- | Conditionals
+--------------------------------------------------------------------------------
+-- ** Conditionals.
+
 data Condition sig
   where
     Condition :: Type a => Condition (Bool :-> a :-> a :-> Full a)
@@ -166,7 +168,9 @@ instance Eval Condition
   where
     evalSym Condition = \c t f -> if c then t else f
 
--- | For loop
+--------------------------------------------------------------------------------
+-- ** For loop.
+
 data ForLoop sig
   where
     ForLoop :: Type st => ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
@@ -175,7 +179,9 @@ instance Eval ForLoop
   where
     evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
 
--- | Interaction with the IO layer
+--------------------------------------------------------------------------------
+-- ** Interaction with the IO layer.
+    
 data IOSym sig
   where
     -- Result of an IO operation
@@ -206,6 +212,8 @@ instance Equality IOSym
   where
     equal (FreeVar v1) (FreeVar v2) = v1 == v2
     equal _ _ = False
+
+--------------------------------------------------------------------------------
 
 type FeldConstructs
     =   Literal
@@ -268,7 +276,6 @@ type CompCMD
 -- | Monad for computational effects: mutable data structures and control flow
 newtype Comp a = Comp { unComp :: H.Program CompCMD a }
   deriving (Functor, Applicative, Monad)
-
 
 
 --------------------------------------------------------------------------------

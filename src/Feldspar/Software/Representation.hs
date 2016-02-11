@@ -3,15 +3,39 @@
 module Feldspar.Software.Representation where
 
 
-
+import Control.Monad.Operational.Higher
 import Control.Monad.Trans
 
-import Language.Embedded.Imperative as Imp
+import Language.Embedded.Imperative as Imp hiding (FunArg)
 
 import Feldspar.Representation
 import Feldspar.Frontend
+import Feldspar.Signatures
 
+--------------------------------------------------------------------------------
+-- *
+--------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- ** Functions.
+
+data FunctionCMD (exp :: * -> *) (prog :: * -> *) a
+  where
+    -- ^ ...
+    AddFun  :: Signature prog a -> FunctionCMD exp prog (Maybe String)
+
+    -- ^ ...
+    CallFun :: FunName prog a -> FunArg prog a -> FunctionCMD exp prog (FunResult prog a)
+
+type instance IExp (FunctionCMD e)       = e
+type instance IExp (FunctionCMD e :+: i) = e
+
+instance HFunctor (FunctionCMD exp)
+  where
+    hfmap f (AddFun s) = AddFun (hfmap f s)
+
+--------------------------------------------------------------------------------
+-- **
 
 type SoftwareCMD
     =   ControlCMD Data
@@ -38,3 +62,4 @@ class Monad m => MonadSoftware m
 instance MonadSoftware Comp     where liftSoftware = liftComp
 instance MonadSoftware Software where liftSoftware = id
 
+--------------------------------------------------------------------------------

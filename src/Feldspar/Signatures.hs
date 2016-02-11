@@ -1,20 +1,19 @@
 {-# LANGUAGE GADTs        #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Feldspar.Signature where
+module Feldspar.Signatures where
+
+import Control.Monad.Operational.Higher
 
 import Language.Syntactic hiding (Signature)
 
-import Feldspar.Representation
-import Feldspar.Frontend (MonadComp)
+import Feldspar.Representation (Data, SmallType)
 
 --------------------------------------------------------------------------------
 -- * Language.
 --------------------------------------------------------------------------------
 
 class Argument a
-  where
-    mkParam :: a -> ()
 
 --------------------------------------------------------------------------------
 
@@ -22,22 +21,34 @@ data Signature m a
   where
     Unit
       :: m ()
-      -> Signature m (m ())
+      -> Signature m ()
          
     Ret
       :: SmallType a
       => m (Data a)
-      -> Signature m (m (Data a))
+      -> Signature m (Data a)
       
     Lam
       :: (SmallType a, Argument (arg a))
       => (arg a -> Signature m b)
       -> Signature m (arg a -> b)
 
-unit :: m () -> Signature m (m ())
+type family SignatureM m sig
+  where
+    SignatureM m ()       = m ()
+    SignatureM m (Data a) = m (Data a)
+    SignatureM m (a -> b) = a -> SignatureM m b
+
+instance HFunctor Signature
+  where
+    hfmap f (Unit m) = Unit (f m)
+    hfmap f (Ret  a) = Ret  (f a)
+    hfmap f (Lam  g) = Lam  (hfmap f . g)
+
+unit :: m () -> Signature m ()
 unit = Unit
 
-ret :: SmallType a => m (Data a) -> Signature m (m (Data a))
+ret :: SmallType a => m (Data a) -> Signature m (Data a)
 ret = Ret
 
 lam :: (SmallType a, Argument (arg a)) => (arg a -> Signature m b) -> Signature m (arg a -> b)
@@ -70,27 +81,5 @@ nil = Empty
 
 cons :: (SmallType a, Argument (arg a)) => arg a -> FunArg m b -> FunArg m (arg a -> b)
 cons = Cons
-
---------------------------------------------------------------------------------
-
--- | Functions.
-data Function sig
-  where
-    InFunction
-      :: Maybe String    -- Function name
-      -> Signature m sig -- Signature of the function's type
-      -> Function (FunName m sig)
-      
-    CallFunction
-      :: FunName m sig   -- Funtion itself
-      -> FunArg  m sig   -- Arguments to functions
-      -> Function (FunResult m sig)
-
-
-inFunction :: MonadComp m => Signature m sig -> m (FunName m sig)
-inFunction = return $ InFunction Nothing
-
-callFunction :: MonadComp m => FunName m sig -> FunArg m sig -> m (FunResult m sig)
-callFunction = CallFunction 
 
 --------------------------------------------------------------------------------
