@@ -125,8 +125,24 @@ readPositive = do
 
 test_optionT = optionT (assert false) (\_ -> return ()) $ do
     i1 <- readPositive
-    i2 <- readPositive
-    lift $ printf "%d\n" (i1+i2)
+    sumr <- newRef
+    iff (i1>10)
+        ( do i2 <- readPositive
+             i3 <- readPositive
+             setRef sumr (i2+i3)
+        )
+        ( do i4 <- readPositive
+             setRef sumr (i4-10)
+        )
+    s <- unsafeFreezeRef sumr
+    lift $ printf "%d\n" (s :: Data Int32)
+    i1 <- readPositive
+    sumr <- initRef (0 :: Data Int32)
+    for (0,1,Excl i1) $ \j -> do
+        i2 <- readPositive
+        modifyRefD sumr (\s -> s+i2+j)
+    s <- unsafeFreezeRef sumr
+    lift $ printf "%d\n" (s :: Data Int32)
 
 ------------------------------------------------------------
 
@@ -139,5 +155,5 @@ testAll = do
     compareCompiled test_option  (runIO test_option)  ""
     compareCompiled test_optionM (runIO test_optionM) ""
     compareCompiled test_optionM (runIO test_option)  ""
-    compareCompiled test_optionT (runIO test_optionT) "34\n45\n"
+    compareCompiled test_optionT (runIO test_optionT) "34\n45\n56\n2\n45\n56\n"
 

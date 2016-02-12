@@ -1,3 +1,5 @@
+-- | Optional values
+
 module Feldspar.Option
   ( OptionT
   , Option
@@ -16,6 +18,8 @@ module Feldspar.Option
   ) where
 
 
+
+import Prelude ()
 
 import Control.Monad.Operational.Higher
 import Control.Monad.Identity
@@ -42,6 +46,35 @@ newtype OptionT m a = Option (ProgramT Opt m a)
 
 -- | Optional value, analogous to @`Either` `String` a@ in normal Haskell
 type Option = OptionT Identity
+
+instance MonadComp m => MonadComp (OptionT m)
+  where
+    liftComp = lift . liftComp
+    iff c t f = do
+        okr <- initRef true
+        lift $ iff c
+            (optionT (\_ -> setRef okr false) return t)
+            (optionT (\_ -> setRef okr false) return f)
+        ok <- unsafeFreezeRef okr
+        guarded "iff: none" ok ()
+    for rng body = do
+        okr <- initRef true
+        lift $ for rng $ \i ->
+            optionT (\_ -> setRef okr false >> break) return (body i)
+        ok <- unsafeFreezeRef okr
+        guarded "for: none" ok ()
+    while cont body = do
+        okr <- initRef true
+        lift $ while
+            (cont' okr)
+            (optionT (\_ -> setRef okr false >> break) return body)
+        ok <- unsafeFreezeRef okr
+        guarded "while: none" ok ()
+      where
+        cont' okr = do
+            cr <- newRef
+            caseOptionT (cont >>= setRef cr) (\_ -> setRef okr false >> setRef cr false) return
+            unsafeFreezeRef cr
 
 -- | Construct a missing 'Option' value (analogous to 'Left' in normal Haskell)
 none :: String -> OptionT m a
