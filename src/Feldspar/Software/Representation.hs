@@ -35,6 +35,19 @@ instance HFunctor (FunctionCMD exp)
     hfmap f (AddFun s)              = AddFun (hfmap f s)
     hfmap f (CallFun (FName n s) a) = CallFun (FName n (hfmap f s)) a
 
+instance Interp (FunctionCMD exp) IO
+  where
+    interp = runFunctionCMD
+
+runFunctionCMD :: FunctionCMD exp IO a -> IO a
+runFunctionCMD (AddFun s)              = return Nothing -- name not needed for evaluation.
+runFunctionCMD (CallFun (FName _ s) a) = unroll s a     -- apply arguments.
+  where
+    unroll :: forall m x. Signature m x -> FArgument x -> m (FResult x)
+    unroll (Unit m) (FEmpty)     = m
+    unroll (Ret  m) (FEmpty)     = m
+    unroll (Lam  f) (FCons a as) = unroll (f a) as
+
 --------------------------------------------------------------------------------
 -- **
 

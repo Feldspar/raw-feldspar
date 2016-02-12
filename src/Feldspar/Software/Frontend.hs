@@ -221,6 +221,14 @@ addr = Imp.addr
 --------------------------------------------------------------------------------
 -- ** Functions.
 
+callFun :: FName m a -> FArgument a -> Software (FResult a)
+callFun n = Oper.singleE . CallFun n
+
+addFun  :: Signature m a -> Software (FName m a)
+addFun sig = Software $
+  do n <- addF sig
+     return $ FName n sig
+
 addF :: (FunctionCMD (IExp instr) :<: instr) => Signature m a -> ProgramT instr m (Maybe String)
 addF = Oper.singleE . AddFun
 
