@@ -7,8 +7,6 @@ import Feldspar.Hardware (liftHardware)
 import qualified Feldspar.Hardware.Compile as HW
 import qualified Feldspar.Software.Compile as SW
 
-import Language.Embedded.Hardware.Command (wcompile)
-
 --------------------------------------------------------------------------------
 -- * ...
 --------------------------------------------------------------------------------
@@ -50,7 +48,7 @@ testSimple :: IO ()
 testSimple = do
   SW.icompile simple
   putStrLn ""
-  wcompile (HW.lowerTop $ liftHardware simple)
+  HW.icompile simple
 
 testSoftware :: IO ()
 testSoftware = SW.icompile software

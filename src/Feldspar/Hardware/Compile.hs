@@ -401,7 +401,7 @@ compile = Hard.compile . lowerTop . liftHardware
 
 -- | Compile a program to VHDL code and print it on the screen.
 icompile :: (MonadHardware m, Harden a) => m a -> IO ()
-icompile = putStrLn . compile
+icompile = Hard.wcompile . fmap (const ()) . lowerTop . liftHardware
 
 --------------------------------------------------------------------------------
 -- Stuff
