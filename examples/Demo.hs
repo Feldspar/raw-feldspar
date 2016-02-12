@@ -88,34 +88,35 @@ map_inplace = do
 
 ------------------------------------------------------------
 
-type Array a = (Data Length, IArr a)
+-- | Array paired with its allocated size
+type LArr a = (Data Length, IArr a)
 
-indexO :: Syntax a => Array (Internal a) -> Data Index -> Option a
-indexO (len,arr) i = guarded "out of bounds" (i<len) (arrIx arr i)
+-- | Index in an 'LArr'
+indexL :: Syntax a => LArr (Internal a) -> Data Index -> OptionT m a
+indexL (len,arr) i = guarded "indexL: out of bounds" (i<len) (arrIx arr i)
 
-funO :: Array Int32 -> Data Index -> Option (Data Int32)
+funO :: Monad m => LArr Int32 -> Data Index -> OptionT m (Data Int32)
 funO arr i = do
-    a <- indexO arr i
-    b <- indexO arr (i+1)
-    c <- indexO arr (i+2)
-    d <- indexO arr (i2n c - 2)
-      -- Changing to `i2n c + 3` leads to assertion failure in `test_optionM`
+    a <- indexL arr i
+    b <- indexL arr (i+1)
+    c <- indexL arr (i+2)
+    d <- indexL arr (i+4)
     return (a+b+c+d)
 
 test_option :: Software ()
 test_option = do
     a <- unsafeFreezeArr =<< initArr [1..10]
-    let arr = (10,a) :: Array Int32
-    i <- store 4
+    let arr = (10,a) :: LArr Int32
+    i <- fget stdin
     printf "%d\n" $ fromSome $ funO arr i
 
 test_optionM :: Software ()
 test_optionM = do
     a <- unsafeFreezeArr =<< initArr [1..10]
-    let arr = (10,a) :: Array Int32
-    i <- store 4
+    let arr = (10,a) :: LArr Int32
+    i <- fget stdin
     caseOptionM (funO arr i)
-        (assert false)
+        printf
         (printf "%d\n")
 
 readPositive :: OptionT Software (Data Int32)
@@ -123,26 +124,17 @@ readPositive = do
     i <- lift $ fget stdin
     guarded "negative" (i>=0) (i :: Data Int32)
 
-test_optionT = optionT (assert false) (\_ -> return ()) $ do
-    i1 <- readPositive
-    sumr <- newRef
-    iff (i1>10)
-        ( do i2 <- readPositive
-             i3 <- readPositive
-             setRef sumr (i2+i3)
-        )
-        ( do i4 <- readPositive
-             setRef sumr (i4-10)
-        )
-    s <- unsafeFreezeRef sumr
-    lift $ printf "%d\n" (s :: Data Int32)
-    i1 <- readPositive
+test_optionT = optionT printf (\_ -> return ()) $ do
+    a <- unsafeFreezeArr =<< initArr [1..10]
+    let arr = (10,a) :: LArr Int32
+    len  <- readPositive
     sumr <- initRef (0 :: Data Int32)
-    for (0,1,Excl i1) $ \j -> do
-        i2 <- readPositive
-        modifyRefD sumr (\s -> s+i2+j)
+    for (0, 1, Excl len) $ \i -> do
+        lift $ printf "reading index %d\n" i
+        x <- indexL arr (i2n i)
+        modifyRefD sumr (+x)
     s <- unsafeFreezeRef sumr
-    lift $ printf "%d\n" (s :: Data Int32)
+    lift $ printf "%d" (s :: Data Int32)
 
 ------------------------------------------------------------
 
@@ -152,8 +144,9 @@ testAll = do
     compareCompiled test_scProd1 (runIO test_scProd1) "20\n"
     compareCompiled test_scProd2 (runIO test_scProd2) "20\n"
     compareCompiled map_inplace  (runIO map_inplace)  ""
-    compareCompiled test_option  (runIO test_option)  ""
-    compareCompiled test_optionM (runIO test_optionM) ""
-    compareCompiled test_optionM (runIO test_option)  ""
-    compareCompiled test_optionT (runIO test_optionT) "34\n45\n56\n2\n45\n56\n"
+    compareCompiled test_option  (runIO test_option)  "5\n"
+    compareCompiled test_option  (runIO test_option)  "6\n"
+    compareCompiled test_optionM (runIO test_option)  "5\n"
+    compareCompiled test_optionM (runIO test_optionM) "6\n"
+    compareCompiled test_optionT (runIO test_optionT) "10\n"
 
