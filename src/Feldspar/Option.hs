@@ -6,6 +6,7 @@ module Feldspar.Option
   , none
   , some
   , guarded
+  , rebuildOption
   , option
   , caseOption
   , fromSome
@@ -41,7 +42,7 @@ instance HFunctor Opt
     hfmap f (Guard msg c a) = Guard msg c a
 
 -- | Transformer version of 'Option'
-newtype OptionT m a = Option (ProgramT Opt m a)
+newtype OptionT m a = Option { unOption :: ProgramT Opt m a }
   deriving (Functor, Applicative, Monad, MonadTrans)
 
 -- | Optional value, analogous to @`Either` `String` a@ in normal Haskell
@@ -88,6 +89,13 @@ some = Option . singleton . Some
 -- evaluated if the guard is false.
 guarded :: String -> Data Bool -> a -> OptionT m a
 guarded msg c a = Option $ singleton $ Guard msg c a
+
+rebuildOption :: Monad m => Option a -> OptionT m a
+rebuildOption = interpretWithMonad go . unOption
+  where
+    go (None msg)      = none msg
+    go (Some a)        = some a
+    go (Guard msg c a) = guarded msg c a
 
 -- | Deconstruct an 'Option' value (analogous to 'either' in normal Haskell)
 option :: Syntax b
