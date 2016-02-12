@@ -25,14 +25,15 @@ data FunctionCMD (exp :: * -> *) (prog :: * -> *) a
     AddFun  :: Signature prog a -> FunctionCMD exp prog (Maybe String)
 
     -- ^ ...
-    CallFun :: FunName prog a -> FunArg prog a -> FunctionCMD exp prog (FunResult prog a)
+    CallFun :: FName prog a -> FArgument a -> FunctionCMD exp prog (FResult a)
 
 type instance IExp (FunctionCMD e)       = e
 type instance IExp (FunctionCMD e :+: i) = e
 
 instance HFunctor (FunctionCMD exp)
   where
-    hfmap f (AddFun s) = AddFun (hfmap f s)
+    hfmap f (AddFun s)              = AddFun (hfmap f s)
+    hfmap f (CallFun (FName n s) a) = CallFun (FName n (hfmap f s)) a
 
 --------------------------------------------------------------------------------
 -- **

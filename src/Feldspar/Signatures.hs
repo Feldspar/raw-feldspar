@@ -33,12 +33,6 @@ data Signature m a
       => (arg a -> Signature m b)
       -> Signature m (arg a -> b)
 
-type family SignatureM m sig
-  where
-    SignatureM m ()       = m ()
-    SignatureM m (Data a) = m (Data a)
-    SignatureM m (a -> b) = a -> SignatureM m b
-
 instance HFunctor Signature
   where
     hfmap f (Unit m) = Unit (f m)
@@ -56,30 +50,30 @@ lam = Lam
 
 --------------------------------------------------------------------------------
 
-data FunName m a = FunNameC String | FunNameE (Signature m a)
+data FName m a where
+  FName :: Maybe String -> Signature m a -> FName m a
 
-type family FunResult m sig where
-  FunResult m (m ())       = m ()
-  FunResult m (m (Data a)) = m (Data a)
-  FunResult m (a -> b)     = FunResult m b
+type family FResult sig where
+  FResult ()       = ()
+  FResult (Data a) = Data a
+  FResult (a -> b) = FResult b
 
-data FunArg m a
+data FArgument a
   where
-    Empty
-      :: (FunResult m a ~ a)
-      => FunArg m a
+    FEmpty
+      :: (FResult a ~ a) => FArgument a
          
-    Cons
+    FCons
       :: (SmallType a, Argument (arg a))
       => arg a
-      -> FunArg m b
-      -> FunArg m (arg a -> b)
+      -> FArgument b
+      -> FArgument (arg a -> b)
 
 
-nil :: (FunResult m a ~ a) => FunArg m a
-nil = Empty
+nil :: (FResult a ~ a) => FArgument a
+nil = FEmpty
 
-cons :: (SmallType a, Argument (arg a)) => arg a -> FunArg m b -> FunArg m (arg a -> b)
-cons = Cons
+cons :: (SmallType a, Argument (arg a)) => arg a -> FArgument b -> FArgument (arg a -> b)
+cons = FCons
 
 --------------------------------------------------------------------------------
