@@ -22,31 +22,31 @@ import Feldspar.Signatures
 data FunctionCMD (exp :: * -> *) (prog :: * -> *) a
   where
     -- ^ ...
-    AddFun  :: Signature prog a -> FunctionCMD exp prog (Maybe String)
+    FAdd  :: Signature prog a -> FunctionCMD exp prog (Maybe String)
 
     -- ^ ...
-    CallFun :: FName prog a -> FArgument a -> FunctionCMD exp prog (FResult a)
+    FCall :: FName prog a -> FArgument a -> FunctionCMD exp prog (FResult a)
 
 type instance IExp (FunctionCMD e)       = e
 type instance IExp (FunctionCMD e :+: i) = e
 
 instance HFunctor (FunctionCMD exp)
   where
-    hfmap f (AddFun s)              = AddFun (hfmap f s)
-    hfmap f (CallFun (FName n s) a) = CallFun (FName n (hfmap f s)) a
+    hfmap f (FAdd s)              = FAdd (hfmap f s)
+    hfmap f (FCall (FName n s) a) = FCall (FName n (hfmap f s)) a
 
 instance Interp (FunctionCMD exp) IO
   where
     interp = runFunctionCMD
 
 runFunctionCMD :: FunctionCMD exp IO a -> IO a
-runFunctionCMD (AddFun s)              = return Nothing -- name not needed for evaluation.
-runFunctionCMD (CallFun (FName _ s) a) = unroll s a     -- apply arguments.
+runFunctionCMD (FAdd _)              = return Nothing -- name not needed for evaluation.
+runFunctionCMD (FCall (FName _ s) a) = unroll s a     -- apply arguments.
   where
     unroll :: forall m x. Signature m x -> FArgument x -> m (FResult x)
     unroll (Unit m) (FEmpty)     = m
     unroll (Ret  m) (FEmpty)     = m
-    unroll (Lam  f) (FCons a as) = unroll (f a) as
+    unroll (Lam  f) (a :> as) = unroll (f a) as
 
 --------------------------------------------------------------------------------
 -- **
@@ -57,6 +57,7 @@ type SoftwareCMD
     :+: CallCMD    Data
     :+: ObjectCMD  Data
     :+: FileCMD    Data
+    :+: FunctionCMD Data
 
 -- | Monad for computations in software
 newtype Software a = Software { unSoftware :: ProgramT SoftwareCMD (Program CompCMD) a }

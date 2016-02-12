@@ -53,17 +53,20 @@ lam = Lam
 data FName m a where
   FName :: Maybe String -> Signature m a -> FName m a
 
+instance HFunctor FName
+  where
+    hfmap f (FName s sig) = FName s (hfmap f sig)
+
 type family FResult sig where
-  FResult ()       = ()
-  FResult (Data a) = Data a
   FResult (a -> b) = FResult b
+  FResult a        = a
 
 data FArgument a
   where
     FEmpty
       :: (FResult a ~ a) => FArgument a
          
-    FCons
+    (:>)
       :: (SmallType a, Argument (arg a))
       => arg a
       -> FArgument b
@@ -72,8 +75,5 @@ data FArgument a
 
 nil :: (FResult a ~ a) => FArgument a
 nil = FEmpty
-
-cons :: (SmallType a, Argument (arg a)) => arg a -> FArgument b -> FArgument (arg a -> b)
-cons = FCons
 
 --------------------------------------------------------------------------------
