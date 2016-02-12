@@ -114,8 +114,14 @@ data Primitive sig
     Rem  :: (SmallType a, Integral a)   => Primitive (a :-> a :-> Full a)
     FDiv :: (SmallType a, Fractional a) => Primitive (a :-> a :-> Full a)
 
-    I2N :: (SmallType a, SmallType b,
-            Integral a, Num b)  => Primitive (a :-> Full b)
+    Sin :: (SmallType a, Floating a) => Primitive (a :-> Full a)
+    Cos :: (SmallType a, Floating a) => Primitive (a :-> Full a)
+    Pow :: (SmallType a, Floating a) => Primitive (a :-> a :-> Full a)
+
+    I2N   :: (SmallType a, SmallType b, Integral a, Num b)
+          => Primitive (a :-> Full b)
+    Round :: (SmallType a, SmallType b, RealFrac a, Integral b)
+          => Primitive (a :-> Full b)
 
     Not ::                Primitive (Bool :-> Full Bool)
     And ::                Primitive (Bool :-> Bool :-> Full Bool)
@@ -128,43 +134,51 @@ data Primitive sig
 
 instance Render Primitive
   where
-    renderSym Add  = "(+)"
-    renderSym Sub  = "(-)"
-    renderSym Mul  = "(*)"
-    renderSym Neg  = "Neg"
-    renderSym Quot = "Quot"
-    renderSym Rem  = "Rem"
-    renderSym FDiv = "FDiv"
-    renderSym I2N  = "I2N"
-    renderSym Not  = "Not"
-    renderSym And  = "And"
-    renderSym Or   = "Or"
-    renderSym Eq   = "(==)"
-    renderSym Lt   = "(<)"
-    renderSym Gt   = "(>)"
-    renderSym Le   = "(<=)"
-    renderSym Ge   = "(>=)"
+    renderSym Add   = "(+)"
+    renderSym Sub   = "(-)"
+    renderSym Mul   = "(*)"
+    renderSym Neg   = "Neg"
+    renderSym Quot  = "Quot"
+    renderSym Rem   = "Rem"
+    renderSym FDiv  = "FDiv"
+    renderSym Sin   = "Sin"
+    renderSym Cos   = "Cos"
+    renderSym Pow   = "Pow"
+    renderSym I2N   = "I2N"
+    renderSym Round = "Round"
+    renderSym Not   = "Not"
+    renderSym And   = "And"
+    renderSym Or    = "Or"
+    renderSym Eq    = "(==)"
+    renderSym Lt    = "(<)"
+    renderSym Gt    = "(>)"
+    renderSym Le    = "(<=)"
+    renderSym Ge    = "(>=)"
 
     renderArgs = renderArgsSmart
 
 instance Eval Primitive
   where
-    evalSym Add  = (+)
-    evalSym Sub  = (-)
-    evalSym Mul  = (*)
-    evalSym Neg  = negate
-    evalSym Quot = quot
-    evalSym Rem  = rem
-    evalSym FDiv = (/)
-    evalSym I2N  = fromInteger . toInteger
-    evalSym Not  = not
-    evalSym And  = (&&)
-    evalSym Or   = (||)
-    evalSym Eq   = (==)
-    evalSym Lt   = (<)
-    evalSym Gt   = (>)
-    evalSym Le   = (<=)
-    evalSym Ge   = (>=)
+    evalSym Add   = (+)
+    evalSym Sub   = (-)
+    evalSym Mul   = (*)
+    evalSym Neg   = negate
+    evalSym Quot  = quot
+    evalSym Rem   = rem
+    evalSym FDiv  = (/)
+    evalSym Sin   = sin
+    evalSym Cos   = cos
+    evalSym Pow   = (**)
+    evalSym I2N   = fromInteger . toInteger
+    evalSym Round = round
+    evalSym Not   = not
+    evalSym And   = (&&)
+    evalSym Or    = (||)
+    evalSym Eq    = (==)
+    evalSym Lt    = (<)
+    evalSym Gt    = (>)
+    evalSym Le    = (<=)
+    evalSym Ge    = (>=)
 
 -- Array indexing
 data Array sig

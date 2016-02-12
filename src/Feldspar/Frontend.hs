@@ -2,7 +2,8 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, error, (=<<), sequence_)
+import Prelude (Integral, Floating (..), RealFrac, error, (=<<), sequence_)
+import qualified Prelude
 import Prelude.EDSL
 
 import Data.Int
@@ -116,6 +117,13 @@ instance (Fractional a, SmallType a) => Fractional (Data a)
     fromRational = value . fromRational
     recip = error "recip not defined for (Data a)"
 
+instance (Floating a, SmallType a) => Floating (Data a)
+  where
+    pi   = value pi
+    (**) = sugarSymTR Pow
+    sin  = sugarSymTR Sin
+    cos  = sugarSymTR Cos
+
 quot :: (Integral a, SmallType a) => Data a -> Data a -> Data a
 quot = sugarSymTR Quot
 
@@ -125,6 +133,10 @@ rem = sugarSymTR Rem
 -- | Integral type casting
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
 i2n = sugarSymTR I2N
+
+-- | Round a floating-point number to an integer
+round :: (RealFrac n, Integral i, SmallType i, SmallType n) => Data n -> Data i
+round = sugarSymTR Round
 
 -- | Boolean negation
 not :: Data Bool -> Data Bool
