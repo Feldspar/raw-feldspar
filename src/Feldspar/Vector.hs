@@ -35,7 +35,7 @@ instance Type a => Storable (Vector (Data a))
       where
         len = length vec
     readStoreRep (lenRef,arr) = do
-        len <- unsafeFreezeRef lenRef
+        len <- getRef lenRef
         freezeVec len arr
     unsafeFreezeStoreRep (lenRef,arr) = do
         len <- unsafeFreezeRef lenRef
