@@ -177,17 +177,14 @@ transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
 instance Lower (C_CMD Data)
   where
     lowerInstr (NewObject p t) = lift $ newObject p t
---     lowerInstr (InitObject name True t as) = do
---         lift . initObject name t =<< transFunArgs as
---     lowerInstr (InitObject name False t as) = do
---         lift . initUObject name t =<< transFunArgs as
     lowerInstr (AddInclude incl)   = lift $ addInclude incl
     lowerInstr (AddDefinition def) = lift $ addDefinition def
     lowerInstr (AddExternFun f (_ :: proxy (Data res)) as) =
         lift . addExternFun f (Proxy :: Proxy (CExp res)) =<< transFunArgs as
     lowerInstr (AddExternProc p as) = lift . addExternProc p =<< transFunArgs as
-    lowerInstr (CallFun f as)  = fmap liftVar . lift . callFun f =<< transFunArgs as
---     lowerInstr (CallProc p as) = lift . callProc p =<< transFunArgs as
+    lowerInstr (CallFun f as) = fmap liftVar . lift . callFun f =<< transFunArgs as
+    lowerInstr (CallProc Nothing p as)  = lift . callProc p =<< transFunArgs as
+    lowerInstr (CallProc (Just o) p as) = lift . callProcAssign o p =<< transFunArgs as
 
 transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
 transFunArgs = mapM $ mapMArg predCast translateSmallExp
