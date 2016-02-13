@@ -62,6 +62,14 @@ cond = sugarSymTR Condition
 
 infixl 1 ?
 
+switch :: (Syntax a, Syntax b, SmallType (Internal a)) =>
+    b -> [(Internal a, b)] -> a -> b
+switch def [] _ = def
+switch def cs s = Prelude.foldr
+    (\(c,a) b -> value c == desugar s ? a $ b)
+    def
+    cs
+
 
 
 ----------------------------------------
