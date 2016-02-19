@@ -205,9 +205,13 @@ valArg = Imp.valArg
 refArg :: SmallType a => Ref a -> FunArg Data
 refArg (Ref r) = Imp.refArg (viewActual r)
 
--- | Array argument
+-- | Mutable array argument
 arrArg :: SmallType a => Arr a -> FunArg Data
 arrArg (Arr a) = Imp.arrArg (viewActual a)
+
+-- | Immutable array argument
+iarrArg :: SmallType a => IArr a -> FunArg Data
+iarrArg (IArr a) = Imp.iarrArg (viewActual a)
 
 -- | Abstract object argument
 objArg :: Object -> FunArg Data
