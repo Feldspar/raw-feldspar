@@ -47,7 +47,7 @@ class Storable a
         -> StoreRep a  -- ^ Source
         -> m ()
 
-instance SmallType a => Storable (Data a)
+instance Type a => Storable (Data a)
   where
     type StoreRep (Data a) = Ref a
     initStoreRep         = initRef
