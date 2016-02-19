@@ -109,6 +109,24 @@ transpose a = Indexed (length (a!0)) $ \k -> Indexed (length a) $ \l -> a ! l ! 
 
 
 --------------------------------------------------------------------------------
+-- * Manifest vectors
+--------------------------------------------------------------------------------
+
+data Manifest a = Manifest (Data Length) (IArr (Internal a))
+
+toPull :: Syntax a => Manifest a -> Vector a
+toPull (Manifest len arr) = Indexed len (arrIx arr)
+
+fromPull :: (Syntax a, MonadComp m) => Vector a -> m (Manifest a)
+fromPull (Indexed len ixf) = do
+    arr <- newArr len
+    for (0,1,Excl len) $ \i -> setArr i (ixf i) arr
+    iarr <- unsafeFreezeArr arr
+    return $ Manifest len iarr
+
+
+
+--------------------------------------------------------------------------------
 -- * Examples
 --------------------------------------------------------------------------------
 
