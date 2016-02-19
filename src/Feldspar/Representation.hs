@@ -34,7 +34,7 @@ import Language.Embedded.Hardware (HType)
 import Language.Embedded.Hardware.Interface (PredicateExp)
 
 import Language.Embedded.CExp (CType)
-import Language.Embedded.Expression (VarPred, EvalExp (..))
+import Language.Embedded.Expression (FreeExp (..), EvalExp (..))
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import qualified Language.C.Quote as C
@@ -285,7 +285,6 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
-type instance VarPred      Data = SmallType
 type instance PredicateExp Data = SmallType
 
 -- | Evaluate an expression
@@ -293,9 +292,14 @@ eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
 
+instance FreeExp Data
+  where
+    type VarPred Data = SmallType
+    valExp = sugarSymTR . Literal
+    varExp = sugarSymTR . VarT . fromInteger
+
 instance EvalExp Data
   where
-    litExp = sugarSymTR . Literal
     evalExp = eval
 
 
