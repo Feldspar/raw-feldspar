@@ -201,6 +201,7 @@ constFold e
     canFold e = simpleMatch
       (\s _ -> case () of
           _ | Just (_ :: BindingT sig) <- prj s -> False
+          _ | Just (_ :: Array sig)    <- prj s -> False
           _ | Just (_ :: IOSym sig)    <- prj s -> False
           _ -> True
       )

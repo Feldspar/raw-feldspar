@@ -188,6 +188,7 @@ data Array sig
 instance Render Array
   where
     renderSym (ArrIx (Imp.IArrComp arr)) = "ArrIx " ++ arr
+    renderSym (ArrIx _)                  = "ArrIx ..."
     renderArgs = renderArgsSmart
 
 instance Eval Array
