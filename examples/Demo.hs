@@ -105,14 +105,14 @@ funO arr i = do
 
 test_option :: Software ()
 test_option = do
-    a <- unsafeFreezeArr =<< initArr [1..10]
+    a <- initIArr [1..10]
     let arr = (10,a) :: LArr Int32
     i <- fget stdin
     printf "%d\n" $ fromSome $ funO arr i
 
 test_optionM :: Software ()
 test_optionM = do
-    a <- unsafeFreezeArr =<< initArr [1..10]
+    a <- initIArr [1..10]
     let arr = (10,a) :: LArr Int32
     i <- fget stdin
     caseOptionM (funO arr i)
@@ -125,7 +125,7 @@ readPositive = do
     guarded "negative" (i>=0) (i :: Data Int32)
 
 test_optionT = optionT printf (\_ -> return ()) $ do
-    a <- unsafeFreezeArr =<< initArr [1..10]
+    a <- initIArr [1..10]
     let arr = (10,a) :: LArr Int32
     len  <- readPositive
     sumr <- initRef (0 :: Data Int32)

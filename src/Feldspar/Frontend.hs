@@ -353,6 +353,10 @@ unsafeFreezeArr
     . mapVirtualA (Comp . Imp.unsafeFreezeArr)
     . unArr
 
+-- | Create and initialize an immutable array
+initIArr :: (SmallType a, MonadComp m) => [a] -> m (IArr a)
+initIArr = liftComp . fmap (IArr . Actual) . Comp . Imp.initIArr
+
 
 
 ----------------------------------------
