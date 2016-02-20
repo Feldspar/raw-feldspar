@@ -200,6 +200,9 @@ constFold e
     canFold :: ASTF FeldDomain a -> Bool
     canFold e = simpleMatch
       (\s _ -> case () of
+          _ | SymP _ Pi            <- e -> False
+          _ | MulP _ _ (SymP _ Pi) <- e -> False
+                -- Don't fold expressions like `2*pi`
           _ | Just (_ :: BindingT sig) <- prj s -> False
           _ | Just (_ :: Array sig)    <- prj s -> False
           _ | Just (_ :: IOSym sig)    <- prj s -> False
@@ -246,6 +249,10 @@ simplifyM a = simpleMatch
     ( \s@(_ :&: t) as -> do
         (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
         case () of
+            _ | SymP _ Pi <- a' -> return a'
+            _ | MulP _ _ (SymP _ Pi) <- a' -> return a'
+                  -- Don't fold expressions like `2*pi`
+
             _ | Just (_ :: Array sig) <- prj s -> tellUnsafe >> return a'
                   -- Array indexing is actually not unsafe. It's more like an
                   -- expression with a free variable. But setting the unsafe

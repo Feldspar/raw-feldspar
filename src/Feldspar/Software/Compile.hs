@@ -262,6 +262,8 @@ transAST = goAST . optimize
         | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
         | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
         | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
+    go t c Nil
+        | Just Pi <- prj c = return $ Actual pi
     go t op (a :* Nil)
         | Just Neg   <- prj op = liftVirt negate <$> goAST a
         | Just Sin   <- prj op = liftVirt sin    <$> goAST a

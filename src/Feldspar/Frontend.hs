@@ -127,7 +127,7 @@ instance (Fractional a, SmallType a) => Fractional (Data a)
 
 instance (Floating a, SmallType a) => Floating (Data a)
   where
-    pi   = value pi
+    pi   = sugarSymTR Pi
     (**) = sugarSymTR Pow
     sin  = sugarSymTR Sin
     cos  = sugarSymTR Cos

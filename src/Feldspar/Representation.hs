@@ -105,6 +105,8 @@ instance SmallType a => Imp.Assignable (IArr a)
 -- | Primitive operations
 data Primitive sig
   where
+    Pi  :: (SmallType a, Floating a) => Primitive (Full a)
+
     Add :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
     Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
@@ -134,6 +136,7 @@ data Primitive sig
 
 instance Render Primitive
   where
+    renderSym Pi    = "Pi"
     renderSym Add   = "(+)"
     renderSym Sub   = "(-)"
     renderSym Mul   = "(*)"
@@ -159,6 +162,7 @@ instance Render Primitive
 
 instance Eval Primitive
   where
+    evalSym Pi    = pi
     evalSym Add   = (+)
     evalSym Sub   = (-)
     evalSym Mul   = (*)
