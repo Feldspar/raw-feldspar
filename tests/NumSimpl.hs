@@ -1,10 +1,5 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-
-module NumSimpl where
-
-
 
 import Control.Monad
 import Data.Dynamic

@@ -1,9 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compilation where
-
-
-
 import qualified Prelude
 
 import Feldspar
@@ -20,6 +16,6 @@ test_constFoldArr = do
 
 
 
-testAll = do
+main = do
     compareCompiled test_constFoldArr (runIO test_constFoldArr) ""
 

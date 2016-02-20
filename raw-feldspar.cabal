@@ -74,12 +74,12 @@ library
 
   hs-source-dirs: src
 
-test-suite Examples
+test-suite NumSimpl
   type: exitcode-stdio-1.0
 
-  hs-source-dirs: tests examples
+  hs-source-dirs: tests
 
-  main-is: Examples.hs
+  main-is: NumSimpl.hs
 
   other-modules:
     Demo
@@ -95,4 +95,31 @@ test-suite Examples
     syntactic,
     tasty-quickcheck,
     tasty-th
+
+test-suite Compilation
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: tests
+
+  main-is: Compilation.hs
+
+  default-language: Haskell2010
+
+  build-depends:
+    base,
+    raw-feldspar
+
+test-suite Examples
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: tests examples
+
+  main-is: Examples.hs
+
+  default-language: Haskell2010
+
+  build-depends:
+    base,
+    mtl,
+    raw-feldspar
 
