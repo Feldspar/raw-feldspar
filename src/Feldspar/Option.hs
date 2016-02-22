@@ -5,6 +5,7 @@ module Feldspar.Option
   , Option
   , none
   , some
+  , guardO
   , guarded
   , rebuildOption
   , option
@@ -26,20 +27,22 @@ import Control.Monad.Operational.Higher
 import Control.Monad.Identity
 import Control.Monad.Trans
 
+import Language.Syntactic
+
 import Feldspar
+import Feldspar.Representation
 
 
 
 data Opt (prog :: * -> *) a
-    = None String
-    | Some a
-    | Guard String (Data Bool) a
+  where
+    None  :: String -> Opt prog a
+    Guard :: String -> Data Bool -> Opt prog ()
 
 instance HFunctor Opt
   where
-    hfmap f (None msg)      = None msg
-    hfmap f (Some a)        = Some a
-    hfmap f (Guard msg c a) = Guard msg c a
+    hfmap f (None msg)    = None msg
+    hfmap f (Guard msg c) = Guard msg c
 
 -- | Transformer version of 'Option'
 newtype OptionT m a = Option { unOption :: ProgramT Opt m a }
@@ -57,45 +60,66 @@ instance MonadComp m => MonadComp (OptionT m)
             (optionT (\_ -> setRef okr false) return t)
             (optionT (\_ -> setRef okr false) return f)
         ok <- unsafeFreezeRef okr
-        guarded "iff: none" ok ()
+        guardO "iff: none" ok
     for rng body = do
         okr <- initRef true
         lift $ for rng $ \i ->
             optionT (\_ -> setRef okr false >> break) return (body i)
         ok <- unsafeFreezeRef okr
-        guarded "for: none" ok ()
+        guardO "for: none" ok
     while cont body = do
         okr <- initRef true
         lift $ while
             (cont' okr)
             (optionT (\_ -> setRef okr false >> break) return body)
         ok <- unsafeFreezeRef okr
-        guarded "while: none" ok ()
+        guardO "while: none" ok
       where
         cont' okr = do
             cr <- newRef
             caseOptionT (cont >>= setRef cr) (\_ -> setRef okr false >> setRef cr false) return
             unsafeFreezeRef cr
 
+instance Syntax a => Syntactic (Option a)
+  where
+    type Domain   (Option a) = FeldDomain
+    type Internal (Option a) = (Bool, Internal a)
+
+    desugar = unData . option
+        (\_ -> Feldspar.desugar (false,example :: (Data (Internal a))))
+        (\a -> Feldspar.desugar (true,a))
+
+    sugar o = guarded "sugar: none" valid a
+      where
+        (valid,a) = Feldspar.sugar $ Data o
+
 -- | Construct a missing 'Option' value (analogous to 'Left' in normal Haskell)
 none :: String -> OptionT m a
 none = Option . singleton . None
 
 -- | Construct a present 'Option' value (analogous to 'Right' in normal Haskell)
-some :: a -> OptionT m a
-some = Option . singleton . Some
+some :: Monad m => a -> OptionT m a
+some = return
+
+-- | Construct an 'Option' that is either 'none' or @`some` ()@ depending on
+-- the Boolean guard
+--
+-- In the expression @`guardO` c `>>` rest@, the action @rest@ will not be
+-- executed unless @c@ is true.
+guardO :: String -> Data Bool -> OptionT m ()
+guardO msg c = Option $ singleton $ Guard msg c
 
 -- | Construct an 'Option' from a guard and a value. The value will not be
 -- evaluated if the guard is false.
-guarded :: String -> Data Bool -> a -> OptionT m a
-guarded msg c a = Option $ singleton $ Guard msg c a
+guarded :: Monad m => String -> Data Bool -> a -> OptionT m a
+guarded msg c a = guardO msg c >> return a
 
 rebuildOption :: Monad m => Option a -> OptionT m a
 rebuildOption = interpretWithMonad go . unOption
   where
-    go (None msg)      = none msg
-    go (Some a)        = some a
-    go (Guard msg c a) = guarded msg c a
+    go :: Opt (OptionT m) a -> OptionT m a
+    go (None msg)    = none msg
+    go (Guard msg c) = guardO msg c
 
 -- | Deconstruct an 'Option' value (analogous to 'either' in normal Haskell)
 option :: Syntax b
@@ -105,10 +129,9 @@ option :: Syntax b
     -> b
 option noneCase someCase (Option opt) = go (view opt)
   where
-    go (Return a)             = someCase a
-    go (None msg      :>>= k) = noneCase msg
-    go (Some a        :>>= k) = go $ view $ k a
-    go (Guard msg c a :>>= k) = cond c (go $ view $ k a) (noneCase msg)
+    go (Return a)           = someCase a
+    go (None msg    :>>= k) = noneCase msg
+    go (Guard msg c :>>= k) = cond c (go $ view $ k ()) (noneCase msg)
 
 -- | Deconstruct an 'Option' value
 caseOption :: Syntax b
@@ -130,10 +153,9 @@ optionM :: MonadComp m
     -> m ()
 optionM noneCase someCase (Option opt) = go $ view opt
   where
-    go (Return a)             = someCase a
-    go (None msg      :>>= k) = noneCase msg
-    go (Some a        :>>= k) = go $ view $ k a
-    go (Guard msg c a :>>= k) = iff c (go $ view $ k a) (noneCase msg)
+    go (Return a)           = someCase a
+    go (None msg    :>>= k) = noneCase msg
+    go (Guard msg c :>>= k) = iff c (go $ view $ k ()) (noneCase msg)
 
 -- | Deconstruct an 'Option' value
 caseOptionM :: MonadComp m
@@ -160,10 +182,9 @@ optionT :: MonadComp m
     -> m ()
 optionT noneCase someCase (Option opt) = go =<< viewT opt
   where
-    go (Return a)             = someCase a
-    go (None msg      :>>= k) = noneCase msg
-    go (Some a        :>>= k) = go =<< viewT (k a)
-    go (Guard msg c a :>>= k) = iff c (go =<< viewT (k a)) (noneCase msg)
+    go (Return a)           = someCase a
+    go (None msg    :>>= k) = noneCase msg
+    go (Guard msg c :>>= k) = iff c (go =<< viewT (k ())) (noneCase msg)
 
 -- | Deconstruct an 'OptionT' value
 caseOptionT :: MonadComp m
