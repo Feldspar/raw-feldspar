@@ -107,6 +107,7 @@ test-suite Compilation
 
   build-depends:
     base,
+    mtl,
     raw-feldspar
 
 test-suite Examples
@@ -120,6 +121,5 @@ test-suite Examples
 
   build-depends:
     base,
-    mtl,
     raw-feldspar
 

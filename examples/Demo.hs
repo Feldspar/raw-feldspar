@@ -5,11 +5,9 @@ module Demo where
 
 
 import qualified Prelude
-import Control.Monad.Trans
 
 import Feldspar.Software
 import Feldspar.Vector
-import Feldspar.Option
 
 
 
@@ -88,65 +86,10 @@ map_inplace = do
 
 ------------------------------------------------------------
 
--- | Array paired with its allocated size
-type LArr a = (Data Length, IArr a)
-
--- | Index in an 'LArr'
-indexL :: Syntax a => LArr (Internal a) -> Data Index -> OptionT m a
-indexL (len,arr) i = guarded "indexL: out of bounds" (i<len) (arrIx arr i)
-
-funO :: Monad m => LArr Int32 -> Data Index -> OptionT m (Data Int32)
-funO arr i = do
-    a <- indexL arr i
-    b <- indexL arr (i+1)
-    c <- indexL arr (i+2)
-    d <- indexL arr (i+4)
-    return (a+b+c+d)
-
-test_option :: Software ()
-test_option = do
-    a <- initIArr [1..10]
-    let arr = (10,a) :: LArr Int32
-    i <- fget stdin
-    printf "%d\n" $ fromSome $ funO arr i
-
-test_optionM :: Software ()
-test_optionM = do
-    a <- initIArr [1..10]
-    let arr = (10,a) :: LArr Int32
-    i <- fget stdin
-    caseOptionM (funO arr i)
-        printf
-        (printf "%d\n")
-
-readPositive :: OptionT Software (Data Int32)
-readPositive = do
-    i <- lift $ fget stdin
-    guarded "negative" (i>=0) (i :: Data Int32)
-
-test_optionT = optionT printf (\_ -> return ()) $ do
-    a <- initIArr [1..10]
-    let arr = (10,a) :: LArr Int32
-    len  <- readPositive
-    sumr <- initRef (0 :: Data Int32)
-    for (0, 1, Excl len) $ \i -> do
-        lift $ printf "reading index %d\n" i
-        x <- indexL arr (i2n i)
-        modifyRefD sumr (+x)
-    s <- unsafeFreezeRef sumr
-    lift $ printf "%d" (s :: Data Int32)
-
-------------------------------------------------------------
-
 testAll = do
     compareCompiled sumInput     (runIO sumInput) (Prelude.unlines $ Prelude.map show $ Prelude.reverse [0..20])
     compareCompiled printFib     (runIO printFib)     "7\n"
     compareCompiled test_scProd1 (runIO test_scProd1) "20\n"
     compareCompiled test_scProd2 (runIO test_scProd2) "20\n"
     compareCompiled map_inplace  (runIO map_inplace)  ""
-    compareCompiled test_option  (runIO test_option)  "5\n"
-    compareCompiled test_option  (runIO test_option)  "6\n"
-    compareCompiled test_optionM (runIO test_option)  "5\n"
-    compareCompiled test_optionM (runIO test_optionM) "6\n"
-    compareCompiled test_optionT (runIO test_optionT) "10\n"
 
