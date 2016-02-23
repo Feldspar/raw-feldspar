@@ -32,14 +32,16 @@ instance Syntax a => Forcible (Vector a)
 
 instance Syntax a => Storable (Vector a)
   where
-    type StoreRep (Vector a) = (Ref Length, Arr (Internal a))
-    initStoreRep vec = do
-        arr <- newArr len
+    type StoreRep (Vector a)  = (Ref Length, Arr (Internal a))
+    type StoreSize (Vector a) = Data Length
+    newStoreRep _ len = do
         lenRef <- initRef len
-        writeStoreRep (lenRef,arr) vec
+        arr    <- newArr len
         return (lenRef,arr)
-      where
-        len = length vec
+    initStoreRep vec = do
+        rep <- newStoreRep (Nothing :: Maybe (Vector a)) (length vec)
+        writeStoreRep rep vec
+        return rep
     readStoreRep (lenRef,arr) = do
         len <- getRef lenRef
         freezeVec len arr

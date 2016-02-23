@@ -96,6 +96,12 @@ class Storable a
   where
     -- | Memory representation
     type StoreRep a
+    -- | Size of memory representation
+    type StoreSize a
+
+    -- | Creat a fresh memory store. It is usually better to use 'newStore'
+    -- instead of this function as it improves type inference.
+    newStoreRep :: MonadComp m => proxy a -> StoreSize a -> m (StoreRep a)
 
     -- | Store a value to a fresh memory store. It is usually better to use
     -- 'initStore' instead of this function as it improves type inference.
@@ -124,7 +130,9 @@ class Storable a
 
 instance Type a => Storable (Data a)
   where
-    type StoreRep (Data a) = Ref a
+    type StoreRep (Data a)  = Ref a
+    type StoreSize (Data a) = ()
+    newStoreRep _ _      = newRef
     initStoreRep         = initRef
     readStoreRep         = getRef
     unsafeFreezeStoreRep = unsafeFreezeRef
@@ -134,7 +142,9 @@ instance Type a => Storable (Data a)
 
 instance (Storable a, Storable b) => Storable (a,b)
   where
-    type StoreRep (a,b) = (StoreRep a, StoreRep b)
+    type StoreRep (a,b)  = (StoreRep a, StoreRep b)
+    type StoreSize (a,b) = (StoreSize a, StoreSize b)
+    newStoreRep _ (a,b)          = (,) <$> newStoreRep (Proxy :: Proxy a) a <*> newStoreRep (Proxy :: Proxy b) b
     initStoreRep (a,b)           = (,) <$> initStoreRep a <*> initStoreRep b
     readStoreRep (la,lb)         = (,) <$> readStoreRep la <*> readStoreRep lb
     unsafeFreezeStoreRep (la,lb) = (,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb
@@ -145,7 +155,9 @@ instance (Storable a, Storable b) => Storable (a,b)
 
 instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
   where
-    type StoreRep (a,b,c) = (StoreRep a, StoreRep b, StoreRep c)
+    type StoreRep (a,b,c)  = (StoreRep a, StoreRep b, StoreRep c)
+    type StoreSize (a,b,c) = (StoreSize a, StoreSize b, StoreSize c)
+    newStoreRep _ (a,b,c)            = (,,) <$> newStoreRep (Proxy :: Proxy a) a <*> newStoreRep (Proxy :: Proxy b) b <*> newStoreRep (Proxy :: Proxy c) c
     initStoreRep (a,b,c)             = (,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c
     readStoreRep (la,lb,lc)          = (,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc
     unsafeFreezeStoreRep (la,lb,lc)  = (,,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb <*> unsafeFreezeStoreRep lc
@@ -157,7 +169,9 @@ instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
 
 instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
   where
-    type StoreRep (a,b,c,d) = (StoreRep a, StoreRep b, StoreRep c, StoreRep d)
+    type StoreRep (a,b,c,d)  = (StoreRep a, StoreRep b, StoreRep c, StoreRep d)
+    type StoreSize (a,b,c,d) = (StoreSize a, StoreSize b, StoreSize c, StoreSize d)
+    newStoreRep _ (a,b,c,d)               = (,,,) <$> newStoreRep (Proxy :: Proxy a) a <*> newStoreRep (Proxy :: Proxy b) b <*> newStoreRep (Proxy :: Proxy c) c <*> newStoreRep (Proxy :: Proxy d) d
     initStoreRep (a,b,c,d)                = (,,,) <$> initStoreRep a <*> initStoreRep b <*> initStoreRep c <*> initStoreRep d
     readStoreRep (la,lb,lc,ld)            = (,,,) <$> readStoreRep la <*> readStoreRep lb <*> readStoreRep lc <*> readStoreRep ld
     unsafeFreezeStoreRep (la,lb,lc,ld)    = (,,,) <$> unsafeFreezeStoreRep la <*> unsafeFreezeStoreRep lb <*> unsafeFreezeStoreRep lc <*> unsafeFreezeStoreRep ld
@@ -179,6 +193,10 @@ newtype Store a = Store { unStore :: StoreRep a }
   -- The reason for this type and its associated interface is to improve type
   -- inference over the methods in the `Storable` class. The problem with those
   -- methods is that they involve type families.
+
+-- | Create a fresh 'Store'
+newStore :: forall a m . (Storable a, MonadComp m) => StoreSize a -> m (Store a)
+newStore = fmap Store . newStoreRep (Proxy :: Proxy a)
 
 -- | Store a value to a fresh 'Store'
 initStore :: (Storable a, MonadComp m) => a -> m (Store a)
