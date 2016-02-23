@@ -13,7 +13,82 @@ import Feldspar.Frontend
 
 
 --------------------------------------------------------------------------------
--- * Class
+-- * 'Forcible' class
+--------------------------------------------------------------------------------
+
+-- | Expression types that can be \"forced\" to values
+class Forcible a
+  where
+    -- | Representation of a forced value
+    type ValueRep a
+
+    -- | Force an expression to a value. The resulting value can be used
+    -- multiple times without risking re-computation.
+    --
+    -- 'toValue' will allocate memory to hold the value.
+    toValue :: MonadComp m => a -> m (ValueRep a)
+
+    -- | Convert a forced value back to an expression
+    fromValue :: ValueRep a -> a
+
+-- To some extent `Forcible` is subsumed by `Storable`. However, `ValueRep` is
+-- more convenient to deal with for the user than `StoreRep`, since the latter
+-- consists of mutable data structures (e.g. `Ref a` instead of `Data a`).
+
+-- `Forcible` also resembles the `Syntactic` class, with the difference that the
+-- former has a monadic interface and a more free internal representation
+-- (`Syntactic` only allows `Data (Internal a)` as the internal representation).
+--
+-- This difference has two main benefits:
+--
+--   * We can guarantee that `toValue` returns a "cheep" value. There is no such
+--     guarantee for `desugar` of the `Syntactic` class.
+--   * We can use data structures such as `IArr` as the representation of values
+
+instance Type a => Forcible (Data a)
+  where
+    type ValueRep (Data a) = Data a
+    toValue   = unsafeFreezeRef <=< initRef
+    fromValue = sugar
+
+instance (Forcible a, Forcible b) => Forcible (a,b)
+  where
+    type ValueRep (a,b) = (ValueRep a, ValueRep b)
+    toValue (a,b)   = (,) <$> toValue a <*> toValue b
+    fromValue (a,b) = (fromValue a, fromValue b)
+
+instance (Forcible a, Forcible b, Forcible c) => Forcible (a,b,c)
+  where
+    type ValueRep (a,b,c) = (ValueRep a, ValueRep b, ValueRep c)
+    toValue (a,b,c)   = (,,) <$> toValue a <*> toValue b <*> toValue c
+    fromValue (a,b,c) = (fromValue a, fromValue b, fromValue c)
+
+instance (Forcible a, Forcible b, Forcible c, Forcible d) => Forcible (a,b,c,d)
+  where
+    type ValueRep (a,b,c,d) = (ValueRep a, ValueRep b, ValueRep c, ValueRep d)
+    toValue (a,b,c,d)   = (,,,) <$> toValue a <*> toValue b <*> toValue c <*> toValue d
+    fromValue (a,b,c,d) = (fromValue a, fromValue b, fromValue c, fromValue d)
+
+instance Forcible a => Forcible [a]
+  where
+    type ValueRep [a] = [ValueRep a]
+    toValue   = mapM toValue
+    fromValue = map fromValue
+
+-- | Cast between 'Forcible' types that have the same value representation
+forceCast :: (Forcible a, Forcible b, ValueRep a ~ ValueRep b, MonadComp m) =>
+    a -> m b
+forceCast = fmap fromValue . toValue
+
+-- | Force the computation of an expression. The resulting value can be used
+-- multiple times without risking re-computation.
+force :: (Forcible a, MonadComp m) => a -> m a
+force = forceCast
+
+
+
+--------------------------------------------------------------------------------
+-- * 'Storable' class
 --------------------------------------------------------------------------------
 
 -- | Storable types
@@ -95,18 +170,9 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
 
 
 
---------------------------------------------------------------------------------
--- * User interface
---------------------------------------------------------------------------------
-
--- | Cast between 'Storable' types that have the same memory representation
-castStore :: (Storable a, Storable b, StoreRep a ~ StoreRep b, MonadComp m) =>
-    a -> m b
-castStore = initStoreRep >=> unsafeFreezeStoreRep
-
--- | Store a value to memory and read it back
-store :: (Storable a, MonadComp m) => a -> m a
-store = castStore
+----------------------------------------
+-- ** User interface
+----------------------------------------
 
 -- | Memory for storing values
 newtype Store a = Store { unStore :: StoreRep a }

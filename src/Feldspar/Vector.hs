@@ -24,6 +24,12 @@ data Vector a
   where
     Indexed :: Data Length -> (Data Index -> a) -> Vector a
 
+instance Syntax a => Forcible (Vector a)
+  where
+    type ValueRep (Vector a) = Manifest a
+    toValue   = fromPull
+    fromValue = toPull
+
 instance Syntax a => Storable (Vector a)
   where
     type StoreRep (Vector a) = (Ref Length, Arr (Internal a))

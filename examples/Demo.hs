@@ -71,8 +71,8 @@ test_scProd1 = do
 
 test_scProd2 = do
     n <- fget stdin
-    v1 <- store $ map i2n (0 ... n-1)
-    v2 <- store $ map i2n (2 ... n+1)
+    v1 <- force $ map i2n (0 ... n-1)
+    v2 <- force $ map i2n (2 ... n+1)
     printf "result: %.3f\n" $ scProd v1 v2
 
 map_inplace :: Software ()
