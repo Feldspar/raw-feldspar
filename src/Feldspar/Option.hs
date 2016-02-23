@@ -93,6 +93,50 @@ instance Syntax a => Syntactic (Option a)
       where
         (valid,a) = Feldspar.sugar $ Data o
 
+instance Syntax a => Forcible (Option a)
+  where
+    type ValueRep (Option a) = (Data Bool, Data (Internal a))
+    toValue o = do
+        valid <- initRef false
+        r     <- initRef (example :: a)
+        caseOptionM o
+          (\_ -> return ())
+          (\b -> setRef valid true >> setRef r b)
+        (,) <$> unsafeFreezeRef valid <*> unsafeFreezeRef r
+    fromValue (valid,a) = guarded "fromIStore: none" valid (Feldspar.sugar a)
+  -- Ideally, one should use `Storable` instead of the `Syntax` constraint, and
+  -- make `r` a `Store` instead of a reference. But the problem is that one
+  -- would have to make use of `newStore` which needs a size argument. This is
+  -- problematic because the size of the value is not known until inside
+  -- `caseOptionM`.
+
+instance (Storable a, Syntax a) => Storable (Option a)
+  where
+    type StoreRep (Option a)  = (Ref Bool, StoreRep a)
+    type StoreSize (Option a) = StoreSize a
+    newStoreRep _ s = do
+        valid <- initRef false
+        r     <- newStoreRep (Nothing :: Maybe a) s
+        return (valid,r)
+    initStoreRep o = do
+        valid <- initRef false
+        r     <- initStoreRep (example :: a)  -- TODO
+        caseOptionM o
+          (\_ -> return ())
+          (\b -> writeStoreRep (valid,r) (true,b))
+        return (valid,r)
+    readStoreRep oRep = do
+        (valid,a) <- readStoreRep oRep
+        return $ guarded "readStoreRep: none" valid a
+    unsafeFreezeStoreRep oRep = do
+        (valid,a) <- unsafeFreezeStoreRep oRep
+        return $ guarded "unsafeFreezeStoreRep: none" valid a
+    writeStoreRep oRep@(valid,r) o = caseOptionM o
+        (\_ -> setRef valid false)
+        (\a -> writeStoreRep oRep (true,a))
+    copyStoreRep _ = copyStoreRep (Nothing :: Maybe (Data Bool, a))
+      -- Uses the instance `Storable (Data Bool, a)` for copying
+
 -- | Construct a missing 'Option' value (analogous to 'Left' in normal Haskell)
 none :: String -> OptionT m a
 none = Option . singleton . None
