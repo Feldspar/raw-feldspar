@@ -1,9 +1,9 @@
--- | System interaction in software
+-- | Monad for running Feldspar programs and C code back ends
 
-module Feldspar.Software
+module Feldspar.Run
   ( -- * Front end
     module Feldspar
-  , module Feldspar.Software.Frontend
+  , module Feldspar.Run.Frontend
     -- * Back ends
   , runIO
   , compile
@@ -25,7 +25,7 @@ module Feldspar.Software
 import Language.Embedded.Backend.C (ExternalCompilerOpts (..), defaultExtCompilerOpts)
 
 import Feldspar
-import Feldspar.Software.Representation
-import Feldspar.Software.Compile
-import Feldspar.Software.Frontend
+import Feldspar.Run.Representation
+import Feldspar.Run.Compile
+import Feldspar.Run.Frontend
 

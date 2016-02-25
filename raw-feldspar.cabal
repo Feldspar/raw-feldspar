@@ -30,10 +30,10 @@ library
     Feldspar.Frontend
     Feldspar.Storable
     Feldspar
-    Feldspar.Software.Representation
-    Feldspar.Software.Frontend
-    Feldspar.Software.Compile
-    Feldspar.Software
+    Feldspar.Run.Representation
+    Feldspar.Run.Frontend
+    Feldspar.Run.Compile
+    Feldspar.Run
     Feldspar.Hardware.Representation
     Feldspar.Hardware.Frontend
     Feldspar.Hardware.Compile

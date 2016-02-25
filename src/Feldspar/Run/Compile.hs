@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Feldspar.Software.Compile where
+module Feldspar.Run.Compile where
 
 
 
@@ -26,7 +26,7 @@ import qualified Language.Embedded.Backend.C as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation
-import Feldspar.Software.Representation
+import Feldspar.Run.Representation
 import Feldspar.Optimize
 import qualified Feldspar.Frontend as Feld
 import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
@@ -202,11 +202,11 @@ lower :: Program CompCMD a -> Target a
 lower = Oper.interpretWithMonad lowerInstr
 
 -- | Translate a Feldspar program into a program that uses 'TargetCMD'
-lowerTop :: Software a -> Program TargetCMD a
+lowerTop :: Run a -> Program TargetCMD a
 lowerTop
     = flip runReaderT Map.empty
     . Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
-    . unSoftware
+    . unRun
 
 
 
@@ -347,72 +347,72 @@ translateSmallExp = fmap viewActual . translateExp
 --------------------------------------------------------------------------------
 
 -- | Interpret a program in the 'IO' monad
-runIO :: MonadSoftware m => m a -> IO a
-runIO = Imp.interpret . lowerTop . liftSoftware
+runIO :: MonadRun m => m a -> IO a
+runIO = Imp.interpret . lowerTop . liftRun
 
 -- | Interpret a program in the 'IO' monad
-runIO_soft :: MonadSoftware m => m a -> IO a
-runIO_soft
+runIO' :: MonadRun m => m a -> IO a
+runIO'
     = Oper.interpretWithMonadT Oper.interp Imp.interpret
-    . unSoftware
-    . liftSoftware
+    . unRun
+    . liftRun
   -- Unlike `runIO`, this function does the interpretation directly, without
   -- first lowering the program. This might be faster, but I haven't done any
   -- measurements to se if it is.
   --
-  -- One disadvantage with `runIO_soft` is that it cannot handle expressions
+  -- One disadvantage with `runIO'` is that it cannot handle expressions
   -- involving `IOSym`. But at the moment of writing this, we're not using those
   -- symbols for anything anyway.
 
 -- | Like 'runIO' but with explicit input/output connected to @stdin@/@stdout@
-captureIO :: MonadSoftware m
+captureIO :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureIO = Imp.captureIO . lowerTop . liftSoftware
+captureIO = Imp.captureIO . lowerTop . liftRun
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-compile :: MonadSoftware m => m a -> String
-compile  = Imp.compile . lowerTop . liftSoftware
+compile :: MonadRun m => m a -> String
+compile  = Imp.compile . lowerTop . liftRun
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
-icompile :: MonadSoftware m => m a -> IO ()
+icompile :: MonadRun m => m a -> IO ()
 icompile  = putStrLn . compile
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
-compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop . liftSoftware
+compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
+compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop . liftRun
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
-compileAndCheck :: MonadSoftware m => m a -> IO ()
+compileAndCheck :: MonadRun m => m a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled' :: MonadSoftware m => ExternalCompilerOpts -> m a -> IO ()
-runCompiled' opts = Imp.runCompiled' opts . lowerTop . liftSoftware
+runCompiled' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
+runCompiled' opts = Imp.runCompiled' opts . lowerTop . liftRun
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
-runCompiled :: MonadSoftware m => m a -> IO ()
+runCompiled :: MonadRun m => m a -> IO ()
 runCompiled = runCompiled' mempty
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled' :: MonadSoftware m
+captureCompiled' :: MonadRun m
     => ExternalCompilerOpts
     -> m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureCompiled' opts = Imp.captureCompiled' opts . lowerTop . liftSoftware
+captureCompiled' opts = Imp.captureCompiled' opts . lowerTop . liftRun
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
-captureCompiled :: MonadSoftware m
+captureCompiled :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
@@ -420,17 +420,17 @@ captureCompiled = captureCompiled' mempty
 
 -- | Compare the content written to @stdout@ from the reference program and from
 -- running the compiled C code
-compareCompiled' :: MonadSoftware m
+compareCompiled' :: MonadRun m
     => ExternalCompilerOpts
     -> m a     -- ^ Program to run
     -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftSoftware
+compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftRun
 
 -- | Compare the content written to @stdout@ from the reference program and from
 -- running the compiled C code
-compareCompiled :: MonadSoftware m
+compareCompiled :: MonadRun m
     => m a     -- ^ Program to run
     -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@

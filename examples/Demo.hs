@@ -6,12 +6,12 @@ module Demo where
 
 import qualified Prelude
 
-import Feldspar.Software
+import Feldspar.Run
 import Feldspar.Vector
 
 
 
-sumInput :: Software ()
+sumInput :: Run ()
 sumInput = do
     done <- initRef false
     sum  <- initRef (0 :: Data Word32)
@@ -26,12 +26,12 @@ sumInput = do
     s <- getRef sum
     printf "The sum of your numbers is %d.\n" (s :: Data Word32)
 
-abort :: Software ()
+abort :: Run ()
 abort = do
     addInclude "<stdlib.h>"
     callProc "abort" []
 
-printSum :: Ref Word32 -> Software ()
+printSum :: Ref Word32 -> Run ()
 printSum s = do
     addDefinition printSum_def
     callProc "printSum" [refArg s]
@@ -54,7 +54,7 @@ run_sumInput  = runCompiled sumInput
 fib :: Data Word32 -> Data Word32
 fib n = fst $ forLoop (i2n n) (0,1) $ \_ (a,b) -> (b,a+b)
 
-printFib :: Software ()
+printFib :: Run ()
 printFib = do
     printf "Enter a positive number: "
     n <- fget stdin
@@ -75,7 +75,7 @@ test_scProd2 = do
     v2 <- force $ map i2n (2 ... n+1)
     printf "result: %.3f\n" $ scProd v1 v2
 
-map_inplace :: Software ()
+map_inplace :: Run ()
 map_inplace = do
     svec <- initStore (0...19)
     inplace svec $ map (*33)

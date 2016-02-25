@@ -1,9 +1,9 @@
--- | System interaction in software
+-- | Monad for running Feldspar programs
 
-module Feldspar.Software.Frontend
-  ( Software
-  , MonadSoftware (..)
-  , module Feldspar.Software.Frontend
+module Feldspar.Run.Frontend
+  ( Run
+  , MonadRun (..)
+  , module Feldspar.Run.Frontend
   , module Language.Embedded.Imperative.Frontend.General
   ) where
 
@@ -19,7 +19,7 @@ import qualified Language.Embedded.Imperative.CMD as Imp
 
 import Data.VirtualContainer
 import Feldspar.Representation
-import Feldspar.Software.Representation
+import Feldspar.Run.Representation
 
 
 
@@ -33,8 +33,8 @@ import Feldspar.Software.Representation
 --
 -- The 'IsPointer' class ensures that the operation is only possible for types
 -- that are represented as pointers in C.
-unsafeSwap :: IsPointer a => a -> a -> Software ()
-unsafeSwap a b = Software $ Imp.unsafeSwap a b
+unsafeSwap :: IsPointer a => a -> a -> Run ()
+unsafeSwap a b = Run $ Imp.unsafeSwap a b
 
 
 
@@ -43,24 +43,24 @@ unsafeSwap a b = Software $ Imp.unsafeSwap a b
 --------------------------------------------------------------------------------
 
 -- | Open a file
-fopen :: FilePath -> IOMode -> Software Handle
-fopen file = Software . Imp.fopen file
+fopen :: FilePath -> IOMode -> Run Handle
+fopen file = Run . Imp.fopen file
 
 -- | Close a file
-fclose :: Handle -> Software ()
-fclose = Software . Imp.fclose
+fclose :: Handle -> Run ()
+fclose = Run . Imp.fclose
 
 -- | Check for end of file
-feof :: Handle -> Software (Data Bool)
-feof = Software . Imp.feof
+feof :: Handle -> Run (Data Bool)
+feof = Run . Imp.feof
 
 class PrintfType r
   where
     fprf :: Handle -> String -> [Imp.PrintfArg Data] -> r
 
-instance (a ~ ()) => PrintfType (Software a)
+instance (a ~ ()) => PrintfType (Run a)
   where
-    fprf h form = Software . Oper.singleE . Imp.FPrintf h form . reverse
+    fprf h form = Run . Oper.singleE . Imp.FPrintf h form . reverse
 
 instance (Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
   where
@@ -76,12 +76,12 @@ fput :: (Formattable a, SmallType a)
     -> String  -- Prefix
     -> Data a  -- Expression to print
     -> String  -- Suffix
-    -> Software ()
-fput h pre e post = Software $ Imp.fput h pre e post
+    -> Run ()
+fput h pre e post = Run $ Imp.fput h pre e post
 
 -- | Get a single value from a handle
-fget :: (Formattable a, SmallType a) => Handle -> Software (Data a)
-fget = Software . Imp.fget
+fget :: (Formattable a, SmallType a) => Handle -> Run (Data a)
+fget = Run . Imp.fget
 
 -- | Print to @stdout@. Accepts a variable number of arguments.
 printf :: PrintfType r => String -> r
@@ -94,24 +94,24 @@ printf = fprintf Imp.stdout
 --------------------------------------------------------------------------------
 
 -- | Create a null pointer
-newPtr :: SmallType a => Software (Ptr a)
-newPtr = Software Imp.newPtr
+newPtr :: SmallType a => Run (Ptr a)
+newPtr = Run Imp.newPtr
 
 -- | Cast a pointer to an array
-ptrToArr :: SmallType a => Ptr a -> Software (Arr a)
-ptrToArr = fmap (Arr . Actual) . Software . Imp.ptrToArr
+ptrToArr :: SmallType a => Ptr a -> Run (Arr a)
+ptrToArr = fmap (Arr . Actual) . Run . Imp.ptrToArr
 
 -- | Create a pointer to an abstract object. The only thing one can do with such
 -- objects is to pass them to 'callFun' or 'callProc'.
 newObject
     :: String  -- ^ Object type
     -> Bool    -- ^ Pointed?
-    -> Software Object
-newObject t p = Software $ Imp.newObject t p
+    -> Run Object
+newObject t p = Run $ Imp.newObject t p
 
 -- | Add an @#include@ statement to the generated code
-addInclude :: String -> Software ()
-addInclude = Software . Imp.addInclude
+addInclude :: String -> Run ()
+addInclude = Run . Imp.addInclude
 
 -- | Add a global definition to the generated code
 --
@@ -133,16 +133,16 @@ addInclude = Software . Imp.addInclude
 -- >           // goes here
 -- >       }
 -- >       |]
-addDefinition :: Imp.Definition -> Software ()
-addDefinition = Software . Imp.addDefinition
+addDefinition :: Imp.Definition -> Run ()
+addDefinition = Run . Imp.addDefinition
 
 -- | Declare an external function
 addExternFun :: forall proxy res . SmallType res
     => String         -- ^ Function name
     -> proxy res      -- ^ Proxy for expression and result type
     -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Software ()
-addExternFun fun res args = Software $ Imp.addExternFun fun res' args
+    -> Run ()
+addExternFun fun res args = Run $ Imp.addExternFun fun res' args
   where
     res' = Proxy :: Proxy (Data res)
 
@@ -150,48 +150,48 @@ addExternFun fun res args = Software $ Imp.addExternFun fun res' args
 addExternProc
     :: String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments (only used to determine types)
-    -> Software ()
-addExternProc proc args = Software $ Imp.addExternProc proc args
+    -> Run ()
+addExternProc proc args = Run $ Imp.addExternProc proc args
 
 -- | Call a function
 callFun :: SmallType a
     => String         -- ^ Function name
     -> [FunArg Data]  -- ^ Arguments
-    -> Software (Data a)
-callFun fun as = Software $ Imp.callFun fun as
+    -> Run (Data a)
+callFun fun as = Run $ Imp.callFun fun as
 
 -- | Call a procedure
 callProc
     :: String         -- ^ Function name
     -> [FunArg Data]  -- ^ Arguments
-    -> Software ()
-callProc fun as = Software $ Imp.callProc fun as
+    -> Run ()
+callProc fun as = Run $ Imp.callProc fun as
 
 -- | Call a procedure and assign its result
 callProcAssign :: Assignable obj
     => obj            -- ^ Object to which the result should be assigned
     -> String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments
-    -> Software ()
-callProcAssign obj fun as = Software $ Imp.callProcAssign obj fun as
+    -> Run ()
+callProcAssign obj fun as = Run $ Imp.callProcAssign obj fun as
 
 -- | Declare and call an external function
 externFun :: SmallType res
     => String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments
-    -> Software (Data res)
-externFun fun args = Software $ Imp.externFun fun args
+    -> Run (Data res)
+externFun fun args = Run $ Imp.externFun fun args
 
 -- | Declare and call an external procedure
 externProc
     :: String         -- ^ Procedure name
     -> [FunArg Data]  -- ^ Arguments
-    -> Software ()
-externProc proc args = Software $ Imp.externProc proc args
+    -> Run ()
+externProc proc args = Run $ Imp.externProc proc args
 
 -- | Get current time as number of seconds passed today
-getTime :: Software (Data Double)
-getTime = Software Imp.getTime
+getTime :: Run (Data Double)
+getTime = Run Imp.getTime
 
 -- | Constant string argument
 strArg :: String -> FunArg Data

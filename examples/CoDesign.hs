@@ -2,10 +2,10 @@ module CoDesign where
 
 import qualified Prelude
 
-import Feldspar.Software
+import Feldspar.Run
 import Feldspar.Hardware (liftHardware)
 import qualified Feldspar.Hardware.Compile as HW
-import qualified Feldspar.Software.Compile as SW
+import qualified Feldspar.Run.Compile as SW
 
 --------------------------------------------------------------------------------
 -- * ...
@@ -23,7 +23,7 @@ simple = do
           setRef fls true)
       (do modifyRefD end (+1))
 
-software :: Software ()
+software :: Run ()
 software = do
   done <- initRef false
   sum  <- initRef (0 :: Data Word32)
@@ -37,7 +37,7 @@ software = do
   x <- getRef sum
   printf "The sum of your numbers is %d.\n" (x :: Data Word32)
 
-abort :: Software ()
+abort :: Run ()
 abort = do
     addInclude "<stdlib.h>"
     callProc "abort" []

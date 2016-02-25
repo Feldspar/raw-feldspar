@@ -3,7 +3,7 @@
 import qualified Prelude
 import Control.Monad.Trans
 
-import Feldspar.Software
+import Feldspar.Run
 import Feldspar.Vector
 import Feldspar.Option
 
@@ -26,13 +26,13 @@ funO vec i = do
     d <- indexO vec (i+4)
     return (a+b+c+d)
 
-test_option :: Software ()
+test_option :: Run ()
 test_option = do
     vec <- fromPull $ map i2n (1...10)
     i   <- fget stdin
     printf "%d\n" $ fromSome $ funO vec i
 
-test_optionM :: Software ()
+test_optionM :: Run ()
 test_optionM = do
     vec <- fromPull $ map i2n (1...10)
     i <- fget stdin
@@ -40,7 +40,7 @@ test_optionM = do
         printf
         (printf "%d\n")
 
-readPositive :: OptionT Software (Data Int32)
+readPositive :: OptionT Run (Data Int32)
 readPositive = do
     i <- lift $ fget stdin
     guarded "negative" (i>=0) (i :: Data Int32)
@@ -63,7 +63,7 @@ test_optionT = optionT printf (\_ -> return ()) $ do
 --------------------------------------------------------------------------------
 
 -- Test that constant folding does not attempt to fold array indexing
-test_constFoldArr :: Software ()
+test_constFoldArr :: Run ()
 test_constFoldArr = do
     arr <- initIArr [1..10]
     let a :: Data Int32 = (arrIx arr 0 == arrIx arr 1) ? arrIx arr 100 $ arrIx arr 2
