@@ -165,3 +165,29 @@ matMul a b = forEach a $ \a' ->
                forEach (transpose b) $ \b' ->
                  scProd a' b'
 
+-- | Apply a function to chunks of a @Vector@
+chunked :: (Syntax b, MonadComp m)
+        => Int                         -- ^ Size of the chunks
+        -> (Vector a -> Vector b)      -- ^ Applied to every chunk
+        -> Vector a
+        -> m (Manifest b)
+chunked c f vec = do
+  let c' = value $ fromInteger $ toInteger c
+      len = length vec
+      (noc,l2) = len `quotRem` c'
+      l1  = c' * noc
+  arr <- newArr len
+  off <- initRef (0 :: Data Index)
+  for (0,1,Excl noc) $ \i -> do
+    let v = f $ take c' $ drop i vec
+    for (0,1,Excl c') $ \j -> do
+      x <- unsafeFreezeRef off
+      setArr x (v!j) arr
+      setRef off (x+1)
+  let v = f $ take c' $ drop l1 vec
+  for (0,1,Excl l2) $ \i -> do
+    x <- unsafeFreezeRef off
+    setArr x (v!i) arr
+    setRef off (x+1)
+  iarr <- unsafeFreezeArr arr
+  return $ Manifest len iarr
