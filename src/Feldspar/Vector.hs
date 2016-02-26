@@ -76,7 +76,7 @@ take :: Data Length -> Vector a -> Vector a
 take l (Indexed m f) = Indexed (min m l) f
 
 drop :: Data Length -> Vector a -> Vector a
-drop l (Indexed m f) = Indexed (max 0 (m-l)) f
+drop l (Indexed m f) = Indexed (max 0 (m-l)) (f . (+l))
 
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
