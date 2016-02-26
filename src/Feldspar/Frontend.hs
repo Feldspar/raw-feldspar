@@ -138,6 +138,13 @@ quot = sugarSymTR Quot
 rem :: (Integral a, SmallType a) => Data a -> Data a -> Data a
 rem = sugarSymTR Rem
 
+-- | Simultaneous @quot@ and @rem@
+quotRem :: (Integral a, SmallType a) => Data a -> Data a -> (Data a, Data a)
+quotRem a b = (q,r)
+  where
+    q = quot a b
+    r = a - b * q
+
 -- | Integral type casting
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
 i2n = sugarSymTR I2N
