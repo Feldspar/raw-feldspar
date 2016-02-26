@@ -78,6 +78,9 @@ take l (Indexed m f) = Indexed (min m l) f
 drop :: Data Length -> Vector a -> Vector a
 drop l (Indexed m f) = Indexed (max 0 (m-l)) (f . (+l))
 
+splitAt :: Data Index -> Vector a -> (Vector a, Vector a)
+splitAt l vec = (take l vec, drop l vec)
+
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
 
