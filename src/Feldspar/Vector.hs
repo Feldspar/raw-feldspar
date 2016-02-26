@@ -72,6 +72,12 @@ head = (!0)
 tail :: Vector a -> Vector a
 tail (Indexed l ixf) = Indexed (l-1) (ixf . (+1))
 
+take :: Data Length -> Vector a -> Vector a
+take l (Indexed m f) = Indexed (min m l) f
+
+drop :: Data Length -> Vector a -> Vector a
+drop l (Indexed m f) = Indexed (max 0 (m-l)) f
+
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
 
