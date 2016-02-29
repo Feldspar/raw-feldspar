@@ -301,7 +301,7 @@ instance FreeExp Data
   where
     type VarPred Data = SmallType
     valExp = sugarSymTR . Literal
-    varExp = sugarSymTR . VarT . fromInteger
+    varExp = sugarSymTR . FreeVar
 
 instance EvalExp Data
   where

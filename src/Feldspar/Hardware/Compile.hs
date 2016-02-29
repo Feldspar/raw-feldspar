@@ -195,11 +195,11 @@ liftVar (Hard.HExp (Sym (Hard.T dom)))
 
 -- | Transforms a software reference into a hardware variable.
 hardenRef :: SmallType a => Soft.Ref a -> Hard.Variable a
-hardenRef (Soft.RefComp i) = Hard.VariableC i
-hardenRef (Soft.RefEval i) = Hard.VariableE i
+hardenRef (Soft.RefComp ('r':i)) = Hard.VariableC (read i)
+hardenRef (Soft.RefEval i)       = Hard.VariableE i
 
 softenRef :: SmallType a => Hard.Variable a -> Soft.Ref a
-softenRef (Hard.VariableC i) = Soft.RefComp i
+softenRef (Hard.VariableC i) = Soft.RefComp ('r' : show i)
 softenRef (Hard.VariableE i) = Soft.RefEval i
 
 -- | Transforms a software array into a hardware one.
