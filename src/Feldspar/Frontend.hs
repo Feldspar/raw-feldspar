@@ -149,6 +149,14 @@ quotRem a b = (q,r)
 i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
 i2n = sugarSymTR I2N
 
+-- | Cast integer to 'Bool'
+i2b :: (Integral a, SmallType a) => Data a -> Data Bool
+i2b = sugarSymTR I2B
+
+-- | Cast 'Bool' to integer
+b2i :: (Integral a, SmallType a) => Data Bool -> Data a
+b2i = sugarSymTR B2I
+
 -- | Round a floating-point number to an integer
 round :: (RealFrac n, Integral i, SmallType i, SmallType n) => Data n -> Data i
 round = sugarSymTR Round

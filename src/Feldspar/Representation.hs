@@ -122,6 +122,8 @@ data Primitive sig
 
     I2N   :: (SmallType a, SmallType b, Integral a, Num b)
           => Primitive (a :-> Full b)
+    I2B   :: (SmallType a, Integral a) => Primitive (a :-> Full Bool)
+    B2I   :: (SmallType a, Integral a) => Primitive (Bool :-> Full a)
     Round :: (SmallType a, SmallType b, RealFrac a, Integral b)
           => Primitive (a :-> Full b)
 
@@ -148,6 +150,8 @@ instance Render Primitive
     renderSym Cos   = "Cos"
     renderSym Pow   = "Pow"
     renderSym I2N   = "I2N"
+    renderSym I2B   = "I2B"
+    renderSym B2I   = "B2I"
     renderSym Round = "Round"
     renderSym Not   = "Not"
     renderSym And   = "And"
@@ -174,6 +178,8 @@ instance Eval Primitive
     evalSym Cos   = cos
     evalSym Pow   = (**)
     evalSym I2N   = fromInteger . toInteger
+    evalSym I2B   = (/=0)
+    evalSym B2I   = \a -> if a then 1 else 0
     evalSym Round = round
     evalSym Not   = not
     evalSym And   = (&&)

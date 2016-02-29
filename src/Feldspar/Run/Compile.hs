@@ -269,6 +269,8 @@ transAST = goAST . optimize
         | Just Sin   <- prj op = liftVirt sin    <$> goAST a
         | Just Cos   <- prj op = liftVirt cos    <$> goAST a
         | Just I2N   <- prj op = liftVirt i2n    <$> goAST a
+        | Just I2B   <- prj op = liftVirt i2b    <$> goAST a
+        | Just B2I   <- prj op = liftVirt b2i    <$> goAST a
         | Just Round <- prj op = liftVirt round_ <$> goAST a
         | Just Not   <- prj op = liftVirt not_   <$> goAST a
     go t op (a :* b :* Nil)
