@@ -1,6 +1,8 @@
+# Resource-Aware Feldspar
+
 This package is a prototype for a new design for Feldspar. It tries two things:
 
-  * A new design in which all arrays have to be explicitly managed in the IO layer (the `Program` monad, which roughly corresponds to Haskell's `IO`)
+  * A new design in which all arrays have to be explicitly managed in the IO layer (the `Run` monad, which roughly corresponds to Haskell's `IO`)
   * Compilation as a typed translation to [imperative-edsl](https://github.com/emilaxelsson/imperative-edsl).
 
 In this new design the IO layer is an integrated part of the Feldspar language (rather than just an extension, as in the [feldspar-io](https://github.com/emilaxelsson/feldspar-io) package), so this package can be seen as a combination of the existing packages [feldspar-language](http://hackage.haskell.org/package/feldspar-language), [feldspar-compiler](http://hackage.haskell.org/package/feldspar-compiler) and [feldspar-io](https://github.com/emilaxelsson/feldspar-io).
