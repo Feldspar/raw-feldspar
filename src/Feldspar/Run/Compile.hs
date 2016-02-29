@@ -118,16 +118,16 @@ liftVar (CExp (Sym (T (Lit _ a)))) = Feld.value a
 
 instance Lower (RefCMD Data)
   where
-    lowerInstr NewRef       = lift newRef
-    lowerInstr (InitRef a)  = lift . initRef =<< translateSmallExp a
-    lowerInstr (GetRef r)   = fmap liftVar $ lift $ getRef r
-    lowerInstr (SetRef r a) = lift . setRef r =<< translateSmallExp a
+    lowerInstr (NewRef base)       = lift $ newNamedRef base
+    lowerInstr (InitRef base a)    = lift . initNamedRef base =<< translateSmallExp a
+    lowerInstr (GetRef r)          = fmap liftVar $ lift $ getRef r
+    lowerInstr (SetRef r a)        = lift . setRef r =<< translateSmallExp a
     lowerInstr (UnsafeFreezeRef r) = fmap liftVar $ lift $ unsafeFreezeRef r
 
 instance Lower (ArrCMD Data)
   where
-    lowerInstr (NewArr n)     = lift . newArr =<< translateSmallExp n
-    lowerInstr (InitArr as)   = lift $ initArr as
+    lowerInstr (NewArr base n)   = lift . newNamedArr base =<< translateSmallExp n
+    lowerInstr (InitArr base as) = lift $ initNamedArr base as
     lowerInstr (GetArr i arr) = do
         i' <- translateSmallExp i
         fmap liftVar $ lift $ getArr i' arr
@@ -176,9 +176,9 @@ transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
 
 instance Lower (C_CMD Data)
   where
-    lowerInstr (NewObject p t) = lift $ newObject p t
-    lowerInstr (AddInclude incl)   = lift $ addInclude incl
-    lowerInstr (AddDefinition def) = lift $ addDefinition def
+    lowerInstr (NewObject base p t) = lift $ newNamedObject base p t
+    lowerInstr (AddInclude incl)    = lift $ addInclude incl
+    lowerInstr (AddDefinition def)  = lift $ addDefinition def
     lowerInstr (AddExternFun f (_ :: proxy (Data res)) as) =
         lift . addExternFun f (Proxy :: Proxy (CExp res)) =<< transFunArgs as
     lowerInstr (AddExternProc p as) = lift . addExternProc p =<< transFunArgs as

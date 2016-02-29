@@ -86,9 +86,9 @@ class Lower instr
 
 instance Lower (Soft.RefCMD Data)
   where
-    lowerInstr (Soft.NewRef)     =
+    lowerInstr (Soft.NewRef base) =
       Reader.lift $ fmap softenRef Hard.newVariable_
-    lowerInstr (Soft.InitRef a)  =
+    lowerInstr (Soft.InitRef base a) =
       Reader.lift . fmap softenRef . Hard.newVariable =<< translateSmallExp a
     lowerInstr (Soft.SetRef r a) =
       Reader.lift . Hard.setVariable (hardenRef r) =<< translateSmallExp a
@@ -99,9 +99,9 @@ instance Lower (Soft.RefCMD Data)
 
 instance Lower (Soft.ArrCMD Data)
   where
-    lowerInstr (Soft.NewArr i)         =
+    lowerInstr (Soft.NewArr base i)    =
       Reader.lift . fmap softenArray . Hard.newArray =<< translateSmallExp i
-    lowerInstr (Soft.InitArr xs)       =
+    lowerInstr (Soft.InitArr base xs)  =
       Reader.lift $ fmap softenArray $ Hard.initArray xs
     lowerInstr (Soft.SetArr i v a)     = do
       i' <- translateSmallExp i

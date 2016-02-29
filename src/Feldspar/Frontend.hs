@@ -272,13 +272,34 @@ instance MonadComp Comp
 -- ** References
 ----------------------------------------
 
--- | Create an uninitialized reference.
+-- | Create an uninitialized reference
 newRef :: (Type a, MonadComp m) => m (Ref a)
-newRef = liftComp $ fmap Ref $ mapVirtualA (const (Comp Imp.newRef)) virtRep
+newRef = newNamedRef "r"
 
--- | Create an initialized reference.
+-- | Create an uninitialized named reference
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+newNamedRef :: (Type a, MonadComp m)
+    => String  -- ^ Base name
+    -> m (Ref a)
+newNamedRef base = liftComp $ fmap Ref $
+    mapVirtualA (const $ Comp $ Imp.newNamedRef base) virtRep
+
+-- | Create an initialized named reference
 initRef :: (Syntax a, MonadComp m) => a -> m (Ref (Internal a))
-initRef = liftComp . fmap Ref . mapVirtualA (Comp . Imp.initRef) . resugar
+initRef = initNamedRef "r"
+
+-- | Create an initialized reference
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+initNamedRef :: (Syntax a, MonadComp m)
+    => String  -- ^ Base name
+    -> a       -- ^ Initial value
+    -> m (Ref (Internal a))
+initNamedRef base =
+    liftComp . fmap Ref . mapVirtualA (Comp . Imp.initNamedRef base) . resugar
 
 -- | Get the contents of a reference.
 getRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
@@ -316,14 +337,38 @@ unsafeFreezeRef
 ----------------------------------------
 
 -- | Create an uninitialized array
-newArr :: forall m a . (Type a, MonadComp m) => Data Length -> m (Arr a)
-newArr l = liftComp $ fmap Arr $ mapVirtualA (const (Comp $ Imp.newArr l)) rep
+newArr :: (Type a, MonadComp m) => Data Length -> m (Arr a)
+newArr = newNamedArr "a"
+
+-- | Create an uninitialized named array
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+newNamedArr :: forall m a . (Type a, MonadComp m)
+    => String  -- ^ Base name
+    -> Data Length
+    -> m (Arr a)
+newNamedArr base l = liftComp $ fmap Arr $
+    mapVirtualA (const (Comp $ Imp.newNamedArr base l)) rep
   where
     rep = virtRep :: VirtualRep SmallType a
 
 -- | Create and initialize an array
-initArr :: (SmallType a, MonadComp m) => [a] -> m (Arr a)
-initArr = liftComp . fmap (Arr . Actual) . Comp . Imp.initArr
+initArr :: (SmallType a, MonadComp m)
+    => [a]  -- ^ Initial contents
+    -> m (Arr a)
+initArr = initNamedArr "a"
+
+-- | Create and initialize a named array
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+initNamedArr :: (SmallType a, MonadComp m)
+    => String  -- ^ Base name
+    -> [a]     -- ^ Initial contents
+    -> m (Arr a)
+initNamedArr base =
+    liftComp . fmap (Arr . Actual) . Comp . Imp.initNamedArr base
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a

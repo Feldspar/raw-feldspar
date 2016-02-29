@@ -95,7 +95,16 @@ printf = fprintf Imp.stdout
 
 -- | Create a null pointer
 newPtr :: SmallType a => Run (Ptr a)
-newPtr = Run Imp.newPtr
+newPtr = newNamedPtr "p"
+
+-- | Create a named null pointer
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+newNamedPtr :: SmallType a
+    => String  -- ^ Base name
+    -> Run (Ptr a)
+newNamedPtr = Run . Imp.newNamedPtr
 
 -- | Cast a pointer to an array
 ptrToArr :: SmallType a => Ptr a -> Run (Arr a)
@@ -107,7 +116,19 @@ newObject
     :: String  -- ^ Object type
     -> Bool    -- ^ Pointed?
     -> Run Object
-newObject t p = Run $ Imp.newObject t p
+newObject = newNamedObject "obj"
+
+-- | Create a pointer to an abstract object. The only thing one can do with such
+-- objects is to pass them to 'callFun' or 'callProc'.
+--
+-- The provided base name may be appended with a unique identifier to avoid name
+-- collisions.
+newNamedObject
+    :: String  -- ^ Base name
+    -> String  -- ^ Object type
+    -> Bool    -- ^ Pointed?
+    -> Run Object
+newNamedObject base t p = Run $ Imp.newNamedObject base t p
 
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Run ()
