@@ -269,7 +269,7 @@ translateAST = goAST . optimize
         , Right Dict <- pwit pType t
         = lookAlias v
     go t lt (a :* (lam :$ body) :* Nil)
-        | Just Let      <- prj lt
+        | Just (Let _)  <- prj lt
         , Just (LamT v) <- prj lam
         , Right Dict    <- pwit pType (getDecor a)
         = do r  <- initRefV =<< goAST a

@@ -74,7 +74,7 @@ library
     open-typerep >= 0.5,
     operational-alacarte,
     prelude-edsl,
-    syntactic >= 3.4,
+    syntactic >= 3.5,
     template-haskell
 
   hs-source-dirs: src

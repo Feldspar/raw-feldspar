@@ -32,8 +32,20 @@ import Feldspar.Representation
 ----------------------------------------
 
 -- | Explicit sharing
-share :: (Syntax a, Syntax b) => a -> (a -> b) -> b
-share = sugarSymTR Let
+share :: (Syntax a, Syntax b)
+    => a         -- ^ Value to share
+    -> (a -> b)  -- ^ Body in which to share the value
+    -> b
+share = shareTag ""
+
+-- | Explicit tagged sharing
+shareTag :: (Syntax a, Syntax b)
+    => String
+         -- ^ A tag (that may be empty). May be used by a back end to generate a sensible variable name.
+    -> a         -- ^ Value to share
+    -> (a -> b)  -- ^ Body in which to share the value
+    -> b
+shareTag tag = sugarSymTR (Let tag)
 
 -- | For loop
 forLoop :: Syntax st => Data Length -> st -> (Data Index -> st -> st) -> st

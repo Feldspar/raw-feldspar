@@ -235,10 +235,11 @@ transAST = goAST . optimize
         , Right Dict <- pwit pType t
         = lookAlias v
     go t lt (a :* (lam :$ body) :* Nil)
-        | Just Let      <- prj lt
-        , Just (LamT v) <- prj lam
-        , Right Dict    <- pwit pType (getDecor a)
-        = do r  <- initRefV "let" =<< goAST a
+        | Just (Let tag) <- prj lt
+        , Just (LamT v)  <- prj lam
+        , Right Dict     <- pwit pType (getDecor a)
+        = do let base = if null tag then "let" else tag
+             r  <- initRefV base =<< goAST a
              a' <- unsafeFreezeRefV r
              localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
