@@ -192,6 +192,13 @@ a /= b = not (a==b)
 -- | Return the smallest of two values
 min :: SmallType a => Data a -> Data a -> Data a
 min a b = a<=b ? a $ b
+  -- There's no standard definition of min/max in C:
+  -- <http://stackoverflow.com/questions/3437404/min-and-max-in-c>
+  --
+  -- There is `fmin`/`fminf` for floating-point numbers, but these are
+  -- implemented essentially as above (except that they handle `NaN`
+  -- specifically:
+  -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>
 
 -- | Return the greatest of two values
 max :: SmallType a => Data a -> Data a -> Data a
