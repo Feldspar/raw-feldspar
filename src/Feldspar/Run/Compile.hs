@@ -37,12 +37,13 @@ import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 -- * Virtual variables
 --------------------------------------------------------------------------------
 
-newRefV :: VirtualType SmallType a => Target (Virtual SmallType Imp.Ref a)
-newRefV = lift $ mapVirtualA (const newRef) virtRep
+newRefV :: VirtualType SmallType a =>
+    String -> Target (Virtual SmallType Imp.Ref a)
+newRefV base = lift $ mapVirtualA (const (newNamedRef base)) virtRep
 
 initRefV :: VirtualType SmallType a =>
-    VExp a -> Target (Virtual SmallType Imp.Ref a)
-initRefV = lift . mapVirtualA initRef
+    String -> VExp a -> Target (Virtual SmallType Imp.Ref a)
+initRefV base = lift . mapVirtualA (initNamedRef base)
 
 getRefV :: VirtualType SmallType a =>
     Virtual SmallType Imp.Ref a -> Target (VExp a)
@@ -237,7 +238,7 @@ transAST = goAST . optimize
         | Just Let      <- prj lt
         , Just (LamT v) <- prj lam
         , Right Dict    <- pwit pType (getDecor a)
-        = do r  <- initRefV =<< goAST a
+        = do r  <- initRefV "let" =<< goAST a
              a' <- unsafeFreezeRefV r
              localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
@@ -303,7 +304,7 @@ transAST = goAST . optimize
 
               (t',f') -> do
                   c'  <- goSmallAST c
-                  res <- newRefV
+                  res <- newRefV "v"
                   ReaderT $ \env -> iff c'
                       (flip runReaderT env . setRefV res =<< t')
                       (flip runReaderT env . setRefV res =<< f')
@@ -313,7 +314,7 @@ transAST = goAST . optimize
         , Just (LamT iv) <- prj lami
         , Just (LamT sv) <- prj lams
         = do len'  <- goSmallAST len
-             state <- initRefV =<< goAST init
+             state <- initRefV "state" =<< goAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
                 s <- case pwit pSmallType t of
                     Right Dict -> unsafeFreezeRefV state  -- For non-compound states
