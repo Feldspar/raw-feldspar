@@ -70,13 +70,13 @@ head :: Vector a -> a
 head = (!0)
 
 tail :: Vector a -> Vector a
-tail (Indexed l ixf) = Indexed (l-1) (ixf . (+1))
+tail = drop 1
 
 take :: Data Length -> Vector a -> Vector a
 take l (Indexed m f) = Indexed (min m l) f
 
 drop :: Data Length -> Vector a -> Vector a
-drop l (Indexed m f) = Indexed (l>m ? 0 $ m-l) (f . (+l))
+drop l (Indexed m f) = Indexed (b2i (l<=m) * (m-l)) (f . (+l))
 
 splitAt :: Data Index -> Vector a -> (Vector a, Vector a)
 splitAt l vec = (take l vec, drop l vec)
@@ -98,7 +98,7 @@ reverse :: Vector a -> Vector a
 reverse = permute $ \len i -> len-i-1
 
 (...) :: Data Index -> Data Index -> Vector (Data Index)
-l ... h = Indexed (h-l+1) (+l)
+l ... h = Indexed (b2i (l<h+1) * (h-l+1)) (+l)
 
 infix 3 ...
 
