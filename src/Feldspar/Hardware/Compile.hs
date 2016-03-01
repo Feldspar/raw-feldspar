@@ -88,6 +88,8 @@ instance Lower (Soft.RefCMD Data)
   where
     lowerInstr (Soft.NewRef base) =
       Reader.lift $ fmap softenRef Hard.newVariable_
+        -- Ignoring base name because there are no named references in
+        -- hardware-edsl (same for `InitRef`, `NewArr` and `InitArr`)
     lowerInstr (Soft.InitRef base a) =
       Reader.lift . fmap softenRef . Hard.newVariable =<< translateSmallExp a
     lowerInstr (Soft.SetRef r a) =
@@ -270,6 +272,7 @@ translateAST = goAST . optimize
         = lookAlias v
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let _)  <- prj lt
+            -- Ingoring tag because there are no named references in hardware-edsl
         , Just (LamT v) <- prj lam
         , Right Dict    <- pwit pType (getDecor a)
         = do r  <- initRefV =<< goAST a
