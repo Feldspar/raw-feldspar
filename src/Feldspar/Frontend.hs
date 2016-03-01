@@ -181,9 +181,14 @@ not = sugarSymTR Not
 (&&) :: Data Bool -> Data Bool -> Data Bool
 (&&) = sugarSymTR And
 
+infixr 3 &&
+
 -- | Boolean disjunction
 (||) :: Data Bool -> Data Bool -> Data Bool
 (||) = sugarSymTR Or
+
+infixr 2 ||
+
 
 -- | Equality
 (==) :: SmallType a => Data a -> Data a -> Data Bool
@@ -208,6 +213,8 @@ a /= b = not (a==b)
 -- | Greater than or equal
 (>=) :: SmallType a => Data a -> Data a -> Data Bool
 (>=) = sugarSymTR Ge
+
+infix 4 ==, /=, <, >, <=, >=
 
 -- | Return the smallest of two values
 min :: SmallType a => Data a -> Data a -> Data a
