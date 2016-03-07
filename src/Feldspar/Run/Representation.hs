@@ -7,6 +7,7 @@ module Feldspar.Run.Representation where
 import Control.Monad.Trans
 
 import Language.Embedded.Imperative as Imp
+import Language.Embedded.Concurrent
 
 import Feldspar.Representation
 import Feldspar.Frontend
@@ -16,6 +17,8 @@ import Feldspar.Frontend
 type RunCMD
     =   ControlCMD Data
     :+: PtrCMD
+    :+: ThreadCMD
+    :+: ChanCMD    Data
     :+: FileCMD    Data
     :+: C_CMD      Data
 
