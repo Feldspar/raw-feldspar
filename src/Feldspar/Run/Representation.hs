@@ -39,3 +39,4 @@ class Monad m => MonadRun m
 
 instance MonadRun Comp where liftRun = liftComp
 instance MonadRun Run  where liftRun = id
+
