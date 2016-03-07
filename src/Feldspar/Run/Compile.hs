@@ -19,8 +19,10 @@ import Data.TypeRep
 import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
+import Language.Embedded.Concurrent
 import qualified Language.Embedded.Imperative as Imp
 import Language.Embedded.Imperative.CMD hiding (Ref, Arr)
+import Language.Embedded.Concurrent.CMD
 import Language.Embedded.CExp
 import qualified Language.Embedded.Backend.C as Imp
 
@@ -75,6 +77,8 @@ type TargetCMD
     =       RefCMD CExp
     Imp.:+: ArrCMD CExp
     Imp.:+: ControlCMD CExp
+    Imp.:+: ThreadCMD
+    Imp.:+: ChanCMD CExp
     Imp.:+: PtrCMD
     Imp.:+: FileCMD CExp
     Imp.:+: C_CMD CExp
@@ -159,6 +163,24 @@ instance Lower (ControlCMD Data)
         cond' <- translateSmallExp cond
         lift $ assert cond' msg
     lowerInstr Break = lift Imp.break
+
+instance Lower ThreadCMD
+  where
+    lowerInstr (ForkWithId p) = ReaderT $ \env -> forkWithId (flip runReaderT env . p)
+    lowerInstr (Kill t)       = lift $ killThread t
+    lowerInstr (Wait t)       = lift $ waitThread t
+
+instance Lower (ChanCMD Data)
+  where
+    lowerInstr (NewChan b) = do
+        b' <- translateSmallExp b
+        lift $ Oper.singleE $ NewChan b'
+    lowerInstr (ReadChan c)    = fmap liftVar $ lift $ readChan c
+    lowerInstr (WriteChan c a) = do
+        a' <- translateSmallExp a
+        fmap liftVar $ lift $ writeChan c a'
+    lowerInstr (CloseChan c) = lift $ closeChan c
+    lowerInstr (ReadOK c)    = fmap liftVar $ lift $ lastChanReadOK c
 
 instance Lower PtrCMD
   where
