@@ -132,7 +132,7 @@ newNamedObject base t p = Run $ Imp.newNamedObject base t p
 
 -- | Generate code into another translation unit
 inModule :: String -> Run () -> Run ()
-inModule mod prog = inModule mod prog
+inModule mod = Run . Imp.inModule mod . unRun
 
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Run ()
