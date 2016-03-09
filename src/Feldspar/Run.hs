@@ -7,7 +7,9 @@ module Feldspar.Run
     -- * Back ends
   , runIO
   , compile
+  , compileAll
   , icompile
+  , icompileAll
   , ExternalCompilerOpts (..)
   , defaultExtCompilerOpts
   , compileAndCheck'
