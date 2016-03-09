@@ -208,6 +208,7 @@ instance Lower (C_CMD Data)
     lowerInstr (CallFun f as) = fmap liftVar . lift . callFun f =<< transFunArgs as
     lowerInstr (CallProc Nothing p as)  = lift . callProc p =<< transFunArgs as
     lowerInstr (CallProc (Just o) p as) = lift . callProcAssign o p =<< transFunArgs as
+    lowerInstr (InModule mod prog)      = ReaderT $ \env -> inModule mod $ runReaderT prog env
 
 transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
 transFunArgs = mapM $ mapMArg predCast translateSmallExp
