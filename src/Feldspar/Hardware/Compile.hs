@@ -62,10 +62,10 @@ type Target = ReaderT Env (H.Program TargetCMD)
 --------------------------------------------------------------------------------
 
 newRefV :: VirtualType SmallType a => Target (Virtual SmallType Hard.Variable a)
-newRefV = Reader.lift $ mapVirtualA (const Hard.newVariable_) virtRep
+newRefV = Reader.lift $ mapVirtualA (const Hard.newVariable) virtRep
 
 initRefV :: VirtualType SmallType a => VExp a -> Target (Virtual SmallType Hard.Variable a)
-initRefV = Reader.lift . mapVirtualA (Hard.newVariable)
+initRefV = Reader.lift . mapVirtualA (Hard.initVariable)
 
 getRefV :: VirtualType SmallType a => Virtual SmallType Hard.Variable a -> Target (VExp a)
 getRefV = Reader.lift . mapVirtualA (Hard.getVariable)
@@ -87,11 +87,11 @@ class Lower instr
 instance Lower (Soft.RefCMD Data)
   where
     lowerInstr (Soft.NewRef base) =
-      Reader.lift $ fmap softenRef Hard.newVariable_
+      Reader.lift $ fmap softenRef $ Hard.newNamedVariable base
         -- Ignoring base name because there are no named references in
         -- hardware-edsl (same for `InitRef`, `NewArr` and `InitArr`)
     lowerInstr (Soft.InitRef base a) =
-      Reader.lift . fmap softenRef . Hard.newVariable =<< translateSmallExp a
+      Reader.lift . fmap softenRef . Hard.initNamedVariable base =<< translateSmallExp a
     lowerInstr (Soft.SetRef r a) =
       Reader.lift . Hard.setVariable (hardenRef r) =<< translateSmallExp a
     lowerInstr (Soft.GetRef r)   =
@@ -102,9 +102,9 @@ instance Lower (Soft.RefCMD Data)
 instance Lower (Soft.ArrCMD Data)
   where
     lowerInstr (Soft.NewArr base i)    =
-      Reader.lift . fmap softenArray . Hard.newArray =<< translateSmallExp i
+      Reader.lift . fmap softenArray . Hard.newNamedArray base =<< translateSmallExp i
     lowerInstr (Soft.InitArr base xs)  =
-      Reader.lift $ fmap softenArray $ Hard.initArray xs
+      Reader.lift $ fmap softenArray $ Hard.initNamedArray base xs
     lowerInstr (Soft.SetArr i v a)     = do
       i' <- translateSmallExp i
       v' <- translateSmallExp v
@@ -136,15 +136,15 @@ instance Lower (Soft.ControlCMD Data)
                   (Soft.Incl i) -> i
                   (Soft.Excl i) -> i - 1
         ReaderT $ \env -> Hard.for l (flip runReaderT env . body . liftVar)
-    lowerInstr (Soft.Assert {}) = error "lower: assert?"
+    lowerInstr (Soft.Assert {}) = error "lower-todo: assert?"
     lowerInstr (Soft.Break  {}) = error "lower-todo: break out of loops."
 
 instance Lower (Hard.SignalCMD Data)
   where
-    lowerInstr (Hard.NewSignal _ _ _ Nothing) =
-      Reader.lift $ Hard.newSignal_
-    lowerInstr (Hard.NewSignal _ _ _ (Just e)) =
-      Reader.lift . Hard.newSignal =<< translateSmallExp e
+    lowerInstr (Hard.NewSignal base _ _ _ Nothing) =
+      Reader.lift $ Hard.newNamedSignal base
+    lowerInstr (Hard.NewSignal base _ _ _ (Just e)) =
+      Reader.lift . Hard.initNamedSignal base =<< translateSmallExp e
     lowerInstr (Hard.SetSignal s e) =
       Reader.lift . Hard.setSignal  s =<< translateSmallExp e
     lowerInstr (Hard.GetSignal s) =
@@ -177,12 +177,12 @@ instance Lower (Hard.ConditionalCMD Data)
 
 instance Lower (Hard.StructuralCMD Data)
   where
-    lowerInstr (Hard.Entity e p) = do
-      ReaderT $ \env -> Hard.entity e (runReaderT p env)
-    lowerInstr (Hard.Architecture e a p) = do
-      ReaderT $ \env -> Hard.architecture e a (runReaderT p env)
-    lowerInstr (Hard.Process ss p) = do
-      ReaderT $ \env -> Hard.process ss (runReaderT p env)
+    lowerInstr (Hard.StructEntity e p) = do
+      ReaderT $ \env -> Hard.structEntity e (runReaderT p env)
+    lowerInstr (Hard.StructArchitecture e a p) = do
+      ReaderT $ \env -> Hard.structArchitecture e a (runReaderT p env)
+    lowerInstr (Hard.StructProcess ss p) = do
+      ReaderT $ \env -> Hard.structProcess ss (runReaderT p env)
 
 instance (Lower i, Lower j) => Lower (i H.:+: j)
   where
@@ -206,8 +206,8 @@ softenRef (Hard.VariableE i) = Soft.RefEval i
 
 -- | Transforms a software array into a hardware one.
 hardenArray :: SmallType a => Soft.Arr i a -> Hard.Array i a
-hardenArray (Soft.ArrComp ('a':i)) = Hard.ArrayC (read i :: Integer)
-hardenArray (Soft.ArrEval i)       = Hard.ArrayE i
+hardenArray (Soft.ArrComp i) = Hard.ArrayC i
+hardenArray (Soft.ArrEval i) = Hard.ArrayE i
 
 softenArray :: SmallType a => Hard.Array i a -> Soft.Arr i a
 softenArray (Hard.ArrayC i) = Soft.ArrComp ('a' : show i)
