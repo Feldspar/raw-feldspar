@@ -405,12 +405,18 @@ captureIO = Imp.captureIO . lowerTop . liftRun
 compile :: MonadRun m => m a -> String
 compile  = Imp.compile . lowerTop . liftRun
 
+compileAll :: MonadRun m => m a -> [(String, String)]
+compileAll  = Imp.compileAll . lowerTop . liftRun
+
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
 icompile  = putStrLn . compile
+
+icompileAll :: MonadRun m => m a -> IO ()
+icompileAll  = mapM_ (\(n, m) -> putStrLn ("// module " ++ n) >> putStrLn m) . compileAll
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
