@@ -2,8 +2,14 @@ module CoDesign where
 
 import qualified Prelude
 
+<<<<<<< HEAD
 import Feldspar.Run
 import Feldspar.Hardware (liftHardware)
+=======
+import Feldspar
+import Feldspar.Software
+import qualified Feldspar.Hardware.Representation as HW
+>>>>>>> 9f988ee43bba4624d23de8eeb3a31db82bd97a41
 import qualified Feldspar.Hardware.Compile as HW
 import qualified Feldspar.Run.Compile as SW
 
