@@ -208,6 +208,7 @@ instance Lower (C_CMD Data)
     lowerInstr (CallFun f as) = fmap liftVar . lift . callFun f =<< transFunArgs as
     lowerInstr (CallProc Nothing p as)  = lift . callProc p =<< transFunArgs as
     lowerInstr (CallProc (Just o) p as) = lift . callProcAssign o p =<< transFunArgs as
+    lowerInstr (InModule mod prog)      = ReaderT $ inModule mod . runReaderT prog
 
 transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
 transFunArgs = mapM $ mapMArg predCast translateSmallExp
@@ -404,12 +405,18 @@ captureIO = Imp.captureIO . lowerTop . liftRun
 compile :: MonadRun m => m a -> String
 compile  = Imp.compile . lowerTop . liftRun
 
+compileAll :: MonadRun m => m a -> [(String, String)]
+compileAll  = Imp.compileAll . lowerTop . liftRun
+
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
 icompile  = putStrLn . compile
+
+icompileAll :: MonadRun m => m a -> IO ()
+icompileAll  = mapM_ (\(n, m) -> putStrLn ("// module " ++ n) >> putStrLn m) . compileAll
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
