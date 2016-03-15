@@ -97,17 +97,14 @@ localAlias :: Type a
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment
-lookAlias :: forall a . Type a => Name -> Target (VExp a)
+lookAlias :: Type a => Name -> Target (VExp a)
 lookAlias v = do
     env <- ask
     return $ case Map.lookup v env of
-        Nothing | Right Dict <- pwit pCType tr
-               -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
+        Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case gcast pFeldTypes e of
             Left msg -> error $ "lookAlias: " ++ msg
             Right e' -> e'
-  where
-    tr = typeRep :: TypeRep FeldTypes a
 
 -- | Translate instructions to the 'Target' monad
 class Lower instr
