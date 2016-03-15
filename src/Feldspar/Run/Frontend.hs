@@ -9,8 +9,6 @@ module Feldspar.Run.Frontend
 
 
 
-import Data.Proxy
-
 import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr, IArr)
@@ -26,6 +24,7 @@ import Feldspar.Run.Representation
 --------------------------------------------------------------------------------
 -- * Pointer operations
 --------------------------------------------------------------------------------
+
 -- | Swap two pointers
 --
 -- This is generally an unsafe operation. E.g. it can be used to make a
@@ -60,7 +59,7 @@ class PrintfType r
 
 instance (a ~ ()) => PrintfType (Run a)
   where
-    fprf h form = Run . Oper.singleE . Imp.FPrintf h form . reverse
+    fprf h form = Run . Oper.singleInj . Imp.FPrintf h form . reverse
 
 instance (Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
   where
@@ -162,55 +161,53 @@ addDefinition :: Imp.Definition -> Run ()
 addDefinition = Run . Imp.addDefinition
 
 -- | Declare an external function
-addExternFun :: forall proxy res . SmallType res
-    => String         -- ^ Function name
-    -> proxy res      -- ^ Proxy for expression and result type
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
+addExternFun :: SmallType res
+    => String               -- ^ Function name
+    -> proxy res            -- ^ Proxy for expression and result type
+    -> [FunArg Data CType]  -- ^ Arguments (only used to determine types)
     -> Run ()
-addExternFun fun res args = Run $ Imp.addExternFun fun res' args
-  where
-    res' = Proxy :: Proxy (Data res)
+addExternFun fun res args = Run $ Imp.addExternFun fun res args
 
 -- | Declare an external procedure
 addExternProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
+    :: String               -- ^ Procedure name
+    -> [FunArg Data CType]  -- ^ Arguments (only used to determine types)
     -> Run ()
 addExternProc proc args = Run $ Imp.addExternProc proc args
 
 -- | Call a function
 callFun :: SmallType a
-    => String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
+    => String               -- ^ Function name
+    -> [FunArg Data CType]  -- ^ Arguments
     -> Run (Data a)
 callFun fun as = Run $ Imp.callFun fun as
 
 -- | Call a procedure
 callProc
-    :: String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
+    :: String               -- ^ Function name
+    -> [FunArg Data CType]  -- ^ Arguments
     -> Run ()
 callProc fun as = Run $ Imp.callProc fun as
 
 -- | Call a procedure and assign its result
 callProcAssign :: Assignable obj
-    => obj            -- ^ Object to which the result should be assigned
-    -> String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+    => obj                  -- ^ Object to which the result should be assigned
+    -> String               -- ^ Procedure name
+    -> [FunArg Data CType]  -- ^ Arguments
     -> Run ()
 callProcAssign obj fun as = Run $ Imp.callProcAssign obj fun as
 
 -- | Declare and call an external function
 externFun :: SmallType res
-    => String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+    => String               -- ^ Procedure name
+    -> [FunArg Data CType]  -- ^ Arguments
     -> Run (Data res)
 externFun fun args = Run $ Imp.externFun fun args
 
 -- | Declare and call an external procedure
 externProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+    :: String               -- ^ Procedure name
+    -> [FunArg Data CType]  -- ^ Arguments
     -> Run ()
 externProc proc args = Run $ Imp.externProc proc args
 
@@ -219,34 +216,34 @@ getTime :: Run (Data Double)
 getTime = Run Imp.getTime
 
 -- | Constant string argument
-strArg :: String -> FunArg Data
+strArg :: String -> FunArg Data CType
 strArg = Imp.strArg
 
 -- | Value argument
-valArg :: SmallType a => Data a -> FunArg Data
+valArg :: SmallType a => Data a -> FunArg Data CType
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: SmallType a => Ref a -> FunArg Data
+refArg :: SmallType a => Ref a -> FunArg Data CType
 refArg (Ref r) = Imp.refArg (viewActual r)
 
 -- | Mutable array argument
-arrArg :: SmallType a => Arr a -> FunArg Data
+arrArg :: SmallType a => Arr a -> FunArg Data CType
 arrArg (Arr a) = Imp.arrArg (viewActual a)
 
 -- | Immutable array argument
-iarrArg :: SmallType a => IArr a -> FunArg Data
+iarrArg :: SmallType a => IArr a -> FunArg Data CType
 iarrArg (IArr a) = Imp.iarrArg (viewActual a)
 
 -- | Abstract object argument
-objArg :: Object -> FunArg Data
+objArg :: Object -> FunArg Data CType
 objArg = Imp.objArg
 
 -- | Modifier that takes the address of another argument
-addr :: FunArg Data -> FunArg Data
+addr :: FunArg Data CType -> FunArg Data CType
 addr = Imp.addr
 
 -- | Modifier that dereferences another argument
-deref :: FunArg Data -> FunArg Data
+deref :: FunArg Data CType -> FunArg Data CType
 deref = Imp.deref
 

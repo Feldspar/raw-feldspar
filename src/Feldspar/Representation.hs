@@ -3,7 +3,10 @@
 
 -- | Internal representation of Feldspar programs
 
-module Feldspar.Representation where
+module Feldspar.Representation
+  ( CType
+  , module Feldspar.Representation
+  ) where
 
 
 
@@ -33,9 +36,9 @@ import qualified Control.Monad.Operational.Higher as H
 -- import Language.Embedded.Hardware (HType)
 -- import qualified Language.Embedded.Hardware.Interface as Hard
 
-import Language.Embedded.CExp (CType)
 import qualified Language.Embedded.Expression     as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
+import Language.Embedded.Backend.C.Expression (CType)
 
 import qualified Language.C.Quote as C
 
@@ -336,12 +339,12 @@ instance Hard.EvaluateExp Data
 --------------------------------------------------------------------------------
 
 type CompCMD
-  =     Imp.RefCMD     Data
-  H.:+: Imp.ArrCMD     Data
-  H.:+: Imp.ControlCMD Data
+  =     Imp.RefCMD
+  H.:+: Imp.ArrCMD
+  H.:+: Imp.ControlCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
-newtype Comp a = Comp { unComp :: H.Program CompCMD a }
+newtype Comp a = Comp { unComp :: H.Program CompCMD (H.Param2 Data CType) a }
   deriving (Functor, Applicative, Monad)
 
 
