@@ -421,7 +421,7 @@ copyArr arr1 arr2 len = liftComp $ sequence_ $
 -- to a newly allocated one.
 freezeArr :: (Type a, MonadComp m)
     => Arr a
-    -> Data Length  -- ^ Length of array
+    -> Data Length  -- ^ Length of new array
     -> m (IArr a)
 freezeArr arr n
     = liftComp
@@ -438,6 +438,29 @@ unsafeFreezeArr
     . fmap IArr
     . mapVirtualA (Comp . Imp.unsafeFreezeArr)
     . unArr
+
+-- | Thaw an immutable array to a mutable one. This involves copying the array
+-- to a newly allocated one.
+thawArr :: (Type a, MonadComp m)
+    => IArr a
+    -> Data Length  -- ^ Number of elements to copy
+    -> m (Arr a)
+thawArr arr n
+    = liftComp
+    $ fmap Arr
+    $ mapVirtualA (Comp . flip Imp.thawArr n)
+    $ unIArr
+    $ arr
+
+-- | Thaw an immutable array to a mutable one without making a copy. This is
+-- generally only safe if the the mutable array is not updated as long as the
+-- immutable array is alive.
+unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
+unsafeThawArr
+    = liftComp
+    . fmap Arr
+    . mapVirtualA (Comp . Imp.unsafeThawArr)
+    . unIArr
 
 -- | Create and initialize an immutable array
 initIArr :: (SmallType a, MonadComp m) => [a] -> m (IArr a)
