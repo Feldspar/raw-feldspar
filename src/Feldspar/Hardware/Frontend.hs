@@ -1,3 +1,7 @@
+module Feldspar.Hardware.Frontend where
+
+{-
+
 module Feldspar.Hardware.Frontend
   ( Hardware
   , MonadHardware (..)
@@ -53,3 +57,5 @@ unsafeFreezeSig :: Type a => Sig a -> Hardware (Data a)
 unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal) . unSig
 
 --------------------------------------------------------------------------------
+
+-}

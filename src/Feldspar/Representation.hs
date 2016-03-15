@@ -30,8 +30,8 @@ import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
 import qualified Control.Monad.Operational.Higher as H
 
-import Language.Embedded.Hardware (HType)
-import qualified Language.Embedded.Hardware.Interface as Hard
+-- import Language.Embedded.Hardware (HType)
+-- import qualified Language.Embedded.Hardware.Interface as Hard
 
 import Language.Embedded.CExp (CType)
 import qualified Language.Embedded.Expression     as Imp
@@ -62,6 +62,8 @@ pFeldTypes = Proxy
 -- | Feldspar types
 class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
+
+type HType = Show -- temporary workaround
 
 -- | Small Feldspar types
 class    (Type a, CType a, HType a) => SmallType a
@@ -313,6 +315,8 @@ instance Imp.EvalExp Data
   where
     evalExp = eval
 
+{-
+
 instance Hard.FreeExp Data
   where
     type PredicateExp Data = SmallType
@@ -322,6 +326,10 @@ instance Hard.FreeExp Data
 instance Hard.EvaluateExp Data
   where
     evalE = eval
+
+-}
+
+
 
 --------------------------------------------------------------------------------
 -- * Monadic computations
