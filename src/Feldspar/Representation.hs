@@ -208,7 +208,7 @@ instance Render Array
 
 instance Eval Array
   where
-    evalSym (ArrIx (Imp.IArrEval arr)) = (arr!)
+    evalSym (ArrIx (Imp.IArrRun arr)) = (arr!)
 
 -- | Can only return 'True' if the array has a syntactic representation (i.e.
 -- when compiling)
@@ -310,9 +310,9 @@ eval = evalClosed . desugar
 
 instance Imp.FreeExp Data
   where
-    type VarPred Data = SmallType
-    valExp = sugarSymTR . Literal
-    varExp = sugarSymTR . FreeVar
+    type FreePred Data = SmallType
+    constExp = sugarSymTR . Literal
+    varExp   = sugarSymTR . FreeVar
 
 instance Imp.EvalExp Data
   where
