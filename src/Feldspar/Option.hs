@@ -1,3 +1,5 @@
+{-# LANGUAGE PolyKinds #-}
+
 -- | Optional values
 
 module Feldspar.Option
@@ -34,10 +36,10 @@ import Feldspar.Representation
 
 
 
-data Opt (prog :: * -> *) a
+data Opt fs a
   where
-    None  :: String -> Opt prog a
-    Guard :: String -> Data Bool -> Opt prog ()
+    None  :: String -> Opt (Param1 prog) a
+    Guard :: String -> Data Bool -> Opt (Param1 prog) ()
 
 instance HFunctor Opt
   where
@@ -45,7 +47,7 @@ instance HFunctor Opt
     hfmap f (Guard msg c) = Guard msg c
 
 -- | Transformer version of 'Option'
-newtype OptionT m a = Option { unOption :: ProgramT Opt m a }
+newtype OptionT m a = Option { unOption :: ProgramT Opt Param0 m a }
   deriving (Functor, Applicative, Monad, MonadTrans)
 
 -- | Optional value, analogous to @`Either` `String` a@ in normal Haskell
@@ -161,7 +163,7 @@ guarded msg c a = guardO msg c >> return a
 rebuildOption :: Monad m => Option a -> OptionT m a
 rebuildOption = interpretWithMonad go . unOption
   where
-    go :: Opt (OptionT m) a -> OptionT m a
+    go :: Opt (Param1 (OptionT m)) a -> OptionT m a
     go (None msg)    = none msg
     go (Guard msg c) = guardO msg c
 

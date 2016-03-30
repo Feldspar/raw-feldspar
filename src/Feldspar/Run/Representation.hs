@@ -15,15 +15,22 @@ import Feldspar.Frontend
 
 
 type RunCMD
-    =   ControlCMD Data
+    =   ControlCMD
     :+: PtrCMD
     :+: ThreadCMD
-    :+: ChanCMD    Data
-    :+: FileCMD    Data
-    :+: C_CMD      Data
+    :+: ChanCMD
+    :+: FileCMD
+    :+: C_CMD
 
 -- | Monad for running Feldspar programs
-newtype Run a = Run { unRun :: ProgramT RunCMD (Program CompCMD) a }
+newtype Run a = Run
+    { unRun ::
+        ProgramT
+          RunCMD
+          (Param2 Data CType)
+          (Program CompCMD (Param2 Data CType))
+          a
+    }
   deriving (Functor, Applicative, Monad)
 
 instance MonadComp Run

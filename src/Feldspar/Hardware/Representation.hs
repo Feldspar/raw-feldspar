@@ -4,6 +4,8 @@ module Feldspar.Hardware.Representation where
 
 
 
+{-
+
 import Control.Monad.Trans
 
 import Control.Monad.Operational.Higher
@@ -43,3 +45,5 @@ instance MonadHardware Comp     where liftHardware = liftComp
 instance MonadHardware Hardware where liftHardware = id
 
 --------------------------------------------------------------------------------
+
+-}

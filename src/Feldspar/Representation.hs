@@ -3,7 +3,10 @@
 
 -- | Internal representation of Feldspar programs
 
-module Feldspar.Representation where
+module Feldspar.Representation
+  ( CType
+  , module Feldspar.Representation
+  ) where
 
 
 
@@ -30,12 +33,12 @@ import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 
 import qualified Control.Monad.Operational.Higher as H
 
-import Language.Embedded.Hardware (HType)
-import qualified Language.Embedded.Hardware.Interface as Hard
+-- import Language.Embedded.Hardware (HType)
+-- import qualified Language.Embedded.Hardware.Interface as Hard
 
-import Language.Embedded.CExp (CType)
 import qualified Language.Embedded.Expression     as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
+import Language.Embedded.Backend.C.Expression (CType)
 
 import qualified Language.C.Quote as C
 
@@ -62,6 +65,8 @@ pFeldTypes = Proxy
 -- | Feldspar types
 class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
 instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
+
+type HType = Show -- temporary workaround
 
 -- | Small Feldspar types
 class    (Type a, CType a, HType a) => SmallType a
@@ -203,7 +208,7 @@ instance Render Array
 
 instance Eval Array
   where
-    evalSym (ArrIx (Imp.IArrEval arr)) = (arr!)
+    evalSym (ArrIx (Imp.IArrRun arr)) = (arr!)
 
 -- | Can only return 'True' if the array has a syntactic representation (i.e.
 -- when compiling)
@@ -305,13 +310,15 @@ eval = evalClosed . desugar
 
 instance Imp.FreeExp Data
   where
-    type VarPred Data = SmallType
-    valExp = sugarSymTR . Literal
-    varExp = sugarSymTR . FreeVar
+    type FreePred Data = SmallType
+    constExp = sugarSymTR . Literal
+    varExp   = sugarSymTR . FreeVar
 
 instance Imp.EvalExp Data
   where
     evalExp = eval
+
+{-
 
 instance Hard.FreeExp Data
   where
@@ -323,17 +330,21 @@ instance Hard.EvaluateExp Data
   where
     evalE = eval
 
+-}
+
+
+
 --------------------------------------------------------------------------------
 -- * Monadic computations
 --------------------------------------------------------------------------------
 
 type CompCMD
-  =     Imp.RefCMD     Data
-  H.:+: Imp.ArrCMD     Data
-  H.:+: Imp.ControlCMD Data
+  =     Imp.RefCMD
+  H.:+: Imp.ArrCMD
+  H.:+: Imp.ControlCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
-newtype Comp a = Comp { unComp :: H.Program CompCMD a }
+newtype Comp a = Comp { unComp :: H.Program CompCMD (H.Param2 Data CType) a }
   deriving (Functor, Applicative, Monad)
 
 
