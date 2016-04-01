@@ -298,21 +298,27 @@ captureIO = Imp.captureIO . translate . liftRun
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
+--
+-- This function returns only the first (main) module. To get all C translation
+-- unit, use 'compileAll'.
 compile :: MonadRun m => m a -> String
-compile  = Imp.compile . translate . liftRun
+compile = Imp.compile . translate . liftRun
 
+-- | Compile a program to C modules, each one represented as a pair of a name
+-- and the code represented as a string
+--
+-- To compile the resulting C code, use something like
+--
+-- > gcc -std=c99 YOURPROGRAM.c
 compileAll :: MonadRun m => m a -> [(String, String)]
-compileAll  = Imp.compileAll . translate . liftRun
+compileAll = Imp.compileAll . translate . liftRun
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
-icompile  = putStrLn . compile
-
-icompileAll :: MonadRun m => m a -> IO ()
-icompileAll  = mapM_ (\(n, m) -> putStrLn ("// module " ++ n) >> putStrLn m) . compileAll
+icompile = Imp.icompile . translate . liftRun
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()

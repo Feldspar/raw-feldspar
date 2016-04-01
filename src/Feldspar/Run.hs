@@ -9,7 +9,6 @@ module Feldspar.Run
   , compile
   , compileAll
   , icompile
-  , icompileAll
   , ExternalCompilerOpts (..)
   , defaultExtCompilerOpts
   , compileAndCheck'
