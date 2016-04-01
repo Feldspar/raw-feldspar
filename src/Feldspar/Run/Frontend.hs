@@ -129,10 +129,6 @@ newNamedObject
     -> Run Object
 newNamedObject base t p = Run $ Imp.newNamedObject base t p
 
--- | Generate code into another translation unit
-inModule :: String -> Run () -> Run ()
-inModule mod = Run . Imp.inModule mod . unRun
-
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Run ()
 addInclude = Run . Imp.addInclude
@@ -210,6 +206,10 @@ externProc
     -> [FunArg Data CType]  -- ^ Arguments
     -> Run ()
 externProc proc args = Run $ Imp.externProc proc args
+
+-- | Generate code into another translation unit
+inModule :: String -> Run () -> Run ()
+inModule mod = Run . Imp.inModule mod . unRun
 
 -- | Get current time as number of seconds passed today
 getTime :: Run (Data Double)
