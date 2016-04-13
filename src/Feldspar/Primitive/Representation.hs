@@ -287,7 +287,7 @@ sugarSymPrim
        , PrimType' (DenResult sig)
        )
     => sub sig -> f
-sugarSymPrim = sugarSymPrim
+sugarSymPrim = sugarSymDecor primTypeRep
 
 instance FreeExp Prim
   where
