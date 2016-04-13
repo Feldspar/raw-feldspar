@@ -16,18 +16,12 @@ import Data.Proxy
 -- * Representation
 --------------------------------------------------------------------------------
 
--- | Is a type a pair?
-type family IsPair a
-  where
-    IsPair (a,b) = 'True
-    IsPair a     = 'False
-
 -- | Typed binary tree structure
 data Struct pred con a
   where
-    Single :: (IsPair a ~ 'False, pred a) => con a -> Struct pred con a
+    Single :: pred a => con a -> Struct pred con a
     Two    :: Struct pred con a -> Struct pred con b -> Struct pred con (a,b)
-  -- The constraint `IsPair a ~ 'False` is required to make functions like
+  -- The constraint `NoPair a` is required to make functions like
   -- `extractSingle` and `zipStruct` total. Unfortunately, the completeness
   -- checker (-fwarn-incomplete-patterns) is unable to verify that these
   -- functions are total, but it can be verified by trying to add another
@@ -47,25 +41,26 @@ type StructRep pred = Struct pred Proxy
 -- | Structured types
 class StructType_ pred a
   where
-    virtRep :: StructRep pred a
+    structRep :: StructRep pred a
   -- Not exported since we want a closed class
 
-instance (IsPair a ~ 'False, pred a) => StructType_ pred a
+instance pred a => StructType_ pred a
   where
-    virtRep = Single Proxy
+    structRep = Single Proxy
 
 instance {-# OVERLAPS #-} (StructType_ p a, StructType_ p b) =>
     StructType_ p (a,b)
   where
-    virtRep = Two virtRep virtRep
+    structRep = Two structRep structRep
 
 -- | Structured types
 class    StructType_ pred a => StructType pred a
 instance StructType_ pred a => StructType pred a
+  -- TODO Needed?
 
--- | Create a 'Struct' from a value of a virtualizable type
+-- | Create a 'Struct' from a structured value
 toStruct :: forall p a . StructType p a => a -> Struct p Identity a
-toStruct = go (virtRep :: StructRep p a) . Identity
+toStruct = go (structRep :: StructRep p a) . Identity
   where
     go :: StructRep p b -> Identity b -> Struct p Identity b
     go (Single _) i = Single i
@@ -78,29 +73,9 @@ toStruct = go (virtRep :: StructRep p a) . Identity
 -- * Operations
 --------------------------------------------------------------------------------
 
--- | Run-time witness that @a@ is not a pair
-data WitNonPair a
-  where
-    WitNonPair :: (IsPair a ~ 'False) => WitNonPair a
-  -- Better than `Dict (IsPair a ~ 'False)` because it also acts as a proxy for
-  -- the type `a`.
-
--- | Value that can never be evaluated (for defined arguments)
-impossible :: (IsPair a ~ 'True) => WitNonPair a -> b
-impossible _ = error "impossible"
-
 -- | Extract the value of a 'Single'
-extractSingle :: (IsPair a ~ 'False) => Struct p c a -> c a
-extractSingle = go WitNonPair
-  where
-    go :: WitNonPair a -> Struct p c a -> c a
-    go WitNonPair (Single a) = a
-    go d          (Two _ _)  = impossible d
-      -- Unfortunately it's not possible to replace the `WitNonPair` argument
-      -- with a context `IsPair a ~ 'True` to `go`, if one also wants to match
-      -- on `Two`. If one doesn't match on `Two`, the completeness checker
-      -- complains. If it could be made a proper context, then the local
-      -- function wouldn't be needed.
+extractSingle :: pred a => Struct pred c a -> c a
+extractSingle (Single a) = a
 
 -- | Map over a 'Struct'
 mapStruct :: forall pred c1 c2 b
@@ -187,17 +162,14 @@ compareStruct f = go
 
 -- | Lift a function operating on containers @con@ to a function operating on
 -- 'Struct's.
-liftVirt :: (pred a, pred b, IsPair a ~ 'False, IsPair b ~ 'False) =>
+liftStruct :: (pred a, pred b) =>
     (con a -> con b) -> Struct pred con a -> Struct pred con b
-liftVirt f (Single a) = Single (f a)
+liftStruct f (Single a) = Single (f a)
 
 -- | Lift a function operating on containers @con@ to a function operating on
 -- 'Struct's.
-liftVirt2
-    :: ( pred a, pred b, pred c
-       , IsPair a ~ 'False, IsPair b ~ 'False, IsPair c ~ 'False
-       )
+liftStruct2 :: (pred a, pred b, pred c)
     => (con a -> con b -> con c)
     -> Struct pred con a -> Struct pred con b -> Struct pred con c
-liftVirt2 f (Single a) (Single b) = Single (f a b)
+liftStruct2 f (Single a) (Single b) = Single (f a b)
 

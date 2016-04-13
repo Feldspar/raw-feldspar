@@ -52,7 +52,7 @@ run_sumInput  = runCompiled sumInput
 ------------------------------------------------------------
 
 fib :: Data Word32 -> Data Word32
-fib n = fst $ forLoop (i2n n) (0,1) $ \_ (a,b) -> (b,a+b)
+fib n = fst $ forLoop n (0,1) $ \_ (a,b) -> (b,a+b)
 
 printFib :: Run ()
 printFib = do

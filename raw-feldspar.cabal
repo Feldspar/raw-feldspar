@@ -24,28 +24,30 @@ source-repository head
 library
   exposed-modules:
     Data.Inhabited
-    Data.VirtualContainer
+    Data.TypedStruct
+    Feldspar.Primitive.Representation
+    Feldspar.Primitive.Backend.C
     Feldspar.Representation
-    Feldspar.Optimize
+    Feldspar.Sugar
     Feldspar.Frontend
+    Feldspar.Optimize
     Feldspar.Storable
     Feldspar
-    Feldspar.Run.Representation
-    Feldspar.Run.Frontend
-    Feldspar.Run.Concurrent
-    Feldspar.Run.Compile
-    Feldspar.Run
-    Feldspar.Hardware.Representation
-    Feldspar.Hardware.Frontend
-    Feldspar.Hardware.Compile
-    Feldspar.Hardware
-    Feldspar.Vector
-    Feldspar.Option
-    Feldspar.Validated
+--    Feldspar.Run.Representation
+--    Feldspar.Run.Frontend
+--    Feldspar.Run.Concurrent
+--    Feldspar.Run.Compile
+--    Feldspar.Run
+--    Feldspar.Hardware.Representation
+--    Feldspar.Hardware.Frontend
+--    Feldspar.Hardware.Compile
+--    Feldspar.Hardware
+--    Feldspar.Vector
+--    Feldspar.Option
+--    Feldspar.Validated
 
   other-modules:
     Data.Inhabited.TH
-    Data.VirtualContainer.TH
 
   default-language: Haskell2010
 
@@ -67,6 +69,7 @@ library
   build-depends:
     array,
     base < 5,
+    constraints,
     containers,
     imperative-edsl >= 0.5,
     -- hardware-edsl >= 0.1.0.2,
@@ -75,7 +78,7 @@ library
     open-typerep >= 0.5,
     operational-alacarte,
     prelude-edsl,
-    syntactic >= 3.5,
+    syntactic >= 3.6,
     template-haskell
 
   hs-source-dirs: src

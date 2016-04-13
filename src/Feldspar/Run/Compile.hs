@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Feldspar.Run.Compile where
 
@@ -9,12 +8,13 @@ import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Typeable (gcast)
+
+import Data.Constraint (Dict (..))
 
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
-
-import Data.TypeRep
 
 import qualified Control.Monad.Operational.Higher as Oper
 
@@ -22,11 +22,12 @@ import Language.Embedded.Expression
 import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
 import Language.Embedded.Concurrent
 import qualified Language.Embedded.Imperative as Imp
-import Language.Embedded.CExp
 import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 import qualified Language.Embedded.Backend.C as Imp
 
-import Data.VirtualContainer
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
+import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
 import Feldspar.Run.Representation
 import Feldspar.Optimize
@@ -34,36 +35,31 @@ import Feldspar.Optimize
 
 
 --------------------------------------------------------------------------------
--- * Virtual expressions and variables
+-- * Struct expressions and variables
 --------------------------------------------------------------------------------
 
--- | Virtual expression
-type VExp = Virtual SmallType CExp
+-- | Struct expression
+type VExp = Struct PrimType Prim
 
--- | Virtual expression with hidden result type
+-- | Struct expression with hidden result type
 data VExp'
   where
-    VExp' :: Type a => Virtual SmallType CExp a -> VExp'
+    VExp' :: Type a => Struct PrimType Prim a -> VExp'
 
-newRefV :: (VirtualType SmallType a, Monad m) =>
-    String -> TargetT m (Virtual SmallType Imp.Ref a)
-newRefV base = lift $ mapVirtualA (const (newNamedRef base)) virtRep
+newRefV :: (Type a, Monad m) => String -> TargetT m (Struct PrimType Imp.Ref a)
+newRefV base = error "TODO"  -- lift $ mapStructA (const (newNamedRef base)) typeRep
 
-initRefV :: (VirtualType SmallType a, Monad m) =>
-    String -> VExp a -> TargetT m (Virtual SmallType Imp.Ref a)
-initRefV base = lift . mapVirtualA (initNamedRef base)
+initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType Imp.Ref a)
+initRefV base = lift . mapStructA (initNamedRef base)
 
-getRefV :: (VirtualType SmallType a, Monad m) =>
-    Virtual SmallType Imp.Ref a -> TargetT m (VExp a)
-getRefV = lift . mapVirtualA getRef
+getRefV :: (Type a, Monad m) => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
+getRefV = lift . mapStructA getRef
 
-setRefV :: (VirtualType SmallType a, Monad m) =>
-    Virtual SmallType Imp.Ref a -> VExp a -> TargetT m ()
-setRefV r = lift . sequence_ . zipListVirtual setRef r
+setRefV :: Monad m => Struct PrimType Imp.Ref a -> VExp a -> TargetT m ()
+setRefV r = lift . sequence_ . zipListStruct setRef r
 
-unsafeFreezeRefV :: (VirtualType SmallType a, Monad m) =>
-    Virtual SmallType Imp.Ref a -> TargetT m (VExp a)
-unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
+unsafeFreezeRefV :: Monad m => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
+unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
 
 
 
@@ -88,9 +84,7 @@ lookAlias v = do
     env <- ask
     return $ case Map.lookup v env of
         Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
-        Just (VExp' e) -> case gcast pFeldTypes e of
-            Left msg -> error $ "lookAlias: " ++ msg
-            Right e' -> e'
+        Just (VExp' e) -> case gcast e of Just e' -> e'
 
 
 
@@ -109,93 +103,82 @@ type TargetCMD
     Imp.:+: C_CMD
 
 -- | Target monad during translation
-type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 CExp CType) m)
+type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 Prim PrimType') m)
 
 -- | Monad for translated program
-type ProgC = Program TargetCMD (Param2 CExp CType)
+type ProgC = Program TargetCMD (Param2 Prim PrimType')
 
 -- | Translate an expression
 translateExp :: forall m a . Monad m => Data a -> TargetT m (VExp a)
 translateExp = goAST . optimize . unData
   where
     goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
-    goAST = simpleMatch (\(s :&: t) -> go t s)
+    goAST = simpleMatch (\(s :&: ValT t) -> go t s)
+      -- TODO comment on the match
 
-    goSmallAST :: SmallType b => ASTF FeldDomain b -> TargetT m (CExp b)
-    goSmallAST = fmap viewActual . goAST
+    goSmallAST :: PrimType b => ASTF FeldDomain b -> TargetT m (Prim b)
+    goSmallAST = fmap extractSingle . goAST
 
-    go :: TypeRep FeldTypes (DenResult sig)
+    go :: TypeRep (DenResult sig)
        -> FeldConstructs sig
        -> Args (AST FeldDomain) sig
        -> TargetT m (VExp (DenResult sig))
     go t lit Nil
         | Just (Literal a) <- prj lit
-        , Right Dict <- pwit pType t
-        = return $ mapVirtual (value . runIdentity) $ toVirtual a
+        , Single _ <- t  -- TODO comment on the match
+        = return $ mapStruct (constExp . runIdentity) $ toStruct a
     go t var Nil
         | Just (VarT v) <- prj var
-        , Right Dict <- pwit pType t
+        , Single _ <- t  -- TODO comment on the match
         = lookAlias v
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let tag) <- prj lt
         , Just (LamT v)  <- prj lam
-        , Right Dict     <- pwit pType (getDecor a)
+        , Single _ <- t  -- TODO comment on the match
+        , Just Dict <- witTypeFun $ getDecor a  -- TODO comment on the match
         = do let base = if null tag then "let" else tag
              r  <- initRefV base =<< goAST a
              a' <- unsafeFreezeRefV r
              localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
-        | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
-    go t tup (a :* b :* c :* Nil)
-        | Just Tup3 <- prj tup = VTup3 <$> goAST a <*> goAST b <*> goAST c
-    go t tup (a :* b :* c :* d :* Nil)
-        | Just Tup4 <- prj tup = VTup4 <$> goAST a <*> goAST b <*> goAST c <*> goAST d
-    go t sel (a :* Nil)
-        | Just Sel1  <- prj sel = fmap vsel1  $ goAST a
-        | Just Sel2  <- prj sel = fmap vsel2  $ goAST a
-        | Just Sel3  <- prj sel = fmap vsel3  $ goAST a
-        | Just Sel4  <- prj sel = fmap vsel4  $ goAST a
-        | Just Sel5  <- prj sel = fmap vsel5  $ goAST a
-        | Just Sel6  <- prj sel = fmap vsel6  $ goAST a
-        | Just Sel7  <- prj sel = fmap vsel7  $ goAST a
-        | Just Sel8  <- prj sel = fmap vsel8  $ goAST a
-        | Just Sel9  <- prj sel = fmap vsel9  $ goAST a
-        | Just Sel10 <- prj sel = fmap vsel10 $ goAST a
-        | Just Sel11 <- prj sel = fmap vsel11 $ goAST a
-        | Just Sel12 <- prj sel = fmap vsel12 $ goAST a
-        | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
-        | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
-        | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
-    go t c Nil
-        | Just Pi <- prj c = return $ Actual pi
-    go t op (a :* Nil)
-        | Just Neg   <- prj op = liftVirt negate <$> goAST a
-        | Just Sin   <- prj op = liftVirt sin    <$> goAST a
-        | Just Cos   <- prj op = liftVirt cos    <$> goAST a
-        | Just I2N   <- prj op = liftVirt i2n    <$> goAST a
-        | Just I2B   <- prj op = liftVirt i2b    <$> goAST a
-        | Just B2I   <- prj op = liftVirt b2i    <$> goAST a
-        | Just Round <- prj op = liftVirt round_ <$> goAST a
-        | Just Not   <- prj op = liftVirt not_   <$> goAST a
-    go t op (a :* b :* Nil)
-        | Just Add  <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
-        | Just Sub  <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
-        | Just Mul  <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
-        | Just FDiv <- prj op = liftVirt2 (/)   <$> goAST a <*> goAST b
-        | Just Quot <- prj op = liftVirt2 quot_ <$> goAST a <*> goAST b
-        | Just Rem  <- prj op = liftVirt2 (#%)  <$> goAST a <*> goAST b
-        | Just Pow  <- prj op = liftVirt2 (**)  <$> goAST a <*> goAST b
-        | Just Eq   <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
-        | Just And  <- prj op = liftVirt2 (#&&) <$> goAST a <*> goAST b
-        | Just Or   <- prj op = liftVirt2 (#||) <$> goAST a <*> goAST b
-        | Just Lt   <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
-        | Just Gt   <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
-        | Just Le   <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
-        | Just Ge   <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
-    go t arrIx (i :* Nil)
-        | Just (Feldspar.Representation.ArrIx arr) <- prj arrIx = do
+        | Just Pair <- prj tup = Two <$> goAST a <*> goAST b
+    go t sel (ab :* Nil)
+        | Just Fst <- prj sel = do
+            Two a _ <- goAST ab
+            return a
+        | Just Snd <- prj sel = do
+            Two _ b <- goAST ab
+            return b
+    go (Single _) c Nil  -- TODO comment on the match
+        | Just Pi <- prj c = return $ Single $ Prim $ Sym (Pi :&: primTypeRep)
+    go (Single _) op (a :* Nil)  -- TODO comment on the match
+        | Just Neg   <- prj op = liftStruct negate <$> goAST a
+--         | Just Sin   <- prj op = liftStruct sin    <$> goAST a
+--         | Just Cos   <- prj op = liftStruct cos    <$> goAST a
+--         | Just I2N   <- prj op = liftStruct iii    <$> goAST a
+--         | Just I2B   <- prj op = liftStruct i2b    <$> goAST a
+--         | Just B2I   <- prj op = liftStruct b2i    <$> goAST a
+--         | Just Round <- prj op = liftStruct round_ <$> goAST a
+--         | Just Not   <- prj op = liftStruct not_   <$> goAST a
+    go (Single _) op (a :* b :* Nil)  -- TODO comment on the match
+        | Just Add  <- prj op = liftStruct2 (+)   <$> goAST a <*> goAST b
+        | Just Sub  <- prj op = liftStruct2 (-)   <$> goAST a <*> goAST b
+        | Just Mul  <- prj op = liftStruct2 (*)   <$> goAST a <*> goAST b
+--         | Just FDiv <- prj op = liftStruct2 (/)   <$> goAST a <*> goAST b
+--         | Just Quot <- prj op = liftStruct2 quot_ <$> goAST a <*> goAST b
+--         | Just Rem  <- prj op = liftStruct2 (#%)  <$> goAST a <*> goAST b
+--         | Just Pow  <- prj op = liftStruct2 (**)  <$> goAST a <*> goAST b
+--         | Just Eq   <- prj op = liftStruct2 (#==) <$> goAST a <*> goAST b
+--         | Just And  <- prj op = liftStruct2 (#&&) <$> goAST a <*> goAST b
+--         | Just Or   <- prj op = liftStruct2 (#||) <$> goAST a <*> goAST b
+--         | Just Lt   <- prj op = liftStruct2 (#<)  <$> goAST a <*> goAST b
+--         | Just Gt   <- prj op = liftStruct2 (#>)  <$> goAST a <*> goAST b
+--         | Just Le   <- prj op = liftStruct2 (#<=) <$> goAST a <*> goAST b
+--         | Just Ge   <- prj op = liftStruct2 (#>=) <$> goAST a <*> goAST b
+    go (Single _) arrIx (i :* Nil)
+        | Just (ArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
-            return $ Actual (arr #! i')
+            return $ Single $ sugarSymPrim (ArrIx arr) i'
     go ty cond (c :* t :* f :* Nil)
         | Just Condition <- prj cond = do
             env <- ask
@@ -204,9 +187,9 @@ translateExp = goAST . optimize . unData
                   tView <- lift $ lift $ Oper.viewT t'
                   fView <- lift $ lift $ Oper.viewT f'
                   case (tView,fView) of
-                      (Oper.Return (Actual tExp), Oper.Return (Actual fExp)) -> do
+                      (Oper.Return (Single tExp), Oper.Return (Single fExp)) -> do
                           c' <- goSmallAST c
-                          return $ Actual (c' ? tExp $ fExp)
+                          return $ Single $ sugarSymPrim PrimCond c' tExp fExp
                       _ -> do
                           c'  <- goSmallAST c
                           res <- newRefV "v"
@@ -221,16 +204,16 @@ translateExp = goAST . optimize . unData
         = do len'  <- goSmallAST len
              state <- initRefV "state" =<< goAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
-                s <- case pwit pSmallType t of
-                    Right Dict -> unsafeFreezeRefV state  -- For non-compound states
-                    _          -> getRefV state
-                s' <- localAlias iv (Actual i) $
+                s <- case t of
+                    Single _ -> unsafeFreezeRefV state  -- For non-compound states
+                    _        -> getRefV state
+                s' <- localAlias iv (Single i) $
                         localAlias sv s $
                           goAST body
                 setRefV state s'
              unsafeFreezeRefV state
-    go t free Nil
-        | Just (FreeVar v) <- prj free = return $ Actual $ variable v
+    go (Single _) free Nil  -- TODO match
+        | Just (FreeVar v) <- prj free = return $ Single $ sugarSymPrim $ FreeVar v
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<< Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
@@ -240,14 +223,14 @@ translateExp = goAST . optimize . unData
             Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
             return a'
 
--- | Translate an expression that is assumed to fulfill @`SmallType` a@
-unsafeTransSmallExp :: Monad m => Data a -> TargetT m (CExp a)
+-- | Translate an expression that is assumed to fulfill @`NoPair` a@
+unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
 unsafeTransSmallExp a = do
-    Actual b <- translateExp a
+    Single b <- translateExp a
     return b
-  -- This function should ideally have a `SmallType a` constraint, but that
-  -- is not allowed when passing it to `reexpressEnv`. It should be possible
-  -- to make it work by changing the interface to `reexpressEnv`.
+  -- This function should ideally have a `NoPair a` constraint, but that is not
+  -- allowed when passing it to `reexpressEnv`. It should be possible to make it
+  -- work by changing the interface to `reexpressEnv`.
 
 translate :: Run a -> ProgC a
 translate

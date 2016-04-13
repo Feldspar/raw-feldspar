@@ -9,6 +9,7 @@ import Control.Monad.Trans
 import Language.Embedded.Imperative as Imp
 import Language.Embedded.Concurrent
 
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 
@@ -27,8 +28,8 @@ newtype Run a = Run
     { unRun ::
         ProgramT
           RunCMD
-          (Param2 Data CType)
-          (Program CompCMD (Param2 Data CType))
+          (Param2 Data PrimType')
+          (Program CompCMD (Param2 Data PrimType'))
           a
     }
   deriving (Functor, Applicative, Monad)

@@ -6,27 +6,27 @@ module Feldspar.Optimize where
 
 import Control.Monad.Writer hiding (Any (..))
 import qualified Data.Monoid as Monoid
-import qualified Data.Typeable as Typeable
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+import Data.Constraint (Dict (..))
 
 import Language.Syntactic
 import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.Functional.Sharing
 
-import Data.TypeRep
-import Data.TypeRep.Types.Basic
-
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 
 
 
 isExact :: ASTF FeldDomain a -> Bool
 isExact a = simpleMatch
-    ( \(_ :&: t) _ -> case () of
-          _ | Just _ <- typeEq t floatType  -> False
-          _ | Just _ <- typeEq t doubleType -> False
+    ( \(_ :&: t) _ -> case t of
+          ValT (Single FloatT)  -> False
+          ValT (Single DoubleT) -> False
           _ -> True
     )
     a
@@ -41,18 +41,19 @@ prj' = prj
 
 viewLit :: ASTF FeldDomain a -> Maybe a
 viewLit lit
-    | Just (Literal a) <- prj lit = Just a
+    | Just (Lit a) <- prj lit = Just a
 viewLit _ = Nothing
 
-pattern LitP t a <- Sym ((prj' -> Just (Literal a)) :&: t)
+pattern LitP :: PrimType' a => TypeRep a -> a -> ASTF FeldDomain a
+pattern LitP t a <- Sym ((prj' -> Just (Lit a)) :&: ValT t)
   where
-    LitP t a = Sym (inj (Literal a) :&: t)
+    LitP t a = Sym (inj (Lit a) :&: ValT t)
 
 pattern NonLitP <- (viewLit -> Nothing)
 
-pattern SymP t s <- Sym ((prj' -> Just s) :&: t)
+pattern SymP t s <- Sym ((prj' -> Just s) :&: ValT t)
   where
-    SymP t s = Sym ((inj s) :&: t)
+    SymP t s = Sym ((inj s) :&: ValT t)
 
 pattern VarP t v <- Sym ((prj' -> Just (VarT v)) :&: t)
   where
@@ -64,13 +65,13 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
 
 -- There type signatures are needed in order to use `simplifyUp` in the
 -- constructor
-pattern AddP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP :: (Num a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern AddP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
-pattern QuotP :: (Integral a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern RemP  :: (Integral a, SmallType a) => TypeRep FeldTypes a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
 pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
 pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b
@@ -85,7 +86,6 @@ pattern RemP t a b  <- SymP t Rem  :$ a :$ b where RemP t a b  = simplifyUp $ Sy
 simplifyUp
     :: ASTF FeldDomain a
     -> ASTF FeldDomain a
-
 simplifyUp (AddP t (LitP _ 0) b) | isExact b = b
 simplifyUp (AddP t a (LitP _ 0)) | isExact a = a
 simplifyUp (AddP t a@(LitP _ _) b@NonLitP) | isExact a = AddP t b a
@@ -119,11 +119,11 @@ simplifyUp (NegP t (MulP _ a b)) | isExact a = MulP t a (NegP t b)
 
 simplifyUp (QuotP t (LitP _ 0) b) = LitP t 0
 simplifyUp (QuotP _ a (LitP _ 1)) = a
-simplifyUp (QuotP t a b) | alphaEq a b = LitP t 1
+simplifyUp (QuotP t@(Single _) a b) | alphaEq a b = LitP t 1
 
 simplifyUp (RemP t (LitP _ 0) b) = LitP t 0
 simplifyUp (RemP t a (LitP _ 1)) = LitP t 0
-simplifyUp (RemP t a b) | alphaEq a b = LitP t 0
+simplifyUp (RemP t@(Single _) a b) | alphaEq a b = LitP t 0
 
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
 simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = simplifyUp $ SymP t Ge :$ a :$ b
@@ -194,17 +194,18 @@ constFold :: ASTF FeldDomain a -> ASTF FeldDomain a
 constFold e
     | constArgs e
     , canFold e
-    , Right Dict <- pwit pShow $ getDecor e
-    = LitP (getDecor e) $ evalClosed e
+    , ValT t@(Single _) <- getDecor e
+    = LitP t $ evalClosed e
   where
     canFold :: ASTF FeldDomain a -> Bool
     canFold e = simpleMatch
       (\s _ -> case () of
+          _ | SymP _ (ArrIx _) :$ _ <- e -> False
+                -- Don't fold array indexing
           _ | SymP _ Pi            <- e -> False
           _ | MulP _ _ (SymP _ Pi) <- e -> False
                 -- Don't fold expressions like `2*pi`
           _ | Just (_ :: BindingT sig) <- prj s -> False
-          _ | Just (_ :: Array sig)    <- prj s -> False
           _ | Just (_ :: IOSym sig)    <- prj s -> False
           _ -> True
       )
@@ -249,18 +250,19 @@ simplifyM a = simpleMatch
     ( \s@(_ :&: t) as -> do
         (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
         case () of
+            _ | SymP _ (ArrIx _) :$ _ <- a' -> tellUnsafe >> return a'
+                  -- Array indexing is actually not unsafe. It's more like an
+                  -- expression with a free variable. But setting the unsafe
+                  -- flag does the trick.
+
             _ | SymP _ Pi <- a' -> return a'
             _ | MulP _ _ (SymP _ Pi) <- a' -> return a'
                   -- Don't fold expressions like `2*pi`
 
-            _ | Just (_ :: Array sig) <- prj s -> tellUnsafe >> return a'
-                  -- Array indexing is actually not unsafe. It's more like an
-                  -- expression with a free variable. But setting the unsafe
-                  -- flag does the trick.
             _ | Just (_ :: IOSym sig) <- prj s -> tellUnsafe >> return a'
             _ | null vs && not unsafe
-              , Right Dict <- pwit pShow t
-                -> return $ LitP t $ evalClosed a'
+              , ValT t'@(Single _) <- t
+                -> return $ LitP t' $ evalClosed a'
                   -- Constant fold if expression is closed and does not
                   -- contain unsafe operations.
             _ -> return a'
@@ -273,16 +275,13 @@ simplify = fst . runWriter . simplifyM
 -- | Interface for controlling code motion
 cmInterface :: CodeMotionInterface FeldDomain
 cmInterface = defaultInterfaceDecor
-    typeEq
-    funType
-    (\t   -> case wit pTypeable t of Dict -> VarT)
-    (\t _ -> case wit pTypeable t of Dict -> LamT)
+    typeEqFun
+    (\(ValT t)   -> FunT t)
+    (\(ValT t)   -> case witType t of Dict -> VarT)
+    (\(ValT t) _ -> case witType t of Dict -> LamT)
     sharable
     (const True)
   where
-    pTypeable :: Proxy Typeable.Typeable
-    pTypeable = Proxy
-
     sharable :: ASTF FeldDomain a -> ASTF FeldDomain b -> Bool
     sharable (Sym _) _      = False  -- Simple expressions not shared
     sharable (LamP _ _ _) _ = False
@@ -299,5 +298,5 @@ cmInterface = defaultInterfaceDecor
 
 -- | Optimize a Feldspar expression
 optimize :: ASTF FeldDomain a -> ASTF FeldDomain a
-optimize = codeMotion cmInterface . simplify
+optimize = id -- codeMotion cmInterface -- TODO . simplify
 
