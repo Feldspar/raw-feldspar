@@ -66,6 +66,10 @@ instance (PrimType' a, Type a) => PrimType a
 typeOf :: Type a => a -> TypeRep a
 typeOf _ = typeRep
 
+-- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
+toTypeRep :: Struct PrimType c a -> TypeRep a
+toTypeRep = mapStruct (const primTypeRep)
+
 -- | Check whether two type representations are equal
 typeEq :: TypeRep a -> TypeRep b -> Maybe (Dict (a ~ b))
 typeEq (Single t) (Single u) = primTypeEq t u

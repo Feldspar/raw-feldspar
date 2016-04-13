@@ -8,7 +8,6 @@ import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Typeable (gcast)
 
 import Data.Constraint (Dict (..))
 
@@ -44,7 +43,7 @@ type VExp = Struct PrimType Prim
 -- | Struct expression with hidden result type
 data VExp'
   where
-    VExp' :: Type a => Struct PrimType Prim a -> VExp'
+    VExp' :: Struct PrimType Prim a -> VExp'
 
 newRefV :: (Type a, Monad m) => String -> TargetT m (Struct PrimType Imp.Ref a)
 newRefV base = error "TODO"  -- lift $ mapStructA (const (newNamedRef base)) typeRep
@@ -79,12 +78,12 @@ localAlias :: (Type a, MonadReader Env m)
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment
-lookAlias :: (Type a, MonadReader Env m) => Name -> m (VExp a)
-lookAlias v = do
+lookAlias :: MonadReader Env m => TypeRep a -> Name -> m (VExp a)
+lookAlias t v = do
     env <- ask
     return $ case Map.lookup v env of
         Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
-        Just (VExp' e) -> case gcast e of Just e' -> e'
+        Just (VExp' e) -> case typeEq t (toTypeRep e) of Just Dict -> e
 
 
 
@@ -129,8 +128,7 @@ translateExp = goAST . optimize . unData
         = return $ mapStruct (constExp . runIdentity) $ toStruct a
     go t var Nil
         | Just (VarT v) <- prj var
-        , Single _ <- t  -- TODO comment on the match
-        = lookAlias v
+        = lookAlias t v
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let tag) <- prj lt
         , Just (LamT v)  <- prj lam
