@@ -2,10 +2,11 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, Floating (..), RealFrac, error, (=<<), sequence_)
+import Prelude (Integral, Floating (..), RealFrac, error)
 import qualified Prelude
 import Prelude.EDSL
 
+import Control.Monad.Identity
 import Data.Int
 
 import Language.Syntactic (Internal)
@@ -40,8 +41,8 @@ share = shareTag ""
 
 -- | Explicit tagged sharing
 shareTag :: (Syntax a, Syntax b)
-    => String
-         -- ^ A tag (that may be empty). May be used by a back end to generate a sensible variable name.
+    => String    -- ^ A tag (that may be empty). May be used by a back end to
+                 --   generate a sensible variable name.
     -> a         -- ^ Value to share
     -> (a -> b)  -- ^ Body in which to share the value
     -> b
@@ -57,7 +58,7 @@ cond :: Syntax a
     -> a          -- ^ True branch
     -> a          -- ^ False branch
     -> a
-cond = sugarSymFeld Condition
+cond = sugarSymFeld Cond
 
 -- | Condition operator; use as follows:
 --
@@ -90,7 +91,7 @@ switch def cs s = Prelude.foldr
 
 -- | Literal
 value :: Syntax a => Internal a -> a
-value = sugarSymFeld . Literal
+value = sugarSymFeld . Lit
 
 false :: Data Bool
 false = value False
@@ -144,9 +145,13 @@ instance (Floating a, PrimType a) => Floating (Data a)
     sin  = sugarSymFeld Sin
     cos  = sugarSymFeld Cos
 
+-- | Integer division truncated toward zero
 quot :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 quot = sugarSymFeld Quot
 
+-- | Integer remainder satisfying
+--
+-- > (x `quot` y)*y + (x `rem` y) == x
 rem :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 rem = sugarSymFeld Rem
 
@@ -238,7 +243,7 @@ max a b = a>=b ? a $ b
 ----------------------------------------
 
 -- | Index into an array
-arrIx :: forall a . Syntax a => IArr (Internal a) -> Data Index -> a
+arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
     ix :: PrimType b => Imp.IArr Index b -> Data b
@@ -256,6 +261,7 @@ desugar = Data . Syntactic.desugar
 sugar :: Syntax a => Data (Internal a) -> a
 sugar = Syntactic.sugar . unData
 
+-- | Cast between two values that have the same syntactic representation
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
 
@@ -274,7 +280,8 @@ class Monad m => MonadComp m
     -- | Conditional statement
     iff :: Data Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: (Integral n, PrimType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
+    for :: (Integral n, PrimType n) =>
+        IxRange (Data n) -> (Data n -> m ()) -> m ()
     -- | While loop
     while :: m (Data Bool) -> m () -> m ()
 
@@ -363,7 +370,7 @@ newArr = newNamedArr "a"
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedArr :: forall m a . (Type a, MonadComp m)
+newNamedArr :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)

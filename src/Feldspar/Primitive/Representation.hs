@@ -83,7 +83,7 @@ primTypeEq FloatT  FloatT  = Just Dict
 primTypeEq DoubleT DoubleT = Just Dict
 primTypeEq _ _ = Nothing
 
--- | Reflect a 'PrimTypeRep' to a 'PrimType' constraint
+-- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint
 witPrimType :: PrimTypeRep a -> Dict (PrimType' a)
 witPrimType BoolT   = Dict
 witPrimType Int8T   = Dict
@@ -106,43 +106,41 @@ witPrimType DoubleT = Dict
 -- | Primitive operations
 data Primitive sig
   where
-    FreeVar :: -- TODO PrimType' a =>
-               String -> Primitive (Full a)
+    FreeVar :: String -> Primitive (Full a)
+    Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
+    Pi      :: Floating a => Primitive (Full a)
 
-    Lit :: PrimType' a => a -> Primitive (Full a)
-    Pi  :: (Floating a, PrimType' a) => Primitive (Full a)
+    Add :: Num a => Primitive (a :-> a :-> Full a)
+    Sub :: Num a => Primitive (a :-> a :-> Full a)
+    Mul :: Num a => Primitive (a :-> a :-> Full a)
+    Neg :: Num a => Primitive (a :-> Full a)
 
-    Add :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Sub :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Mul :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Neg :: (Num a, PrimType' a) => Primitive (a :-> Full a)
+    Quot :: Integral a   => Primitive (a :-> a :-> Full a)
+    Rem  :: Integral a   => Primitive (a :-> a :-> Full a)
+    FDiv :: Fractional a => Primitive (a :-> a :-> Full a)
 
-    Quot :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
-    Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
-    FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Sin :: Floating a => Primitive (a :-> Full a)
+    Cos :: Floating a => Primitive (a :-> Full a)
+    Pow :: Floating a => Primitive (a :-> a :-> Full a)
 
-    Sin :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Cos :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Pow :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
-
-    I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
-    I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
-    B2I   :: (Integral a, PrimType' a)                          => Primitive (Bool :-> Full a)
-    Round :: (RealFrac a, Integral b, PrimType' a, PrimType' b) => Primitive (a :-> Full b)
+    I2N   :: (Integral a, Num b)      => Primitive (a :-> Full b)
+    I2B   :: Integral a               => Primitive (a :-> Full Bool)
+    B2I   :: Integral a               => Primitive (Bool :-> Full a)
+    Round :: (RealFrac a, Integral b) => Primitive (a :-> Full b)
 
     Not :: Primitive (Bool :-> Full Bool)
     And :: Primitive (Bool :-> Bool :-> Full Bool)
     Or  :: Primitive (Bool :-> Bool :-> Full Bool)
-    Eq  :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
-    NEq :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
-    Lt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Gt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
+    Eq  :: Eq a  => Primitive (a :-> a :-> Full Bool)
+    NEq :: Eq a  => Primitive (a :-> a :-> Full Bool)
+    Lt  :: Ord a => Primitive (a :-> a :-> Full Bool)
+    Gt  :: Ord a => Primitive (a :-> a :-> Full Bool)
+    Le  :: Ord a => Primitive (a :-> a :-> Full Bool)
+    Ge  :: Ord a => Primitive (a :-> a :-> Full Bool)
 
     ArrIx :: IArr Index a -> Primitive (Index :-> Full a)
 
-    PrimCond :: Primitive (Bool :-> a :-> a :-> Full a)
+    Cond :: Primitive (Bool :-> a :-> a :-> Full a)
 
 deriveSymbol ''Primitive
 
@@ -174,7 +172,7 @@ instance Render Primitive
     renderSym Gt          = "(>)"
     renderSym Le          = "(<=)"
     renderSym Ge          = "(>=)"
-    renderSym PrimCond    = "PrimCond"
+    renderSym Cond        = "Cond"
     renderSym (ArrIx (IArrComp arr)) = "ArrIx " ++ arr
     renderSym (ArrIx _)              = "ArrIx ..."
 
@@ -184,32 +182,33 @@ instance StringTree Primitive
 
 instance Eval Primitive
   where
-    evalSym (Lit a)  = a
-    evalSym Pi       = pi
-    evalSym Add      = (+)
-    evalSym Sub      = (-)
-    evalSym Mul      = (*)
-    evalSym Neg      = negate
-    evalSym Quot     = quot
-    evalSym Rem      = rem
-    evalSym FDiv     = (/)
-    evalSym Sin      = sin
-    evalSym Cos      = cos
-    evalSym Pow      = (**)
-    evalSym I2N      = fromInteger . toInteger
-    evalSym I2B      = (/=0)
-    evalSym B2I      = \a -> if a then 1 else 0
-    evalSym Round    = round
-    evalSym Not      = not
-    evalSym And      = (&&)
-    evalSym Or       = (||)
-    evalSym Eq       = (==)
-    evalSym NEq      = (/=)
-    evalSym Lt       = (<)
-    evalSym Gt       = (>)
-    evalSym Le       = (<=)
-    evalSym Ge       = (>=)
-    evalSym PrimCond = \c t f -> if c then t else f
+    evalSym (FreeVar v) = error $ "evaluating free variable " ++ show v
+    evalSym (Lit a)     = a
+    evalSym Pi          = pi
+    evalSym Add         = (+)
+    evalSym Sub         = (-)
+    evalSym Mul         = (*)
+    evalSym Neg         = negate
+    evalSym Quot        = quot
+    evalSym Rem         = rem
+    evalSym FDiv        = (/)
+    evalSym Sin         = sin
+    evalSym Cos         = cos
+    evalSym Pow         = (**)
+    evalSym I2N         = fromInteger . toInteger
+    evalSym I2B         = (/=0)
+    evalSym B2I         = \a -> if a then 1 else 0
+    evalSym Round       = round
+    evalSym Not         = not
+    evalSym And         = (&&)
+    evalSym Or          = (||)
+    evalSym Eq          = (==)
+    evalSym NEq         = (/=)
+    evalSym Lt          = (<)
+    evalSym Gt          = (>)
+    evalSym Le          = (<=)
+    evalSym Ge          = (>=)
+    evalSym Cond        = \c t f -> if c then t else f
     evalSym (ArrIx (IArrRun arr)) = \i ->
         if i<l || i>h
           then error $ "ArrIx: index "
@@ -219,6 +218,7 @@ instance Eval Primitive
           else arr!i
       where
         (l,h) = bounds arr
+    evalSym (ArrIx (IArrComp arr)) = error $ "evaluating symbolic array " ++ arr
 
 -- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
 instance EvalEnv Primitive env
@@ -227,43 +227,45 @@ instance EvalEnv Primitive env
 instance Equality Primitive
   where
     equal (FreeVar v) (FreeVar w) = v==w
-    equal (Lit a)  (Lit b)  = show a == show b
-    equal Pi       Pi       = True
-    equal Add      Add      = True
-    equal Sub      Sub      = True
-    equal Mul      Mul      = True
-    equal Neg      Neg      = True
-    equal Quot     Quot     = True
-    equal Rem      Rem      = True
-    equal FDiv     FDiv     = True
-    equal Sin      Sin      = True
-    equal Cos      Cos      = True
-    equal Pow      Pow      = True
-    equal I2N      I2N      = True
-    equal I2B      I2B      = True
-    equal B2I      B2I      = True
-    equal Round    Round    = True
-    equal Not      Not      = True
-    equal And      And      = True
-    equal Or       Or       = True
-    equal Eq       Eq       = True
-    equal NEq      NEq      = True
-    equal Lt       Lt       = True
-    equal Gt       Gt       = True
-    equal Le       Le       = True
-    equal Ge       Ge       = True
-    equal PrimCond PrimCond = True
+    equal (Lit a)     (Lit b)     = show a == show b
+    equal Pi          Pi          = True
+    equal Add         Add         = True
+    equal Sub         Sub         = True
+    equal Mul         Mul         = True
+    equal Neg         Neg         = True
+    equal Quot        Quot        = True
+    equal Rem         Rem         = True
+    equal FDiv        FDiv        = True
+    equal Sin         Sin         = True
+    equal Cos         Cos         = True
+    equal Pow         Pow         = True
+    equal I2N         I2N         = True
+    equal I2B         I2B         = True
+    equal B2I         B2I         = True
+    equal Round       Round       = True
+    equal Not         Not         = True
+    equal And         And         = True
+    equal Or          Or          = True
+    equal Eq          Eq          = True
+    equal NEq         NEq         = True
+    equal Lt          Lt          = True
+    equal Gt          Gt          = True
+    equal Le          Le          = True
+    equal Ge          Ge          = True
+    equal Cond        Cond        = True
     equal (ArrIx (IArrComp arr1)) (ArrIx (IArrComp arr2)) = arr1==arr2
     equal (ArrIx _) (ArrIx _) =
         error "equal: can only handle symbolic array representations"
     equal _ _ = False
 
+type PrimDomain = Primitive :&: PrimTypeRep
+
 -- | Primitive expressions
-newtype Prim a = Prim { unPrim :: ASTF (Primitive :&: PrimTypeRep) a }
+newtype Prim a = Prim { unPrim :: ASTF PrimDomain a }
 
 instance Syntactic (Prim a)
   where
-    type Domain (Prim a)   = Primitive :&: PrimTypeRep
+    type Domain (Prim a)   = PrimDomain
     type Internal (Prim a) = a
     desugar = unPrim
     sugar   = Prim
@@ -272,16 +274,16 @@ instance Syntactic (Prim a)
 evalPrim :: Prim a -> a
 evalPrim = go . unPrim
   where
-    go :: AST (Primitive :&: PrimTypeRep) sig -> Denotation sig
+    go :: AST PrimDomain sig -> Denotation sig
     go (Sym (s :&: _)) = evalSym s
-    go (f :$ a)        = go f $ go a
+    go (f :$ a) = go f $ go a
 
 sugarSymPrim
     :: ( Signature sig
        , fi  ~ SmartFun dom sig
        , sig ~ SmartSig fi
        , dom ~ SmartSym fi
-       , dom ~ (Primitive :&: PrimTypeRep)
+       , dom ~ PrimDomain
        , SyntacticN f fi
        , sub :<: Primitive
        , PrimType' (DenResult sig)

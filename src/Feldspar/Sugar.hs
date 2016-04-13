@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | 'Syntactic' instances for functions and tuples
+
 module Feldspar.Sugar where
 
 
@@ -37,6 +39,8 @@ instance (Syntax a, Syntax b) => Syntactic (a,b)
 deriveSyntacticForTuples
     (return . classPred ''Type TH.ConT . return)
     (\sym -> foldl TH.AppT (TH.ConT ''(:&:)) [sym, TH.ConT ''TypeRepFun])
-    [foldl TH.AppT TH.EqualityT [TH.VarT (TH.mkName "sym"), TH.ConT ''FeldConstructs]]
+    [foldl TH.AppT TH.EqualityT
+        [TH.VarT (TH.mkName "sym"), TH.ConT ''FeldConstructs]
+    ]
     15
 

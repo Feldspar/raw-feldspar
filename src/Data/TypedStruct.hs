@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Typed binary tree structures
@@ -8,7 +7,6 @@ module Data.TypedStruct where
 
 
 import Control.Monad.Identity
-import Data.Proxy
 
 
 
@@ -17,52 +15,41 @@ import Data.Proxy
 --------------------------------------------------------------------------------
 
 -- | Typed binary tree structure
+--
+-- The predicate @pred@ is assumed to rule out pairs. Functions like
+-- 'extractSingle' and 'zipStruct' rely on this assumption.
 data Struct pred con a
   where
     Single :: pred a => con a -> Struct pred con a
     Two    :: Struct pred con a -> Struct pred con b -> Struct pred con (a,b)
-  -- The constraint `NoPair a` is required to make functions like
-  -- `extractSingle` and `zipStruct` total. Unfortunately, the completeness
-  -- checker (-fwarn-incomplete-patterns) is unable to verify that these
-  -- functions are total, but it can be verified by trying to add another
-  -- non-overlapping pattern. This leads to a type error.
-  --
-  -- `extractSingle` uses a trick that indeed makes the completeness checker
-  -- happy. The idea is to call `impossible` for the constructor that ought not
-  -- to appear. We can convince ourselves once and for all that `impossible` is
-  -- always safe to insert, because its type prevents it from ever being used.
-  -- Unfortunately, "the trick" doesn't scale very well. We would need to
-  -- introduce more helper types and impossible functions to cover the other
-  -- cases in this module.
 
--- | Representation of the structure of a 'Struct'
-type StructRep pred = Struct pred Proxy
+-- It would have been nice to add a constraint `IsPair a ~ False` to `Single`,
+-- so that one wouldn't have to rely on @pred@ to rule out pairs. However,
+-- attempting to do so lead to very strange problems in the rest of the Feldspar
+-- implementation, so in the end I abandoned this extra safety.
+--
+-- The problems were strange enough that it seems likely they may be due to a
+-- bug in GHC (7.10.2). So it might be worthwhile to try this again in a later
+-- version.
+--
+-- Note however, that `IsPair a ~ False` on `Single` is not enough to please the
+-- completeness checker for functions like `extractSingle` in GHC 7.10. Maybe
+-- the new completeness checker in GHC 8 will be satisfied?
 
--- | Structured types
-class StructType_ pred a
+-- | Create a 'Struct' from a 'Struct' of any container @c@ and a structured
+-- value @a@
+--
+-- For example:
+--
+-- @
+-- `toStruct` (`Two` (`Single` `Proxy`) (`Single` `Proxy`)) (False,'a')
+--   ==
+-- Two (Single (Identity False)) (Single (Identity 'a'))
+-- @
+toStruct :: Struct p c a -> a -> Struct p Identity a
+toStruct rep = go rep . Identity
   where
-    structRep :: StructRep pred a
-  -- Not exported since we want a closed class
-
-instance pred a => StructType_ pred a
-  where
-    structRep = Single Proxy
-
-instance {-# OVERLAPS #-} (StructType_ p a, StructType_ p b) =>
-    StructType_ p (a,b)
-  where
-    structRep = Two structRep structRep
-
--- | Structured types
-class    StructType_ pred a => StructType pred a
-instance StructType_ pred a => StructType pred a
-  -- TODO Needed?
-
--- | Create a 'Struct' from a structured value
-toStruct :: forall p a . StructType p a => a -> Struct p Identity a
-toStruct = go (structRep :: StructRep p a) . Identity
-  where
-    go :: StructRep p b -> Identity b -> Struct p Identity b
+    go :: Struct p c a -> Identity a -> Struct p Identity a
     go (Single _) i = Single i
     go (Two ra rb) (Identity (a,b)) =
         Two (go ra (Identity a)) (go rb (Identity b))

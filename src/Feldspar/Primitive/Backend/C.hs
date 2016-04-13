@@ -1,11 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 -- | C code generation of primitive Feldspar expressions
 
 module Feldspar.Primitive.Backend.C where
 
 
 
+import Data.Constraint (Dict (..))
 import Data.Proxy
 
 import Language.C.Quote.C
@@ -23,67 +26,74 @@ import Feldspar.Primitive.Representation
 instance CompTypeClass PrimType'
   where
     compType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
-      BoolT   -> addSystemInclude "stdbool.h" >> return [cty| typename bool |]
+      BoolT   -> addSystemInclude "stdbool.h" >> return [cty| typename bool     |]
+      Int8T   -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
+      Int16T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
       Int32T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
+      Int64T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
+      Word8T  -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
+      Word16T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
       Word32T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
+      Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
+      FloatT  -> addSystemInclude "stdint.h"  >> return [cty| float |]
+      DoubleT -> addSystemInclude "stdint.h"  >> return [cty| double |]
 
     compLit _ a = case primTypeOf a of
       BoolT   -> do addSystemInclude "stdbool.h"
                     return $ if a then [cexp| true |] else [cexp| false |]
+      Int8T   -> return [cexp| $a |]
+      Int16T  -> return [cexp| $a |]
       Int32T  -> return [cexp| $a |]
+      Int64T  -> return [cexp| $a |]
+      Word8T  -> return [cexp| $a |]
+      Word16T -> return [cexp| $a |]
       Word32T -> return [cexp| $a |]
+      Word64T -> return [cexp| $a |]
+      FloatT  -> return [cexp| $a |]
+      DoubleT -> return [cexp| $a |]
 
 -- | Compile a unary operator
-compUnOp :: MonadC m
-    => C.UnOp
-    -> ASTF (Primitive :&: PrimTypeRep) a
-    -> m C.Exp
+compUnOp :: MonadC m => C.UnOp -> ASTF PrimDomain a -> m C.Exp
 compUnOp op a = do
     a' <- compPrim $ Prim a
     return $ C.UnOp op a' mempty
 
 -- | Compile a binary operator
-compBinOp :: MonadC m
-    => C.BinOp
-    -> ASTF (Primitive :&: PrimTypeRep) a
-    -> ASTF (Primitive :&: PrimTypeRep) b
-    -> m C.Exp
+compBinOp :: MonadC m =>
+    C.BinOp -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
 compBinOp op a b = do
     a' <- compPrim $ Prim a
     b' <- compPrim $ Prim b
     return $ C.BinOp op a' b' mempty
 
 -- | Compile a function call
-compFun :: MonadC m
-    => String
-    -> Args (AST (Primitive :&: PrimTypeRep)) sig
-    -> m C.Exp
+compFun :: MonadC m => String -> Args (AST PrimDomain) sig -> m C.Exp
 compFun fun args = do
     as <- sequence $ listArgs (compPrim . Prim) args
     return [cexp| $id:fun($args:as) |]
 
 -- | Compile a function call
-compCast :: (PrimType' a, MonadC m)
-    => PrimTypeRep a
-    -> ASTF (Primitive :&: PrimTypeRep) b
-    -> m C.Exp
-compCast t a = do
-    t' <- compType (Proxy :: Proxy PrimType') t
-    a' <- compPrim $ Prim a
-    return [cexp|($ty:t') $a'|]
+compCast :: MonadC m => PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
+compCast t a
+    | Dict <- witPrimType t = do
+        t' <- compType (Proxy :: Proxy PrimType') t
+        a' <- compPrim $ Prim a
+        return [cexp|($ty:t') $a'|]
 
 -- | Compile an expression
 compPrim :: MonadC m => Prim a -> m C.Exp
 compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
   where
-    go  :: MonadC m
+    go :: forall m sig . MonadC m
         => PrimTypeRep (DenResult sig)
         -> Primitive sig
-        -> Args (AST (Primitive :&: PrimTypeRep)) sig
+        -> Args (AST PrimDomain) sig
         -> m C.Exp
     go _ (FreeVar v) Nil = touchVar v >> return [cexp| $id:v |]
-    go t (Lit a)     Nil = compLit (Proxy :: Proxy PrimType') a
-    go t Pi          Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
+    go t (Lit a) Nil
+        | Dict <- witPrimType t
+        = compLit (Proxy :: Proxy PrimType') a
+    go _ Pi Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
       where pi_def = [cedecl|$esc:("#define FELD_PI 3.141592653589793")|]
               -- This is the value of `pi :: Double`.
               -- Apparently there is no standard C99 definition of pi.
@@ -117,6 +127,15 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
         i' <- compPrim $ Prim i
         touchVar arr
         return [cexp| $id:arr[$i'] |]
+
+    go _ Cond (c :* t :* f :* Nil) = do
+        c' <- compPrim $ Prim c
+        t' <- compPrim $ Prim t
+        f' <- compPrim $ Prim f
+        return $ C.Cond c' t' f' mempty
+
+    go _ s _ = error $ "compPrim: no handling of symbol " ++ renderSym s
+      -- Should not occur, but the completeness checker doesn't know that
 
 instance CompExp Prim where compExp = compPrim
 

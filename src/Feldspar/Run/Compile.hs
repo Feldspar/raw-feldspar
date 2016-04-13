@@ -46,12 +46,12 @@ data VExp'
     VExp' :: Struct PrimType Prim a -> VExp'
 
 newRefV :: (Type a, Monad m) => String -> TargetT m (Struct PrimType Imp.Ref a)
-newRefV base = error "TODO"  -- lift $ mapStructA (const (newNamedRef base)) typeRep
+newRefV base = lift $ mapStructA (const (newNamedRef base)) typeRep
 
 initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType Imp.Ref a)
 initRefV base = lift . mapStructA (initNamedRef base)
 
-getRefV :: (Type a, Monad m) => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
+getRefV :: Monad m => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
 getRefV = lift . mapStructA getRef
 
 setRefV :: Monad m => Struct PrimType Imp.Ref a -> VExp a -> TargetT m ()
@@ -111,9 +111,9 @@ type ProgC = Program TargetCMD (Param2 Prim PrimType')
 translateExp :: forall m a . Monad m => Data a -> TargetT m (VExp a)
 translateExp = goAST . optimize . unData
   where
+    -- Assumes that `b` is not a function type
     goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
     goAST = simpleMatch (\(s :&: ValT t) -> go t s)
-      -- TODO comment on the match
 
     goSmallAST :: PrimType b => ASTF FeldDomain b -> TargetT m (Prim b)
     goSmallAST = fmap extractSingle . goAST
@@ -123,17 +123,18 @@ translateExp = goAST . optimize . unData
        -> Args (AST FeldDomain) sig
        -> TargetT m (VExp (DenResult sig))
     go t lit Nil
+        | Just (Lit a) <- prj lit
+        = return $ mapStruct (constExp . runIdentity) $ toStruct t a
+    go t lit Nil
         | Just (Literal a) <- prj lit
-        , Single _ <- t  -- TODO comment on the match
-        = return $ mapStruct (constExp . runIdentity) $ toStruct a
+        = return $ mapStruct (constExp . runIdentity) $ toStruct t a
     go t var Nil
         | Just (VarT v) <- prj var
         = lookAlias t v
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let tag) <- prj lt
         , Just (LamT v)  <- prj lam
-        , Single _ <- t  -- TODO comment on the match
-        , Just Dict <- witTypeFun $ getDecor a  -- TODO comment on the match
+        , Just Dict <- witTypeFun $ getDecor a  -- Assumes not a function
         = do let base = if null tag then "let" else tag
              r  <- initRefV base =<< goAST a
              a' <- unsafeFreezeRefV r
@@ -148,7 +149,7 @@ translateExp = goAST . optimize . unData
             Two _ b <- goAST ab
             return b
     go (Single _) c Nil  -- TODO comment on the match
-        | Just Pi <- prj c = return $ Single $ Prim $ Sym (Pi :&: primTypeRep)
+        | Just Pi <- prj c = return $ Single $ sugarSymPrim Pi
     go (Single _) op (a :* Nil)  -- TODO comment on the match
         | Just Neg   <- prj op = liftStruct negate <$> goAST a
 --         | Just Sin   <- prj op = liftStruct sin    <$> goAST a
@@ -178,7 +179,8 @@ translateExp = goAST . optimize . unData
             i' <- goSmallAST i
             return $ Single $ sugarSymPrim (ArrIx arr) i'
     go ty cond (c :* t :* f :* Nil)
-        | Just Condition <- prj cond = do
+        | Just Cond <- prj cond
+        , Dict <- witType ty = do
             env <- ask
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
               (t',f') -> do
@@ -187,7 +189,7 @@ translateExp = goAST . optimize . unData
                   case (tView,fView) of
                       (Oper.Return (Single tExp), Oper.Return (Single fExp)) -> do
                           c' <- goSmallAST c
-                          return $ Single $ sugarSymPrim PrimCond c' tExp fExp
+                          return $ Single $ sugarSymPrim Cond c' tExp fExp
                       _ -> do
                           c'  <- goSmallAST c
                           res <- newRefV "v"
@@ -214,21 +216,23 @@ translateExp = goAST . optimize . unData
         | Just (FreeVar v) <- prj free = return $ Single $ sugarSymPrim $ FreeVar v
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
-        = translateExp =<< Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
+        = translateExp =<<
+            Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
             a' <- goAST a
             Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
             return a'
+    go _ s _ = error $ renderSym s
 
--- | Translate an expression that is assumed to fulfill @`NoPair` a@
+-- | Translate an expression that is assumed to fulfill @`PrimType` a@
 unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
 unsafeTransSmallExp a = do
     Single b <- translateExp a
     return b
-  -- This function should ideally have a `NoPair a` constraint, but that is not
-  -- allowed when passing it to `reexpressEnv`. It should be possible to make it
-  -- work by changing the interface to `reexpressEnv`.
+  -- This function should ideally have a `PrimType a` constraint, but that is
+  -- not allowed when passing it to `reexpressEnv`. It should be possible to
+  -- make it work by changing the interface to `reexpressEnv`.
 
 translate :: Run a -> ProgC a
 translate

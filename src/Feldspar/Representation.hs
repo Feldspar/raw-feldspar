@@ -24,8 +24,6 @@ import qualified Control.Monad.Operational.Higher as Operational
 import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
-import qualified Language.C.Quote as C
-
 import Data.Inhabited
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
@@ -58,13 +56,9 @@ instance Type Float   where typeRep = Single FloatT
 instance Type Double  where typeRep = Single DoubleT
 instance (Type a, Type b) => Type (a,b) where typeRep = Two typeRep typeRep
 
+-- | Alias for the conjunction of 'PrimType'' and 'Type'
 class    (PrimType' a, Type a) => PrimType a
 instance (PrimType' a, Type a) => PrimType a
-
--- | Convenience function; like 'typeRep' but with an extra argument to
--- constrain the type parameter. The extra argument is ignored.
-typeOf :: Type a => a -> TypeRep a
-typeOf _ = typeRep
 
 -- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
 toTypeRep :: Struct PrimType c a -> TypeRep a
@@ -79,7 +73,7 @@ typeEq (Two t1 t2) (Two u1 u2) = do
     return Dict
 typeEq _ _ = Nothing
 
--- | Reflect a 'PrimTypeRep' to a 'PrimType' constraint
+-- | Reflect a 'TypeRep' to a 'Type' constraint
 witType :: TypeRep a -> Dict (Type a)
 witType (Single t)
     | Dict <- witPrimType t
@@ -100,6 +94,7 @@ data TypeRepFun a
   -- chosen in order to be able to reuse `Struct` instead of making `TypeRep` a
   -- new data type.
 
+-- | Check whether two type representations are equal
 typeEqFun :: TypeRepFun a -> TypeRepFun b -> Maybe (Dict (a ~ b))
 typeEqFun (ValT t)     (ValT u)     = typeEq t u
 typeEqFun (FunT ta tb) (FunT ua ub) = do
@@ -108,27 +103,32 @@ typeEqFun (FunT ta tb) (FunT ua ub) = do
     return Dict
 typeEqFun _ _ = Nothing
 
+-- | Reflect a 'TypeRepFun' to a 'Type' constraint, if possible
 witTypeFun :: TypeRepFun a -> Maybe (Dict (Type a))
 witTypeFun (ValT t) = Just $ witType t
 witTypeFun _        = Nothing
 
 -- | Mutable variable
 newtype Ref a = Ref { unRef :: Struct PrimType Imp.Ref a }
+  -- A reference to a tuple is a struct of smaller references. This means that
+  -- creating a reference to a tuple will generate several calls to generate new
+  -- references. This must be done already in the front end, which means that
+  -- the work in the back end becomes simpler.
+  --
+  -- Another option would be to allow a single reference to refer to a tuple,
+  -- and then turn that into smaller references in the back end. However, this
+  -- would complicate the back end for no obvious reason. (One way to do it
+  -- would be to run the back end in a store that maps each front end reference
+  -- to a struct of small references. Among other things, that would require
+  -- dynamic typing.)
 
 -- | Mutable array
 newtype Arr a = Arr { unArr :: Struct PrimType (Imp.Arr Index) a }
+  -- An array of tuples is represented as a struct of smaller arrays. See
+  -- comment to `Ref`.
 
 -- | Immutable array
 newtype IArr a = IArr { unIArr :: Struct PrimType (Imp.IArr Index) a }
-
-instance C.ToIdent (Ref a)  where toIdent (Ref (Single r))  = C.toIdent r
-instance C.ToIdent (Arr a)  where toIdent (Arr (Single a))  = C.toIdent a
-instance C.ToIdent (IArr a) where toIdent (IArr (Single a)) = C.toIdent a
-
-instance Imp.Assignable (Ref a)
-instance Imp.Assignable (Arr a)
-instance Imp.Assignable (IArr a)
-  -- TODO Are these needed?
 
 
 
@@ -136,23 +136,20 @@ instance Imp.Assignable (IArr a)
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
--- | Conditionals
-data Condition sig
-  where
-    Condition :: Type a => Condition (Bool :-> a :-> a :-> Full a)
-
-instance Eval Condition
-  where
-    evalSym Condition = \c t f -> if c then t else f
-
 -- | For loop
 data ForLoop sig
   where
-    ForLoop :: Type st => ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
+    ForLoop :: Type st =>
+        ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
 
 instance Eval ForLoop
   where
-    evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
+    evalSym ForLoop = \len init body ->
+        foldl (flip body) init $ genericTake len [0..]
+
+instance EvalEnv ForLoop env
+
+instance StringTree ForLoop
 
 -- | Interaction with the IO layer
 data IOSym sig
@@ -170,9 +167,13 @@ instance Render IOSym
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
 
+instance StringTree IOSym
+
 instance Eval IOSym
   where
     evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
+
+instance EvalEnv IOSym env
 
 -- | 'equal' always returns 'False'
 instance Equality IOSym
@@ -180,12 +181,10 @@ instance Equality IOSym
     equal _ _ = False
 
 type FeldConstructs
-    =   Literal
-    :+: BindingT
+    =   BindingT
     :+: Let
     :+: Tuple
     :+: Primitive
-    :+: Condition
     :+: ForLoop
     :+: IOSym
 
@@ -202,6 +201,10 @@ instance Syntactic (Data a)
     sugar   = Data
 
 instance Syntactic (Struct PrimType Data a)
+    -- Note that this instance places no constraints on `a`. This is crucial in
+    -- the way it is used in the rest of the code. It would be possible to
+    -- define `desugar` and `sugar` in terms of the instance for pairs; however,
+    -- that would require constraining `a`.
   where
     type Domain   (Struct PrimType Data a) = FeldDomain
     type Internal (Struct PrimType Data a) = a
@@ -236,17 +239,16 @@ sugarSymFeld
     => sub sig -> f
 sugarSymFeld = sugarSymDecor $ ValT typeRep
 
--- | Evaluate an expression
+-- | Evaluate a closed expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
 
 instance Imp.FreeExp Data
   where
-    type FreePred Data = Type
-    constExp = sugarSymFeld . Literal
+    type FreePred Data = PrimType
+    constExp = sugarSymFeld . Lit
     varExp   = sugarSymFeld . FreeVar
--- TODO
 
 instance Imp.EvalExp Data
   where
@@ -265,32 +267,20 @@ type CompCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
 newtype Comp a = Comp
-    { unComp :: Operational.Program CompCMD (Operational.Param2 Data PrimType') a }
+    { unComp ::
+        Operational.Program CompCMD (Operational.Param2 Data PrimType') a
+    }
   deriving (Functor, Applicative, Monad)
 
 
 
 --------------------------------------------------------------------------------
--- Uninteresting instances
+-- Template Haskell instances
 --------------------------------------------------------------------------------
-
-deriveSymbol    ''Condition
-deriveRender id ''Condition
-deriveEquality  ''Condition
-
-instance StringTree Condition
 
 deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop
 deriveEquality  ''ForLoop
 
-instance StringTree ForLoop
-
 deriveSymbol ''IOSym
-
-instance StringTree IOSym
-
-instance EvalEnv Condition env
-instance EvalEnv ForLoop env
-instance EvalEnv IOSym env
 
