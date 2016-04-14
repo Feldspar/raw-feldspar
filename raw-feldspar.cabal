@@ -33,18 +33,18 @@ library
     Feldspar.Optimize
     Feldspar.Storable
     Feldspar
---    Feldspar.Run.Representation
---    Feldspar.Run.Frontend
---    Feldspar.Run.Concurrent
---    Feldspar.Run.Compile
---    Feldspar.Run
---    Feldspar.Hardware.Representation
---    Feldspar.Hardware.Frontend
---    Feldspar.Hardware.Compile
---    Feldspar.Hardware
---    Feldspar.Vector
---    Feldspar.Option
---    Feldspar.Validated
+    Feldspar.Run.Representation
+    Feldspar.Run.Frontend
+    Feldspar.Run.Concurrent
+    Feldspar.Run.Compile
+    Feldspar.Run
+    Feldspar.Hardware.Representation
+    Feldspar.Hardware.Frontend
+    Feldspar.Hardware.Compile
+    Feldspar.Hardware
+    Feldspar.Vector
+    Feldspar.Option
+    Feldspar.Validated
 
   other-modules:
     Data.Inhabited.TH

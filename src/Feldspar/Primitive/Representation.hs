@@ -10,6 +10,7 @@ module Feldspar.Primitive.Representation where
 
 import Data.Array
 import Data.Int
+import Data.Typeable
 import Data.Word
 
 import Data.Constraint (Dict (..))
@@ -46,7 +47,7 @@ data PrimTypeRep a
     DoubleT :: PrimTypeRep Double
 
 -- | Primitive supported types
-class (Eq a, Ord a, Show a) => PrimType' a
+class (Eq a, Ord a, Show a, Typeable a) => PrimType' a
   where
     -- | Reify a primitive type
     primTypeRep :: PrimTypeRep a
@@ -108,35 +109,35 @@ data Primitive sig
   where
     FreeVar :: String -> Primitive (Full a)
     Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
-    Pi      :: Floating a => Primitive (Full a)
+    Pi      :: (Floating a, PrimType' a) => Primitive (Full a)
 
-    Add :: Num a => Primitive (a :-> a :-> Full a)
-    Sub :: Num a => Primitive (a :-> a :-> Full a)
-    Mul :: Num a => Primitive (a :-> a :-> Full a)
-    Neg :: Num a => Primitive (a :-> Full a)
+    Add :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Sub :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Mul :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Neg :: (Num a, PrimType' a) => Primitive (a :-> Full a)
 
-    Quot :: Integral a   => Primitive (a :-> a :-> Full a)
-    Rem  :: Integral a   => Primitive (a :-> a :-> Full a)
-    FDiv :: Fractional a => Primitive (a :-> a :-> Full a)
+    Quot :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
+    Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
+    FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
 
-    Sin :: Floating a => Primitive (a :-> Full a)
-    Cos :: Floating a => Primitive (a :-> Full a)
-    Pow :: Floating a => Primitive (a :-> a :-> Full a)
+    Sin :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Cos :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Pow :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
 
-    I2N   :: (Integral a, Num b)      => Primitive (a :-> Full b)
-    I2B   :: Integral a               => Primitive (a :-> Full Bool)
-    B2I   :: Integral a               => Primitive (Bool :-> Full a)
-    Round :: (RealFrac a, Integral b) => Primitive (a :-> Full b)
+    I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
+    I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
+    B2I   :: (Integral a, PrimType' a)                          => Primitive (Bool :-> Full a)
+    Round :: (RealFrac a, Integral b, PrimType' a, PrimType' b) => Primitive (a :-> Full b)
 
     Not :: Primitive (Bool :-> Full Bool)
     And :: Primitive (Bool :-> Bool :-> Full Bool)
     Or  :: Primitive (Bool :-> Bool :-> Full Bool)
-    Eq  :: Eq a  => Primitive (a :-> a :-> Full Bool)
-    NEq :: Eq a  => Primitive (a :-> a :-> Full Bool)
-    Lt  :: Ord a => Primitive (a :-> a :-> Full Bool)
-    Gt  :: Ord a => Primitive (a :-> a :-> Full Bool)
-    Le  :: Ord a => Primitive (a :-> a :-> Full Bool)
-    Ge  :: Ord a => Primitive (a :-> a :-> Full Bool)
+    Eq  :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
+    NEq :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
+    Lt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
+    Gt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
+    Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
+    Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
 
     ArrIx :: IArr Index a -> Primitive (Index :-> Full a)
 
@@ -223,7 +224,7 @@ instance Eval Primitive
 -- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
 instance EvalEnv Primitive env
 
--- | Assumes symbolic representation of arrays
+-- | Returns false for arrays that don't have a symbolic representation
 instance Equality Primitive
   where
     equal (FreeVar v) (FreeVar w) = v==w
@@ -254,8 +255,7 @@ instance Equality Primitive
     equal Ge          Ge          = True
     equal Cond        Cond        = True
     equal (ArrIx (IArrComp arr1)) (ArrIx (IArrComp arr2)) = arr1==arr2
-    equal (ArrIx _) (ArrIx _) =
-        error "equal: can only handle symbolic array representations"
+    equal (ArrIx _) (ArrIx _) = False
     equal _ _ = False
 
 type PrimDomain = Primitive :&: PrimTypeRep

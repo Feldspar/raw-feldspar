@@ -38,26 +38,26 @@ import Feldspar.Optimize
 --------------------------------------------------------------------------------
 
 -- | Struct expression
-type VExp = Struct PrimType Prim
+type VExp = Struct PrimType' Prim
 
 -- | Struct expression with hidden result type
 data VExp'
   where
-    VExp' :: Struct PrimType Prim a -> VExp'
+    VExp' :: Struct PrimType' Prim a -> VExp'
 
-newRefV :: (Type a, Monad m) => String -> TargetT m (Struct PrimType Imp.Ref a)
-newRefV base = lift $ mapStructA (const (newNamedRef base)) typeRep
+newRefV :: Monad m => TypeRep a -> String -> TargetT m (Struct PrimType' Imp.Ref a)
+newRefV t base = lift $ mapStructA (const (newNamedRef base)) t
 
-initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType Imp.Ref a)
+initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType' Imp.Ref a)
 initRefV base = lift . mapStructA (initNamedRef base)
 
-getRefV :: Monad m => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
+getRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
 getRefV = lift . mapStructA getRef
 
-setRefV :: Monad m => Struct PrimType Imp.Ref a -> VExp a -> TargetT m ()
+setRefV :: Monad m => Struct PrimType' Imp.Ref a -> VExp a -> TargetT m ()
 setRefV r = lift . sequence_ . zipListStruct setRef r
 
-unsafeFreezeRefV :: Monad m => Struct PrimType Imp.Ref a -> TargetT m (VExp a)
+unsafeFreezeRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
 unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
 
 
@@ -70,7 +70,7 @@ unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
 type Env = Map Name VExp'
 
 -- | Add a local alias to the environment
-localAlias :: (Type a, MonadReader Env m)
+localAlias :: MonadReader Env m
     => Name    -- ^ Old name
     -> VExp a  -- ^ New expression
     -> m b
@@ -115,7 +115,7 @@ translateExp = goAST . optimize . unData
     goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
     goAST = simpleMatch (\(s :&: ValT t) -> go t s)
 
-    goSmallAST :: PrimType b => ASTF FeldDomain b -> TargetT m (Prim b)
+    goSmallAST :: PrimType' b => ASTF FeldDomain b -> TargetT m (Prim b)
     goSmallAST = fmap extractSingle . goAST
 
     go :: TypeRep (DenResult sig)
@@ -134,7 +134,6 @@ translateExp = goAST . optimize . unData
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let tag) <- prj lt
         , Just (LamT v)  <- prj lam
-        , Just Dict <- witTypeFun $ getDecor a  -- Assumes not a function
         = do let base = if null tag then "let" else tag
              r  <- initRefV base =<< goAST a
              a' <- unsafeFreezeRefV r
@@ -148,39 +147,38 @@ translateExp = goAST . optimize . unData
         | Just Snd <- prj sel = do
             Two _ b <- goAST ab
             return b
-    go (Single _) c Nil  -- TODO comment on the match
+    go _ c Nil
         | Just Pi <- prj c = return $ Single $ sugarSymPrim Pi
-    go (Single _) op (a :* Nil)  -- TODO comment on the match
-        | Just Neg   <- prj op = liftStruct negate <$> goAST a
---         | Just Sin   <- prj op = liftStruct sin    <$> goAST a
---         | Just Cos   <- prj op = liftStruct cos    <$> goAST a
---         | Just I2N   <- prj op = liftStruct iii    <$> goAST a
---         | Just I2B   <- prj op = liftStruct i2b    <$> goAST a
---         | Just B2I   <- prj op = liftStruct b2i    <$> goAST a
---         | Just Round <- prj op = liftStruct round_ <$> goAST a
---         | Just Not   <- prj op = liftStruct not_   <$> goAST a
-    go (Single _) op (a :* b :* Nil)  -- TODO comment on the match
-        | Just Add  <- prj op = liftStruct2 (+)   <$> goAST a <*> goAST b
-        | Just Sub  <- prj op = liftStruct2 (-)   <$> goAST a <*> goAST b
-        | Just Mul  <- prj op = liftStruct2 (*)   <$> goAST a <*> goAST b
---         | Just FDiv <- prj op = liftStruct2 (/)   <$> goAST a <*> goAST b
---         | Just Quot <- prj op = liftStruct2 quot_ <$> goAST a <*> goAST b
---         | Just Rem  <- prj op = liftStruct2 (#%)  <$> goAST a <*> goAST b
---         | Just Pow  <- prj op = liftStruct2 (**)  <$> goAST a <*> goAST b
---         | Just Eq   <- prj op = liftStruct2 (#==) <$> goAST a <*> goAST b
---         | Just And  <- prj op = liftStruct2 (#&&) <$> goAST a <*> goAST b
---         | Just Or   <- prj op = liftStruct2 (#||) <$> goAST a <*> goAST b
---         | Just Lt   <- prj op = liftStruct2 (#<)  <$> goAST a <*> goAST b
---         | Just Gt   <- prj op = liftStruct2 (#>)  <$> goAST a <*> goAST b
---         | Just Le   <- prj op = liftStruct2 (#<=) <$> goAST a <*> goAST b
---         | Just Ge   <- prj op = liftStruct2 (#>=) <$> goAST a <*> goAST b
+    go _ op (a :* Nil)
+        | Just Neg   <- prj op = liftStruct (sugarSymPrim Neg)   <$> goAST a
+        | Just Sin   <- prj op = liftStruct (sugarSymPrim Sin)   <$> goAST a
+        | Just Cos   <- prj op = liftStruct (sugarSymPrim Cos)   <$> goAST a
+        | Just I2N   <- prj op = liftStruct (sugarSymPrim I2N)   <$> goAST a
+        | Just I2B   <- prj op = liftStruct (sugarSymPrim I2B)   <$> goAST a
+        | Just B2I   <- prj op = liftStruct (sugarSymPrim B2I)   <$> goAST a
+        | Just Round <- prj op = liftStruct (sugarSymPrim Round) <$> goAST a
+        | Just Not   <- prj op = liftStruct (sugarSymPrim Not)   <$> goAST a
+    go _ op (a :* b :* Nil)
+        | Just Add  <- prj op = liftStruct2 (sugarSymPrim Add)  <$> goAST a <*> goAST b
+        | Just Sub  <- prj op = liftStruct2 (sugarSymPrim Sub)  <$> goAST a <*> goAST b
+        | Just Mul  <- prj op = liftStruct2 (sugarSymPrim Mul)  <$> goAST a <*> goAST b
+        | Just FDiv <- prj op = liftStruct2 (sugarSymPrim FDiv) <$> goAST a <*> goAST b
+        | Just Quot <- prj op = liftStruct2 (sugarSymPrim Quot) <$> goAST a <*> goAST b
+        | Just Rem  <- prj op = liftStruct2 (sugarSymPrim Rem)  <$> goAST a <*> goAST b
+        | Just Pow  <- prj op = liftStruct2 (sugarSymPrim Pow)  <$> goAST a <*> goAST b
+        | Just Eq   <- prj op = liftStruct2 (sugarSymPrim Eq)   <$> goAST a <*> goAST b
+        | Just And  <- prj op = liftStruct2 (sugarSymPrim And)  <$> goAST a <*> goAST b
+        | Just Or   <- prj op = liftStruct2 (sugarSymPrim Or)   <$> goAST a <*> goAST b
+        | Just Lt   <- prj op = liftStruct2 (sugarSymPrim Lt)   <$> goAST a <*> goAST b
+        | Just Gt   <- prj op = liftStruct2 (sugarSymPrim Gt)   <$> goAST a <*> goAST b
+        | Just Le   <- prj op = liftStruct2 (sugarSymPrim Le)   <$> goAST a <*> goAST b
+        | Just Ge   <- prj op = liftStruct2 (sugarSymPrim Ge)   <$> goAST a <*> goAST b
     go (Single _) arrIx (i :* Nil)
         | Just (ArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
             return $ Single $ sugarSymPrim (ArrIx arr) i'
     go ty cond (c :* t :* f :* Nil)
-        | Just Cond <- prj cond
-        , Dict <- witType ty = do
+        | Just Cond <- prj cond = do
             env <- ask
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
               (t',f') -> do
@@ -192,7 +190,7 @@ translateExp = goAST . optimize . unData
                           return $ Single $ sugarSymPrim Cond c' tExp fExp
                       _ -> do
                           c'  <- goSmallAST c
-                          res <- newRefV "v"
+                          res <- newRefV ty "v"
                           ReaderT $ \env -> iff c'
                               (flip runReaderT env . setRefV res =<< t')
                               (flip runReaderT env . setRefV res =<< f')
@@ -230,7 +228,7 @@ unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
 unsafeTransSmallExp a = do
     Single b <- translateExp a
     return b
-  -- This function should ideally have a `PrimType a` constraint, but that is
+  -- This function should ideally have a `PrimType' a` constraint, but that is
   -- not allowed when passing it to `reexpressEnv`. It should be possible to
   -- make it work by changing the interface to `reexpressEnv`.
 

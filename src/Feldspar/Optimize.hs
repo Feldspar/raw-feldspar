@@ -65,13 +65,13 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
 
 -- There type signatures are needed in order to use `simplifyUp` in the
 -- constructor
-pattern AddP :: Num a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP :: Num a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP :: Num a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP :: Num a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern AddP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
-pattern QuotP :: Integral a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern RemP  :: Integral a => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
 pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
 pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b
@@ -278,8 +278,8 @@ cmInterface :: CodeMotionInterface FeldDomain
 cmInterface = defaultInterfaceDecor
     typeEqFun
     (\(ValT t)   -> FunT t)
-    (\(ValT t)   -> case witType t of Dict -> VarT)
-    (\(ValT t) _ -> case witType t of Dict -> LamT)
+    (\(ValT t)   -> case witTypeable t of Dict -> VarT)
+    (\(ValT t) _ -> case witTypeable t of Dict -> LamT)
     sharable
     (const True)
   where

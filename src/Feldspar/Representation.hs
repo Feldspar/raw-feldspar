@@ -35,7 +35,7 @@ import Feldspar.Primitive.Representation
 --------------------------------------------------------------------------------
 
 -- | Representation of all supported types
-type TypeRep = Struct PrimType PrimTypeRep
+type TypeRep = Struct PrimType' PrimTypeRep
 
 -- | Supported types
 class (Eq a, Show a, Ord a, Typeable a, Inhabited a) => Type a
@@ -61,7 +61,7 @@ class    (PrimType' a, Type a) => PrimType a
 instance (PrimType' a, Type a) => PrimType a
 
 -- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
-toTypeRep :: Struct PrimType c a -> TypeRep a
+toTypeRep :: Struct PrimType' c a -> TypeRep a
 toTypeRep = mapStruct (const primTypeRep)
 
 -- | Check whether two type representations are equal
@@ -73,14 +73,14 @@ typeEq (Two t1 t2) (Two u1 u2) = do
     return Dict
 typeEq _ _ = Nothing
 
--- | Reflect a 'TypeRep' to a 'Type' constraint
-witType :: TypeRep a -> Dict (Type a)
-witType (Single t)
+-- | Reflect a 'TypeRep' to a 'Typeable' constraint
+witTypeable :: TypeRep a -> Dict (Typeable a)
+witTypeable (Single t)
     | Dict <- witPrimType t
     = Dict
-witType (Two ta tb)
-    | Dict <- witType ta
-    , Dict <- witType tb
+witTypeable (Two ta tb)
+    | Dict <- witTypeable ta
+    , Dict <- witTypeable tb
     = Dict
 
 -- | Representation of supported value types + N-ary functions over such types
@@ -103,13 +103,8 @@ typeEqFun (FunT ta tb) (FunT ua ub) = do
     return Dict
 typeEqFun _ _ = Nothing
 
--- | Reflect a 'TypeRepFun' to a 'Type' constraint, if possible
-witTypeFun :: TypeRepFun a -> Maybe (Dict (Type a))
-witTypeFun (ValT t) = Just $ witType t
-witTypeFun _        = Nothing
-
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Struct PrimType Imp.Ref a }
+newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- A reference to a tuple is a struct of smaller references. This means that
   -- creating a reference to a tuple will generate several calls to generate new
   -- references. This must be done already in the front end, which means that
@@ -123,12 +118,12 @@ newtype Ref a = Ref { unRef :: Struct PrimType Imp.Ref a }
   -- dynamic typing.)
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Struct PrimType (Imp.Arr Index) a }
+newtype Arr a = Arr { unArr :: Struct PrimType' (Imp.Arr Index) a }
   -- An array of tuples is represented as a struct of smaller arrays. See
   -- comment to `Ref`.
 
 -- | Immutable array
-newtype IArr a = IArr { unIArr :: Struct PrimType (Imp.IArr Index) a }
+newtype IArr a = IArr { unIArr :: Struct PrimType' (Imp.IArr Index) a }
 
 
 
@@ -200,14 +195,14 @@ instance Syntactic (Data a)
     desugar = unData
     sugar   = Data
 
-instance Syntactic (Struct PrimType Data a)
+instance Syntactic (Struct PrimType' Data a)
     -- Note that this instance places no constraints on `a`. This is crucial in
     -- the way it is used in the rest of the code. It would be possible to
     -- define `desugar` and `sugar` in terms of the instance for pairs; however,
     -- that would require constraining `a`.
   where
-    type Domain   (Struct PrimType Data a) = FeldDomain
-    type Internal (Struct PrimType Data a) = a
+    type Domain   (Struct PrimType' Data a) = FeldDomain
+    type Internal (Struct PrimType' Data a) = a
 
     desugar (Single a) = unData a
     desugar (Two a b)  = sugarSymDecor (ValT $ Two ta tb) Pair a' b'
@@ -239,6 +234,19 @@ sugarSymFeld
     => sub sig -> f
 sugarSymFeld = sugarSymDecor $ ValT typeRep
 
+-- | Make a smart constructor for a symbol
+sugarSymFeldPrim
+    :: ( Signature sig
+       , fi         ~ SmartFun FeldDomain sig
+       , sig        ~ SmartSig fi
+       , FeldDomain ~ SmartSym fi
+       , SyntacticN f fi
+       , sub :<: FeldConstructs
+       , PrimType' (DenResult sig)
+       )
+    => sub sig -> f
+sugarSymFeldPrim = sugarSymDecor $ ValT $ Single primTypeRep
+
 -- | Evaluate a closed expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
@@ -246,9 +254,9 @@ eval = evalClosed . desugar
 
 instance Imp.FreeExp Data
   where
-    type FreePred Data = PrimType
-    constExp = sugarSymFeld . Lit
-    varExp   = sugarSymFeld . FreeVar
+    type FreePred Data = PrimType'
+    constExp = sugarSymFeldPrim . Lit
+    varExp   = sugarSymFeldPrim . FreeVar
 
 instance Imp.EvalExp Data
   where

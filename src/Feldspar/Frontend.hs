@@ -246,8 +246,8 @@ max a b = a>=b ? a $ b
 arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
-    ix :: PrimType b => Imp.IArr Index b -> Data b
-    ix arr = sugarSymFeld (ArrIx arr) i
+    ix :: PrimType' b => Imp.IArr Index b -> Data b
+    ix arr = sugarSymFeldPrim (ArrIx arr) i
 
 
 
@@ -409,7 +409,7 @@ setArr i a
     . zipListStruct (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
     . unArr
   where
-    rep = resugar a :: Struct PrimType Data (Internal a)
+    rep = resugar a :: Struct PrimType' Data (Internal a)
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either
