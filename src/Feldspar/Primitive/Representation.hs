@@ -143,6 +143,17 @@ data Primitive sig
 
     Cond :: Primitive (Bool :-> a :-> a :-> Full a)
 
+-- The `PrimType'` constraints on certain symbols require an explanation: The
+-- constraints are actually not needed for anything in the modules in
+-- `Feldspar.Primitive.*`, but they are needed by `Feldspar.Run.Compile`. They
+-- guarantee to the compiler that these symbols don't operate on tuples.
+--
+-- It would seem more consistent to have a `PrimType'` constraint on all
+-- polymorphic symbols. However, this would prevent using some symbols for
+-- non-primitive types in `Feldspar.Representation`. For example, `FreeVar` and
+-- `Cond` are used `Feldspar.Representation`, and there they can also be used
+-- for tuple types. The current design was chosen because it "just works".
+
 deriveSymbol ''Primitive
 
 instance Render Primitive
