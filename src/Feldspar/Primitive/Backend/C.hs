@@ -27,14 +27,14 @@ instance CompTypeClass PrimType'
   where
     compType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
       BoolT   -> addSystemInclude "stdbool.h" >> return [cty| typename bool     |]
-      Int8T   -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
-      Int16T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
+      Int8T   -> addSystemInclude "stdint.h"  >> return [cty| typename int8_t  |]
+      Int16T  -> addSystemInclude "stdint.h"  >> return [cty| typename int16_t  |]
       Int32T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
-      Int64T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
-      Word8T  -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
-      Word16T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
+      Int64T  -> addSystemInclude "stdint.h"  >> return [cty| typename int64_t  |]
+      Word8T  -> addSystemInclude "stdint.h"  >> return [cty| typename uint8_t |]
+      Word16T -> addSystemInclude "stdint.h"  >> return [cty| typename uint16_t |]
       Word32T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
-      Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
+      Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint64_t |]
       FloatT  -> addSystemInclude "stdint.h"  >> return [cty| float |]
       DoubleT -> addSystemInclude "stdint.h"  >> return [cty| double |]
 
