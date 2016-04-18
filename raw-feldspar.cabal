@@ -75,7 +75,6 @@ library
     -- hardware-edsl >= 0.1.0.2,
     language-c-quote,
     mtl,
-    open-typerep >= 0.5,
     operational-alacarte,
     prelude-edsl,
     syntactic >= 3.6,
@@ -95,7 +94,6 @@ test-suite NumSimpl
   build-depends:
     base,
     mtl,
-    open-typerep,
     raw-feldspar,
     syntactic,
     tasty-quickcheck,
