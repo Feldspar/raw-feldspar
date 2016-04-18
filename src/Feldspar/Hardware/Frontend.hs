@@ -22,11 +22,19 @@ newtype Sig a = Sig { unSig :: Virtual SmallType Hard.Signal a }
 
 -- | Create an uninitialized signal.
 newSig :: Type a => Hardware (Sig a)
-newSig = fmap Sig $ mapVirtualA (const (Hardware Hard.newSignal_)) virtRep
+newSig = newNamedSig "s"
+
+-- | Create an uninitialized named signal.
+newNamedSig :: Type a => String -> Hardware (Sig a)
+newNamedSig name = fmap Sig $ mapVirtualA (const $ Hardware $ Hard.newNamedSignal name) virtRep
 
 -- | Create an initialized signal.
 initSig :: Type a => Data a -> Hardware (Sig a)
-initSig = fmap Sig . mapVirtualA (Hardware . Hard.newSignal) . sugar
+initSig = initNamedSig "s"
+
+-- | Create an initialized named signal.
+initNamedSig :: Type a => String -> Data a -> Hardware (Sig a)
+initNamedSig name = fmap Sig . mapVirtualA (Hardware . Hard.initNamedSignal name) . sugar
 
 -- | Get the contents of a signal.
 getSig :: Type a => Sig a -> Hardware (Data a)

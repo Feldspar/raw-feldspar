@@ -97,17 +97,14 @@ localAlias :: Type a
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment
-lookAlias :: forall a . Type a => Name -> Target (VExp a)
+lookAlias :: Type a => Name -> Target (VExp a)
 lookAlias v = do
     env <- ask
     return $ case Map.lookup v env of
-        Nothing | Right Dict <- pwit pCType tr
-               -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
+        Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case gcast pFeldTypes e of
             Left msg -> error $ "lookAlias: " ++ msg
             Right e' -> e'
-  where
-    tr = typeRep :: TypeRep FeldTypes a
 
 -- | Translate instructions to the 'Target' monad
 class Lower instr
@@ -208,6 +205,7 @@ instance Lower (C_CMD Data)
     lowerInstr (CallFun f as) = fmap liftVar . lift . callFun f =<< transFunArgs as
     lowerInstr (CallProc Nothing p as)  = lift . callProc p =<< transFunArgs as
     lowerInstr (CallProc (Just o) p as) = lift . callProcAssign o p =<< transFunArgs as
+    lowerInstr (InModule mod prog)      = ReaderT $ inModule mod . runReaderT prog
 
 transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
 transFunArgs = mapM $ mapMArg predCast translateSmallExp
@@ -404,12 +402,18 @@ captureIO = Imp.captureIO . lowerTop . liftRun
 compile :: MonadRun m => m a -> String
 compile  = Imp.compile . lowerTop . liftRun
 
+compileAll :: MonadRun m => m a -> [(String, String)]
+compileAll  = Imp.compileAll . lowerTop . liftRun
+
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
 icompile  = putStrLn . compile
+
+icompileAll :: MonadRun m => m a -> IO ()
+icompileAll  = mapM_ (\(n, m) -> putStrLn ("// module " ++ n) >> putStrLn m) . compileAll
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()

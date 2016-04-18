@@ -31,10 +31,10 @@ import Language.Syntactic.TypeRep.Sugar.TupleTR ()
 import qualified Control.Monad.Operational.Higher as H
 
 import Language.Embedded.Hardware (HType)
-import Language.Embedded.Hardware.Interface (PredicateExp)
+import qualified Language.Embedded.Hardware.Interface as Hard
 
 import Language.Embedded.CExp (CType)
-import Language.Embedded.Expression (FreeExp (..), EvalExp (..))
+import qualified Language.Embedded.Expression     as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import qualified Language.C.Quote as C
@@ -296,24 +296,32 @@ instance Syntactic (Virtual SmallType Data a)
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
-type instance PredicateExp Data = SmallType
+--type instance PredicateExp Data = SmallType
 
 -- | Evaluate an expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
 
-instance FreeExp Data
+instance Imp.FreeExp Data
   where
     type VarPred Data = SmallType
     valExp = sugarSymTR . Literal
     varExp = sugarSymTR . FreeVar
 
-instance EvalExp Data
+instance Imp.EvalExp Data
   where
     evalExp = eval
 
+instance Hard.FreeExp Data
+  where
+    type PredicateExp Data = SmallType
+    litE = sugarSymTR . Literal
+    varE = sugarSymTR . FreeVar
 
+instance Hard.EvaluateExp Data
+  where
+    evalE = eval
 
 --------------------------------------------------------------------------------
 -- * Monadic computations
