@@ -77,6 +77,13 @@ data PrimTypeView a
     PrimTypeIntWord     :: IntWordTypeRep a -> PrimTypeView a
     PrimTypeFloatDouble :: FloatDoubleTypeRep a -> PrimTypeView a
 
+deriving instance Show (PrimTypeRep a)
+deriving instance Show (IntTypeRep a)
+deriving instance Show (WordTypeRep a)
+deriving instance Show (IntWordTypeRep a)
+deriving instance Show (FloatDoubleTypeRep a)
+deriving instance Show (PrimTypeView a)
+
 viewPrimTypeRep :: PrimTypeRep a -> PrimTypeView a
 viewPrimTypeRep BoolT   = PrimTypeBool
 viewPrimTypeRep Int8T   = PrimTypeIntWord $ IntType $ Int8Type

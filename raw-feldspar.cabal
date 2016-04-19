@@ -62,6 +62,7 @@ library
     PatternSynonyms
     Rank2Types
     ScopedTypeVariables
+    StandaloneDeriving
     TypeFamilies
     TypeOperators
     ViewPatterns
