@@ -52,6 +52,9 @@ instance CompTypeClass PrimType'
       FloatT  -> return [cexp| $a |]
       DoubleT -> return [cexp| $a |]
 
+addTagMacro :: MonadC m => m ()
+addTagMacro = addGlobal [cedecl|$esc:("#define TAG(tag,exp) (exp)")|]
+
 -- | Compile a unary operator
 compUnOp :: MonadC m => C.UnOp -> ASTF PrimDomain a -> m C.Exp
 compUnOp op a = do
@@ -72,33 +75,39 @@ compFun fun args = do
     as <- sequence $ listArgs (compPrim . Prim) args
     return [cexp| $id:fun($args:as) |]
 
--- | Compile a call to `abs`
+-- | Compile a call to 'abs'
 compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
 compAbs BoolT _   = error "compAbs: there shouldn't be a Num instance for Bool"
-compAbs Int8T   a = compFun "abs" (a :* Nil)
-compAbs Int16T  a = compFun "abs" (a :* Nil)
-compAbs Int32T  a = compFun "labs" (a :* Nil)
+compAbs Int8T   a = compFun "abs"   (a :* Nil)
+compAbs Int16T  a = compFun "abs"   (a :* Nil)
+compAbs Int32T  a = compFun "labs"  (a :* Nil)
 compAbs Int64T  a = compFun "llabs" (a :* Nil)
 compAbs FloatT  a = compFun "fabsf" (a :* Nil)
-compAbs DoubleT a = compFun "fabs" (a :* Nil)
+compAbs DoubleT a = compFun "fabs"  (a :* Nil)
 compAbs _       a = compPrim $ Prim a
 
--- | Compile a call to `signum`
+-- | Compile a call to 'signum'
 compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
 compSign t a = case viewPrimTypeRep t of
     PrimTypeBool -> error "compSign: there shouldn't be a Num instance for Bool"
     PrimTypeIntWord (WordType _) -> do
+        addTagMacro
         a' <- compPrim $ Prim a
-        return [cexp| ($a' > 0) |]
+        return [cexp| TAG("signum", $a' > 0) |]
     PrimTypeIntWord (IntType _) -> do
+        addTagMacro
         a' <- compPrim $ Prim a
-        return [cexp| ($a' > 0) - ($a' < 0) |]
+        return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
     PrimTypeFloatDouble FloatType -> do
+        addTagMacro
         a' <- compPrim $ Prim a
-        return [cexp| (float) (($a' > 0) - ($a' < 0)) |]
+        return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
     PrimTypeFloatDouble DoubleType -> do
+        addTagMacro
+        addTagMacro
+        addTagMacro
         a' <- compPrim $ Prim a
-        return [cexp| (double) (($a' > 0) - ($a' < 0)) |]
+        return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
   -- TODO The floating point cases give `sign (-0.0) = 0.0`, which is (slightly)
   -- wrong. They should return -0.0. I don't know whether it's correct for other
   -- strange values.
