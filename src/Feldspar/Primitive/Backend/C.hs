@@ -80,7 +80,7 @@ compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
 compAbs t a = do
     addInclude "<tgmath.h>"
     case t of
-        BoolT   -> error "compAbs: there shouldn't be a Num instance for Bool"
+        BoolT   -> error "compAbs: type BoolT not supported"
         Int8T   -> compFun "abs"   (a :* Nil)
         Int16T  -> compFun "abs"   (a :* Nil)
         Int32T  -> compFun "labs"  (a :* Nil)
@@ -94,7 +94,7 @@ compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
 compSign t a = do
     addTagMacro
     case viewPrimTypeRep t of
-      PrimTypeBool -> error "compSign: there shouldn't be a Num instance for Bool"
+      PrimTypeBool -> error "compSign: type BoolT not supported"
       PrimTypeIntWord (WordType _) -> do
           a' <- compPrim $ Prim a
           return [cexp| TAG("signum", $a' > 0) |]
