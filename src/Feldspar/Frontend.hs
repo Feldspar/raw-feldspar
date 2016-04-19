@@ -2,7 +2,7 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, Floating (..), RealFrac)
+import Prelude (Integral, RealFrac)
 import qualified Prelude
 import Prelude.EDSL
 

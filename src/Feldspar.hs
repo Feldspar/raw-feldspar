@@ -23,8 +23,7 @@ module Feldspar
   , eval
   , module Feldspar.Frontend
   , Integral
-  , Fractional (..)
-  , Floating (..)
+  , RealFrac
   , Border (..)
   , IxRange
     -- * Storable types

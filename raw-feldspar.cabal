@@ -77,7 +77,7 @@ library
     language-c-quote,
     mtl,
     operational-alacarte,
-    prelude-edsl,
+    prelude-edsl >= 0.4,
     syntactic >= 3.6,
     template-haskell
 
