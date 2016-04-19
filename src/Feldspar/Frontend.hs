@@ -122,6 +122,11 @@ example = value Inhabited.example
 -- ** Primitive functions
 ----------------------------------------
 
+instance (Bounded a, Type a) => Bounded (Data a)
+  where
+    minBound = value minBound
+    maxBound = value maxBound
+
 instance (Num a, PrimType a) => Num (Data a)
   where
     fromInteger = value . fromInteger
