@@ -139,9 +139,8 @@ instance (Num a, PrimType a) => Num (Data a)
 
 instance (Fractional a, PrimType a) => Fractional (Data a)
   where
-    (/) = sugarSymFeld FDiv
     fromRational = value . fromRational
-    recip = error "recip not defined for (Data a)"
+    (/) = sugarSymFeld FDiv
 
 instance (Floating a, PrimType a) => Floating (Data a)
   where
