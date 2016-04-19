@@ -216,9 +216,11 @@ data Primitive sig
     Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
     Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
 
-    ArrIx :: IArr Index a -> Primitive (Index :-> Full a)
+    ArrIx :: (Eq a, Show a) => IArr Index a -> Primitive (Index :-> Full a)
 
     Cond :: Primitive (Bool :-> a :-> a :-> Full a)
+
+deriving instance Show (Primitive a)
 
 -- The `PrimType'` constraints on certain symbols require an explanation: The
 -- constraints are actually not needed for anything in the modules in
@@ -237,35 +239,9 @@ instance Render Primitive
   where
     renderSym (FreeVar v) = v
     renderSym (Lit a)     = show a
-    renderSym Add         = "(+)"
-    renderSym Sub         = "(-)"
-    renderSym Mul         = "(*)"
-    renderSym Neg         = "Neg"
-    renderSym Abs         = "Abs"
-    renderSym Sign        = "Sign"
-    renderSym Quot        = "Quot"
-    renderSym Rem         = "Rem"
-    renderSym FDiv        = "FDiv"
-    renderSym Pi          = "Pi"
-    renderSym Sin         = "Sin"
-    renderSym Cos         = "Cos"
-    renderSym Pow         = "Pow"
-    renderSym I2N         = "I2N"
-    renderSym I2B         = "I2B"
-    renderSym B2I         = "B2I"
-    renderSym Round       = "Round"
-    renderSym Not         = "Not"
-    renderSym And         = "And"
-    renderSym Or          = "Or"
-    renderSym Eq          = "(==)"
-    renderSym NEq         = "(/=)"
-    renderSym Lt          = "(<)"
-    renderSym Gt          = "(>)"
-    renderSym Le          = "(<=)"
-    renderSym Ge          = "(>=)"
-    renderSym Cond        = "Cond"
     renderSym (ArrIx (IArrComp arr)) = "ArrIx " ++ arr
     renderSym (ArrIx _)              = "ArrIx ..."
+    renderSym s = show s
 
     renderArgs = renderArgsSmart
 
@@ -316,41 +292,16 @@ instance Eval Primitive
 -- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
 instance EvalEnv Primitive env
 
--- | Returns false for arrays that don't have a symbolic representation
 instance Equality Primitive
   where
-    equal (FreeVar v) (FreeVar w) = v==w
-    equal (Lit a)     (Lit b)     = show a == show b
-    equal Add         Add         = True
-    equal Sub         Sub         = True
-    equal Mul         Mul         = True
-    equal Neg         Neg         = True
-    equal Abs         Abs         = True
-    equal Sign        Sign        = True
-    equal Quot        Quot        = True
-    equal Rem         Rem         = True
-    equal FDiv        FDiv        = True
-    equal Pi          Pi          = True
-    equal Sin         Sin         = True
-    equal Cos         Cos         = True
-    equal Pow         Pow         = True
-    equal I2N         I2N         = True
-    equal I2B         I2B         = True
-    equal B2I         B2I         = True
-    equal Round       Round       = True
-    equal Not         Not         = True
-    equal And         And         = True
-    equal Or          Or          = True
-    equal Eq          Eq          = True
-    equal NEq         NEq         = True
-    equal Lt          Lt          = True
-    equal Gt          Gt          = True
-    equal Le          Le          = True
-    equal Ge          Ge          = True
-    equal Cond        Cond        = True
-    equal (ArrIx (IArrComp arr1)) (ArrIx (IArrComp arr2)) = arr1==arr2
-    equal (ArrIx _) (ArrIx _) = False
-    equal _ _ = False
+    equal s1 s2 = show s1 == show s2
+      -- NOTE: It is very important not to use `renderSym` here, because it will
+      -- render all concrete arrays equal.
+
+      -- This method uses string comparison. It is probably slightly more
+      -- efficient to pattern match directly on the constructors. Unfortunately
+      -- `deriveEquality ''Primitive` doesn't work, so it gets quite tedious to
+      -- write it with pattern matching.
 
 type PrimDomain = Primitive :&: PrimTypeRep
 
