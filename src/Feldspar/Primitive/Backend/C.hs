@@ -35,8 +35,8 @@ instance CompTypeClass PrimType'
       Word16T -> addSystemInclude "stdint.h"  >> return [cty| typename uint16_t |]
       Word32T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
       Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint64_t |]
-      FloatT  -> addSystemInclude "stdint.h"  >> return [cty| float |]
-      DoubleT -> addSystemInclude "stdint.h"  >> return [cty| double |]
+      FloatT  -> return [cty| float |]
+      DoubleT -> return [cty| double |]
 
     compLit _ a = case primTypeOf a of
       BoolT   -> do addSystemInclude "stdbool.h"
