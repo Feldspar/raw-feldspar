@@ -77,14 +77,17 @@ compFun fun args = do
 
 -- | Compile a call to 'abs'
 compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
-compAbs BoolT _   = error "compAbs: there shouldn't be a Num instance for Bool"
-compAbs Int8T   a = compFun "abs"   (a :* Nil)
-compAbs Int16T  a = compFun "abs"   (a :* Nil)
-compAbs Int32T  a = compFun "labs"  (a :* Nil)
-compAbs Int64T  a = compFun "llabs" (a :* Nil)
-compAbs FloatT  a = compFun "fabsf" (a :* Nil)
-compAbs DoubleT a = compFun "fabs"  (a :* Nil)
-compAbs _       a = compPrim $ Prim a
+compAbs t a = do
+    addInclude "<tgmath.h>"
+    case t of
+        BoolT   -> error "compAbs: there shouldn't be a Num instance for Bool"
+        Int8T   -> compFun "abs"   (a :* Nil)
+        Int16T  -> compFun "abs"   (a :* Nil)
+        Int32T  -> compFun "labs"  (a :* Nil)
+        Int64T  -> compFun "llabs" (a :* Nil)
+        FloatT  -> compFun "fabs"  (a :* Nil)
+        DoubleT -> compFun "fabs"  (a :* Nil)
+        _       -> compPrim $ Prim a
 
 -- | Compile a call to 'signum'
 compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
