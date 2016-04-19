@@ -172,9 +172,9 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Le   (a :* b :* Nil) = compBinOp C.Le a b
     go _ Ge   (a :* b :* Nil) = compBinOp C.Ge a b
 
-    go _ Sin   args = addInclude "<math.h>" >> compFun "sin" args
-    go _ Cos   args = addInclude "<math.h>" >> compFun "cos" args
-    go _ Pow   args = addInclude "<math.h>" >> compFun "pow" args
+    go _ Sin   args = addInclude "<tgmath.h>" >> compFun "sin" args
+    go _ Cos   args = addInclude "<tgmath.h>" >> compFun "cos" args
+    go _ Pow   args = addInclude "<tgmath.h>" >> compFun "pow" args
 
     go t I2N   (a :* Nil) = compCast t a
     go t I2B   (a :* Nil) = compCast t a
