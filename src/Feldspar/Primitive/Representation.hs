@@ -196,10 +196,23 @@ data Primitive sig
     Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
     FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
 
-    Pi  :: (Floating a, PrimType' a) => Primitive (Full a)
-    Sin :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Cos :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Pow :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Pi    :: (Floating a, PrimType' a) => Primitive (Full a)
+    Exp   :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Log   :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Sqrt  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Pow   :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Sin   :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Cos   :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Tan   :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Asin  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Acos  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Atan  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Sinh  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Cosh  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Tanh  :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Asinh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Acosh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
+    Atanh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
 
     I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
     I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
@@ -261,9 +274,22 @@ instance Eval Primitive
     evalSym Rem         = rem
     evalSym FDiv        = (/)
     evalSym Pi          = pi
+    evalSym Exp         = exp
+    evalSym Log         = log
+    evalSym Sqrt        = sqrt
+    evalSym Pow         = (**)
     evalSym Sin         = sin
     evalSym Cos         = cos
-    evalSym Pow         = (**)
+    evalSym Tan         = tan
+    evalSym Asin        = asin
+    evalSym Acos        = acos
+    evalSym Atan        = atan
+    evalSym Sinh        = sinh
+    evalSym Cosh        = cosh
+    evalSym Tanh        = tanh
+    evalSym Asinh       = asinh
+    evalSym Acosh       = acosh
+    evalSym Atanh       = atanh
     evalSym I2N         = fromInteger . toInteger
     evalSym I2B         = (/=0)
     evalSym B2I         = \a -> if a then 1 else 0

@@ -140,10 +140,23 @@ instance (Fractional a, PrimType a) => Fractional (Data a)
 
 instance (Floating a, PrimType a) => Floating (Data a)
   where
-    pi   = sugarSymFeld Pi
-    (**) = sugarSymFeld Pow
-    sin  = sugarSymFeld Sin
-    cos  = sugarSymFeld Cos
+    pi    = sugarSymFeld Pi
+    exp   = sugarSymFeld Exp
+    log   = sugarSymFeld Log
+    sqrt  = sugarSymFeld Sqrt
+    (**)  = sugarSymFeld Pow
+    sin   = sugarSymFeld Sin
+    cos   = sugarSymFeld Cos
+    tan   = sugarSymFeld Tan
+    asin  = sugarSymFeld Asin
+    acos  = sugarSymFeld Acos
+    atan  = sugarSymFeld Atan
+    sinh  = sugarSymFeld Sinh
+    cosh  = sugarSymFeld Cosh
+    tanh  = sugarSymFeld Tanh
+    asinh = sugarSymFeld Asinh
+    acosh = sugarSymFeld Acosh
+    atanh = sugarSymFeld Atanh
 
 -- | Integer division truncated toward zero
 quot :: (Integral a, PrimType a) => Data a -> Data a -> Data a

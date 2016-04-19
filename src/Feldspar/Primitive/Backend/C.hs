@@ -164,9 +164,22 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
       where pi_def = [cedecl|$esc:("#define FELD_PI 3.141592653589793")|]
               -- This is the value of `pi :: Double`.
               -- Apparently there is no standard C99 definition of pi.
+    go _ Exp   args = addInclude "<tgmath.h>" >> compFun "exp" args
+    go _ Log   args = addInclude "<tgmath.h>" >> compFun "log" args
+    go _ Sqrt  args = addInclude "<tgmath.h>" >> compFun "sqrt" args
+    go _ Pow   args = addInclude "<tgmath.h>" >> compFun "pow" args
     go _ Sin   args = addInclude "<tgmath.h>" >> compFun "sin" args
     go _ Cos   args = addInclude "<tgmath.h>" >> compFun "cos" args
-    go _ Pow   args = addInclude "<tgmath.h>" >> compFun "pow" args
+    go _ Tan   args = addInclude "<tgmath.h>" >> compFun "tan" args
+    go _ Asin  args = addInclude "<tgmath.h>" >> compFun "asin" args
+    go _ Acos  args = addInclude "<tgmath.h>" >> compFun "acos" args
+    go _ Atan  args = addInclude "<tgmath.h>" >> compFun "atan" args
+    go _ Sinh  args = addInclude "<tgmath.h>" >> compFun "sinh" args
+    go _ Cosh  args = addInclude "<tgmath.h>" >> compFun "cosh" args
+    go _ Tanh  args = addInclude "<tgmath.h>" >> compFun "tanh" args
+    go _ Asinh args = addInclude "<tgmath.h>" >> compFun "asinh" args
+    go _ Acosh args = addInclude "<tgmath.h>" >> compFun "acosh" args
+    go _ Atanh args = addInclude "<tgmath.h>" >> compFun "atanh" args
 
     go t I2N   (a :* Nil) = compCast t a
     go t I2B   (a :* Nil) = compCast t a
