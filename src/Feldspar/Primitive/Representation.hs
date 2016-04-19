@@ -182,7 +182,7 @@ witPrimType DoubleT = Dict
 -- | Primitive operations
 data Primitive sig
   where
-    FreeVar :: String -> Primitive (Full a)
+    FreeVar :: PrimType' a => String -> Primitive (Full a)
     Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
 
     Add  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
@@ -229,7 +229,7 @@ data Primitive sig
     Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
     Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
 
-    ArrIx :: (Eq a, Show a) => IArr Index a -> Primitive (Index :-> Full a)
+    ArrIx :: PrimType' a => IArr Index a -> Primitive (Index :-> Full a)
 
     Cond :: Primitive (Bool :-> a :-> a :-> Full a)
 
@@ -242,7 +242,7 @@ deriving instance Show (Primitive a)
 --
 -- It would seem more consistent to have a `PrimType'` constraint on all
 -- polymorphic symbols. However, this would prevent using some symbols for
--- non-primitive types in `Feldspar.Representation`. For example, `FreeVar` and
+-- non-primitive types in `Feldspar.Representation`. For example, `Lit` and
 -- `Cond` are used `Feldspar.Representation`, and there they can also be used
 -- for tuple types. The current design was chosen because it "just works".
 

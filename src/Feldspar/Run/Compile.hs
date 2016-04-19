@@ -188,7 +188,7 @@ translateExp = goAST . optimize . unData
         | Just Gt   <- prj op = liftStruct2 (sugarSymPrim Gt)   <$> goAST a <*> goAST b
         | Just Le   <- prj op = liftStruct2 (sugarSymPrim Le)   <$> goAST a <*> goAST b
         | Just Ge   <- prj op = liftStruct2 (sugarSymPrim Ge)   <$> goAST a <*> goAST b
-    go (Single _) arrIx (i :* Nil)
+    go _ arrIx (i :* Nil)
         | Just (ArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
             return $ Single $ sugarSymPrim (ArrIx arr) i'
@@ -225,7 +225,7 @@ translateExp = goAST . optimize . unData
                           goAST body
                 setRefV state s'
              unsafeFreezeRefV state
-    go (Single _) free Nil  -- TODO match
+    go _ free Nil
         | Just (FreeVar v) <- prj free = return $ Single $ sugarSymPrim $ FreeVar v
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
