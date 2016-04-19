@@ -241,6 +241,13 @@ iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
 objArg :: Object -> FunArg Data PrimType'
 objArg = Imp.objArg
 
+-- | Named constant argument
+constArg
+    :: String  -- ^ Type
+    -> String  -- ^ Named constant
+    -> FunArg Data PrimType'
+constArg = Imp.constArg
+
 -- | Modifier that takes the address of another argument
 addr :: FunArg Data PrimType' -> FunArg Data PrimType'
 addr = Imp.addr
