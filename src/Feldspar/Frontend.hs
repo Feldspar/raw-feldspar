@@ -162,6 +162,9 @@ instance (Floating a, PrimType a) => Floating (Data a)
     acosh = sugarSymFeld Acosh
     atanh = sugarSymFeld Atanh
 
+π :: (Floating a, PrimType a) => Data a
+π = pi
+
 -- | Integer division truncated toward zero
 quot :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 quot = sugarSymFeld Quot
