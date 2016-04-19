@@ -151,6 +151,8 @@ translateExp = goAST . optimize . unData
         | Just Pi <- prj c = return $ Single $ sugarSymPrim Pi
     go _ op (a :* Nil)
         | Just Neg   <- prj op = liftStruct (sugarSymPrim Neg)   <$> goAST a
+        | Just Abs   <- prj op = liftStruct (sugarSymPrim Abs)   <$> goAST a
+        | Just Sign  <- prj op = liftStruct (sugarSymPrim Sign)  <$> goAST a
         | Just Sin   <- prj op = liftStruct (sugarSymPrim Sin)   <$> goAST a
         | Just Cos   <- prj op = liftStruct (sugarSymPrim Cos)   <$> goAST a
         | Just I2N   <- prj op = liftStruct (sugarSymPrim I2N)   <$> goAST a

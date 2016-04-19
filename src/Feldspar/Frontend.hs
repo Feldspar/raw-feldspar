@@ -129,8 +129,8 @@ instance (Num a, PrimType a) => Num (Data a)
     (-)         = sugarSymFeld Sub
     (*)         = sugarSymFeld Mul
     negate      = sugarSymFeld Neg
-    abs    = error "abs not yet defined for Data"
-    signum = error "signum not yet defined for Data"
+    abs         = sugarSymFeld Abs
+    signum      = sugarSymFeld Sign
 
 instance (Fractional a, PrimType a) => Fractional (Data a)
   where

@@ -72,6 +72,37 @@ compFun fun args = do
     as <- sequence $ listArgs (compPrim . Prim) args
     return [cexp| $id:fun($args:as) |]
 
+-- | Compile a call to `abs`
+compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
+compAbs BoolT _   = error "compAbs: there shouldn't be a Num instance for Bool"
+compAbs Int8T   a = compFun "abs" (a :* Nil)
+compAbs Int16T  a = compFun "abs" (a :* Nil)
+compAbs Int32T  a = compFun "labs" (a :* Nil)
+compAbs Int64T  a = compFun "llabs" (a :* Nil)
+compAbs FloatT  a = compFun "fabsf" (a :* Nil)
+compAbs DoubleT a = compFun "fabs" (a :* Nil)
+compAbs _       a = compPrim $ Prim a
+
+-- | Compile a call to `signum`
+compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
+compSign t a = case viewPrimTypeRep t of
+    PrimTypeBool -> error "compSign: there shouldn't be a Num instance for Bool"
+    PrimTypeIntWord (WordType _) -> do
+        a' <- compPrim $ Prim a
+        return [cexp| ($a' > 0) |]
+    PrimTypeIntWord (IntType _) -> do
+        a' <- compPrim $ Prim a
+        return [cexp| ($a' > 0) - ($a' < 0) |]
+    PrimTypeFloatDouble FloatType -> do
+        a' <- compPrim $ Prim a
+        return [cexp| (float) (($a' > 0) - ($a' < 0)) |]
+    PrimTypeFloatDouble DoubleType -> do
+        a' <- compPrim $ Prim a
+        return [cexp| (double) (($a' > 0) - ($a' < 0)) |]
+  -- TODO The floating point cases give `sign (-0.0) = 0.0`, which is (slightly)
+  -- wrong. They should return -0.0. I don't know whether it's correct for other
+  -- strange values.
+
 -- | Compile a function call
 compCast :: MonadC m => PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
 compCast t a
@@ -101,6 +132,8 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Sub  (a :* b :* Nil) = compBinOp C.Sub a b
     go _ Mul  (a :* b :* Nil) = compBinOp C.Mul a b
     go _ Neg  (a :* Nil)      = compUnOp C.Negate a
+    go t Abs  (a :* Nil)      = compAbs t a
+    go t Sign (a :* Nil)      = compSign t a
     go _ Quot (a :* b :* Nil) = compBinOp C.Div a b
     go _ Rem  (a :* b :* Nil) = compBinOp C.Mod a b
     go _ FDiv (a :* b :* Nil) = compBinOp C.Div a b

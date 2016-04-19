@@ -168,10 +168,12 @@ data Primitive sig
     Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
     Pi      :: (Floating a, PrimType' a) => Primitive (Full a)
 
-    Add :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Sub :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Mul :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Neg :: (Num a, PrimType' a) => Primitive (a :-> Full a)
+    Add  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Sub  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Mul  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Neg  :: (Num a, PrimType' a) => Primitive (a :-> Full a)
+    Abs  :: (Num a, PrimType' a) => Primitive (a :-> Full a)
+    Sign :: (Num a, PrimType' a) => Primitive (a :-> Full a)
 
     Quot :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
     Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
@@ -222,6 +224,8 @@ instance Render Primitive
     renderSym Sub         = "(-)"
     renderSym Mul         = "(*)"
     renderSym Neg         = "Neg"
+    renderSym Abs         = "Abs"
+    renderSym Sign        = "Sign"
     renderSym Quot        = "Quot"
     renderSym Rem         = "Rem"
     renderSym FDiv        = "FDiv"
@@ -258,6 +262,8 @@ instance Eval Primitive
     evalSym Sub         = (-)
     evalSym Mul         = (*)
     evalSym Neg         = negate
+    evalSym Abs         = abs
+    evalSym Sign        = signum
     evalSym Quot        = quot
     evalSym Rem         = rem
     evalSym FDiv        = (/)
@@ -302,6 +308,8 @@ instance Equality Primitive
     equal Sub         Sub         = True
     equal Mul         Mul         = True
     equal Neg         Neg         = True
+    equal Abs         Abs         = True
+    equal Sign        Sign        = True
     equal Quot        Quot        = True
     equal Rem         Rem         = True
     equal FDiv        FDiv        = True
@@ -382,4 +390,6 @@ instance (Num a, PrimType' a) => Num (Prim a)
     (-)         = sugarSymPrim Sub
     (*)         = sugarSymPrim Mul
     negate      = sugarSymPrim Neg
+    abs         = sugarSymPrim Abs
+    signum      = sugarSymPrim Sign
 
