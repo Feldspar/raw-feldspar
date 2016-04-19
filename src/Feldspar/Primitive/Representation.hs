@@ -110,6 +110,17 @@ unviewPrimTypeRep (PrimTypeIntWord (WordType (Word64Type))) = Word64T
 unviewPrimTypeRep (PrimTypeFloatDouble FloatType)              = FloatT
 unviewPrimTypeRep (PrimTypeFloatDouble DoubleType)             = DoubleT
 
+primTypeIntWidth :: PrimTypeRep a -> Maybe Int
+primTypeIntWidth Int8T   = Just 8
+primTypeIntWidth Int16T  = Just 16
+primTypeIntWidth Int32T  = Just 32
+primTypeIntWidth Int64T  = Just 64
+primTypeIntWidth Word8T  = Just 8
+primTypeIntWidth Word16T = Just 16
+primTypeIntWidth Word32T = Just 32
+primTypeIntWidth Word64T = Just 64
+primTypeIntWidth _       = Nothing
+
 -- | Primitive supported types
 class (Eq a, Ord a, Show a, Typeable a) => PrimType' a
   where

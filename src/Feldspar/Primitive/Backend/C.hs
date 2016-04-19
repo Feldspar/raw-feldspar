@@ -120,6 +120,22 @@ compCast t a
         a' <- compPrim $ Prim a
         return [cexp|($ty:t') $a'|]
 
+-- | Compile a call to 'round'
+compRound :: (Integral a, RealFrac b, MonadC m) =>
+    PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
+compRound t a = do
+    addInclude "<tgmath.h>"
+    case primTypeIntWidth t of
+        Just w | w < 64    -> compFun "lround" (a :* Nil)
+        Just w | otherwise -> compFun "llround" (a :* Nil)
+        _ -> error $ "compRound: type " ++ show t ++ " not supported"
+
+-- Note: There's no problem with including both `tgmath.h` and `math.h`. As long
+-- as the former is included, including the latter (before or after) doesn't
+-- make a difference.
+--
+-- See: <https://gist.github.com/emilaxelsson/51310b3353f96914cd9bdb18b10b3103>
+
 -- | Compile an expression
 compPrim :: MonadC m => Prim a -> m C.Exp
 compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
@@ -159,11 +175,11 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Sin   args = addInclude "<math.h>" >> compFun "sin" args
     go _ Cos   args = addInclude "<math.h>" >> compFun "cos" args
     go _ Pow   args = addInclude "<math.h>" >> compFun "pow" args
-    go _ Round args = addInclude "<math.h>" >> compFun "lround" args
 
-    go t I2N (a :* Nil) = compCast t a
-    go t I2B (a :* Nil) = compCast t a
-    go t B2I (a :* Nil) = compCast t a
+    go t I2N   (a :* Nil) = compCast t a
+    go t I2B   (a :* Nil) = compCast t a
+    go t B2I   (a :* Nil) = compCast t a
+    go t Round (a :* Nil) = compRound t a
 
     go _ (ArrIx arr) (i :* Nil) = do
         i' <- compPrim $ Prim i
