@@ -24,10 +24,13 @@ source-repository head
 library
   exposed-modules:
     Data.Inhabited
-    Data.VirtualContainer
+    Data.TypedStruct
+    Feldspar.Primitive.Representation
+    Feldspar.Primitive.Backend.C
     Feldspar.Representation
-    Feldspar.Optimize
+    Feldspar.Sugar
     Feldspar.Frontend
+    Feldspar.Optimize
     Feldspar.Storable
     Feldspar
     Feldspar.Run.Representation
@@ -45,7 +48,6 @@ library
 
   other-modules:
     Data.Inhabited.TH
-    Data.VirtualContainer.TH
 
   default-language: Haskell2010
 
@@ -67,15 +69,15 @@ library
   build-depends:
     array,
     base < 5,
+    constraints,
     containers,
-    imperative-edsl >=0.4.1 && <0.5,
-    hardware-edsl >=0.1.0.2,
+    imperative-edsl >= 0.5,
+    -- hardware-edsl >= 0.1.0.2,
     language-c-quote,
     mtl,
-    open-typerep >= 0.5,
     operational-alacarte,
     prelude-edsl,
-    syntactic >= 3.5,
+    syntactic >= 3.6,
     template-haskell
 
   hs-source-dirs: src
@@ -92,7 +94,6 @@ test-suite NumSimpl
   build-depends:
     base,
     mtl,
-    open-typerep,
     raw-feldspar,
     syntactic,
     tasty-quickcheck,

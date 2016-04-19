@@ -7,40 +7,26 @@ module Feldspar.Representation where
 
 
 
-import Data.Array ((!))
+import Data.Int
 import Data.List (genericTake)
+import Data.Typeable (Typeable)
 import Data.Word
+
+import Data.Constraint (Dict (..))
 
 import Language.Syntactic
 import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
-import Data.TypeRep
-import Data.TypeRep.TH
-import Data.TypeRep.Types.Basic
-import Data.TypeRep.Types.Basic.Typeable ()
-import Data.TypeRep.Types.Tuple
-import Data.TypeRep.Types.Tuple.Typeable ()
-import Data.TypeRep.Types.IntWord
-import Data.TypeRep.Types.IntWord.Typeable ()
-import Language.Syntactic.TypeRep (sugarSymTR)
-import Language.Syntactic.TypeRep.Sugar.BindingTR ()
-import Language.Syntactic.TypeRep.Sugar.TupleTR ()
+import qualified Control.Monad.Operational.Higher as Operational
 
-import qualified Control.Monad.Operational.Higher as H
-
-import Language.Embedded.Hardware (HType)
-import qualified Language.Embedded.Hardware.Interface as Hard
-
-import Language.Embedded.CExp (CType)
-import qualified Language.Embedded.Expression     as Imp
+import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
-import qualified Language.C.Quote as C
-
-import qualified Data.Inhabited as Inhabited
-import Data.VirtualContainer
+import Data.Inhabited
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
 
 
 
@@ -48,53 +34,96 @@ import Data.VirtualContainer
 -- * Object-language types
 --------------------------------------------------------------------------------
 
-type FeldTypes
-    =   BoolType
-    :+: FloatType
-    :+: DoubleType
-    :+: IntWordType
-    :+: TupleType
-    :+: FunType
+-- | Representation of all supported types
+type TypeRep = Struct PrimType' PrimTypeRep
 
-pFeldTypes :: Proxy FeldTypes
-pFeldTypes = Proxy
+-- | Supported types
+class (Eq a, Show a, Ord a, Typeable a, Inhabited a) => Type a
+  where
+    -- | Reify a type
+    typeRep :: TypeRep a
 
--- | Feldspar types
-class    (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
-instance (Typeable FeldTypes a, VirtualType SmallType a, Show a, Eq a, Ord a, Inhabited.Inhabited a) => Type a
+instance Type Bool    where typeRep = Single BoolT
+instance Type Int8    where typeRep = Single Int8T
+instance Type Int16   where typeRep = Single Int16T
+instance Type Int32   where typeRep = Single Int32T
+instance Type Int64   where typeRep = Single Int64T
+instance Type Word8   where typeRep = Single Word8T
+instance Type Word16  where typeRep = Single Word16T
+instance Type Word32  where typeRep = Single Word32T
+instance Type Word64  where typeRep = Single Word64T
+instance Type Float   where typeRep = Single FloatT
+instance Type Double  where typeRep = Single DoubleT
+instance (Type a, Type b) => Type (a,b) where typeRep = Two typeRep typeRep
 
--- | Small Feldspar types
-class    (Type a, CType a, HType a) => SmallType a
-instance (Type a, CType a, HType a) => SmallType a
+-- | Alias for the conjunction of 'PrimType'' and 'Type'
+class    (PrimType' a, Type a) => PrimType a
+instance (PrimType' a, Type a) => PrimType a
 
-instance ShowClass Type      where showClass _ = "Type"
-instance ShowClass SmallType where showClass _ = "SmallType"
+-- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
+toTypeRep :: Struct PrimType' c a -> TypeRep a
+toTypeRep = mapStruct (const primTypeRep)
 
-pType :: Proxy Type
-pType = Proxy
+-- | Check whether two type representations are equal
+typeEq :: TypeRep a -> TypeRep b -> Maybe (Dict (a ~ b))
+typeEq (Single t) (Single u) = primTypeEq t u
+typeEq (Two t1 t2) (Two u1 u2) = do
+    Dict <- typeEq t1 u1
+    Dict <- typeEq t2 u2
+    return Dict
+typeEq _ _ = Nothing
 
-pSmallType :: Proxy SmallType
-pSmallType = Proxy
+-- | Reflect a 'TypeRep' to a 'Typeable' constraint
+witTypeable :: TypeRep a -> Dict (Typeable a)
+witTypeable (Single t)
+    | Dict <- witPrimType t
+    = Dict
+witTypeable (Two ta tb)
+    | Dict <- witTypeable ta
+    , Dict <- witTypeable tb
+    = Dict
 
-type Length = Word32
-type Index  = Word32
+-- | Representation of supported value types + N-ary functions over such types
+data TypeRepFun a
+  where
+    ValT :: TypeRep a -> TypeRepFun a
+    FunT :: TypeRep a -> TypeRepFun b -> TypeRepFun (a -> b)
+  -- Another option would have been to make `FunT` a constructor in `TypeRep`.
+  -- That would have got rid of the extra layer at the expense of less accurate
+  -- types (functions would be allowed in pairs, etc.). The current design was
+  -- chosen in order to be able to reuse `Struct` instead of making `TypeRep` a
+  -- new data type.
+
+-- | Check whether two type representations are equal
+typeEqFun :: TypeRepFun a -> TypeRepFun b -> Maybe (Dict (a ~ b))
+typeEqFun (ValT t)     (ValT u)     = typeEq t u
+typeEqFun (FunT ta tb) (FunT ua ub) = do
+    Dict <- typeEq ta ua
+    Dict <- typeEqFun tb ub
+    return Dict
+typeEqFun _ _ = Nothing
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Virtual SmallType Imp.Ref a }
+newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
+  -- A reference to a tuple is a struct of smaller references. This means that
+  -- creating a reference to a tuple will generate several calls to generate new
+  -- references. This must be done already in the front end, which means that
+  -- the work in the back end becomes simpler.
+  --
+  -- Another option would be to allow a single reference to refer to a tuple,
+  -- and then turn that into smaller references in the back end. However, this
+  -- would complicate the back end for no obvious reason. (One way to do it
+  -- would be to run the back end in a store that maps each front end reference
+  -- to a struct of small references. Among other things, that would require
+  -- dynamic typing.)
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Virtual SmallType (Imp.Arr Index) a }
+newtype Arr a = Arr { unArr :: Struct PrimType' (Imp.Arr Index) a }
+  -- An array of tuples is represented as a struct of smaller arrays. See
+  -- comment to `Ref`.
 
 -- | Immutable array
-newtype IArr a = IArr { unIArr :: Virtual SmallType (Imp.IArr Index) a }
-
-instance SmallType a => C.ToIdent (Ref a)  where toIdent (Ref (Actual r))  = C.toIdent r
-instance SmallType a => C.ToIdent (Arr a)  where toIdent (Arr (Actual a))  = C.toIdent a
-instance SmallType a => C.ToIdent (IArr a) where toIdent (IArr (Actual a)) = C.toIdent a
-
-instance SmallType a => Imp.Assignable (Ref a)
-instance SmallType a => Imp.Assignable (Arr a)
-instance SmallType a => Imp.Assignable (IArr a)
+newtype IArr a = IArr { unIArr :: Struct PrimType' (Imp.IArr Index) a }
 
 
 
@@ -102,139 +131,24 @@ instance SmallType a => Imp.Assignable (IArr a)
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
--- | Primitive operations
-data Primitive sig
-  where
-    Pi  :: (SmallType a, Floating a) => Primitive (Full a)
-
-    Add :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
-    Sub :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
-    Mul :: (SmallType a, Num a) => Primitive (a :-> a :-> Full a)
-    Neg :: (SmallType a, Num a) => Primitive (a :-> Full a)
-
-    Quot :: (SmallType a, Integral a)   => Primitive (a :-> a :-> Full a)
-    Rem  :: (SmallType a, Integral a)   => Primitive (a :-> a :-> Full a)
-    FDiv :: (SmallType a, Fractional a) => Primitive (a :-> a :-> Full a)
-
-    Sin :: (SmallType a, Floating a) => Primitive (a :-> Full a)
-    Cos :: (SmallType a, Floating a) => Primitive (a :-> Full a)
-    Pow :: (SmallType a, Floating a) => Primitive (a :-> a :-> Full a)
-
-    I2N   :: (SmallType a, SmallType b, Integral a, Num b)
-          => Primitive (a :-> Full b)
-    I2B   :: (SmallType a, Integral a) => Primitive (a :-> Full Bool)
-    B2I   :: (SmallType a, Integral a) => Primitive (Bool :-> Full a)
-    Round :: (SmallType a, SmallType b, RealFrac a, Integral b)
-          => Primitive (a :-> Full b)
-
-    Not ::                Primitive (Bool :-> Full Bool)
-    And ::                Primitive (Bool :-> Bool :-> Full Bool)
-    Or  ::                Primitive (Bool :-> Bool :-> Full Bool)
-    Eq  :: SmallType a => Primitive (a :-> a :-> Full Bool)
-    Lt  :: SmallType a => Primitive (a :-> a :-> Full Bool)
-    Gt  :: SmallType a => Primitive (a :-> a :-> Full Bool)
-    Le  :: SmallType a => Primitive (a :-> a :-> Full Bool)
-    Ge  :: SmallType a => Primitive (a :-> a :-> Full Bool)
-
-instance Render Primitive
-  where
-    renderSym Pi    = "Pi"
-    renderSym Add   = "(+)"
-    renderSym Sub   = "(-)"
-    renderSym Mul   = "(*)"
-    renderSym Neg   = "Neg"
-    renderSym Quot  = "Quot"
-    renderSym Rem   = "Rem"
-    renderSym FDiv  = "FDiv"
-    renderSym Sin   = "Sin"
-    renderSym Cos   = "Cos"
-    renderSym Pow   = "Pow"
-    renderSym I2N   = "I2N"
-    renderSym I2B   = "I2B"
-    renderSym B2I   = "B2I"
-    renderSym Round = "Round"
-    renderSym Not   = "Not"
-    renderSym And   = "And"
-    renderSym Or    = "Or"
-    renderSym Eq    = "(==)"
-    renderSym Lt    = "(<)"
-    renderSym Gt    = "(>)"
-    renderSym Le    = "(<=)"
-    renderSym Ge    = "(>=)"
-
-    renderArgs = renderArgsSmart
-
-instance Eval Primitive
-  where
-    evalSym Pi    = pi
-    evalSym Add   = (+)
-    evalSym Sub   = (-)
-    evalSym Mul   = (*)
-    evalSym Neg   = negate
-    evalSym Quot  = quot
-    evalSym Rem   = rem
-    evalSym FDiv  = (/)
-    evalSym Sin   = sin
-    evalSym Cos   = cos
-    evalSym Pow   = (**)
-    evalSym I2N   = fromInteger . toInteger
-    evalSym I2B   = (/=0)
-    evalSym B2I   = \a -> if a then 1 else 0
-    evalSym Round = round
-    evalSym Not   = not
-    evalSym And   = (&&)
-    evalSym Or    = (||)
-    evalSym Eq    = (==)
-    evalSym Lt    = (<)
-    evalSym Gt    = (>)
-    evalSym Le    = (<=)
-    evalSym Ge    = (>=)
-
--- Array indexing
-data Array sig
-  where
-    ArrIx :: SmallType a => Imp.IArr Index a -> Array (Index :-> Full a)
-
-instance Render Array
-  where
-    renderSym (ArrIx (Imp.IArrComp arr)) = "ArrIx " ++ arr
-    renderSym (ArrIx _)                  = "ArrIx ..."
-    renderArgs = renderArgsSmart
-
-instance Eval Array
-  where
-    evalSym (ArrIx (Imp.IArrEval arr)) = (arr!)
-
--- | Can only return 'True' if the array has a syntactic representation (i.e.
--- when compiling)
-instance Equality Array
-  where
-    equal (ArrIx (Imp.IArrComp arr1)) (ArrIx (Imp.IArrComp arr2)) = arr1 == arr2
-    equal _ _ = False
-
--- | Conditionals
-data Condition sig
-  where
-    Condition :: Type a => Condition (Bool :-> a :-> a :-> Full a)
-
-instance Eval Condition
-  where
-    evalSym Condition = \c t f -> if c then t else f
-
 -- | For loop
 data ForLoop sig
   where
-    ForLoop :: Type st => ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
+    ForLoop :: Type st =>
+        ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
 
 instance Eval ForLoop
   where
-    evalSym ForLoop = \len init body -> foldl (flip body) init $ genericTake len [0..]
+    evalSym ForLoop = \len init body ->
+        foldl (flip body) init $ genericTake len [0..]
+
+instance EvalEnv ForLoop env
+
+instance StringTree ForLoop
 
 -- | Interaction with the IO layer
 data IOSym sig
   where
-    -- Result of an IO operation
-    FreeVar :: SmallType a => String -> IOSym (Full a)
     -- Turn a program into a pure value
     UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
@@ -245,35 +159,31 @@ data IOSym sig
 
 instance Render IOSym
   where
-    renderSym (FreeVar v)           = v
     renderSym (UnsafePerform _)     = "UnsafePerform ..."
     renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
 
+instance StringTree IOSym
+
 instance Eval IOSym
   where
-    evalSym (FreeVar v) = error $ "eval: cannot evaluate free variable " ++ v
     evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
 
--- | 'equal' can only return 'True' for 'FreeVar' and 'UnsafeArrIx'. For
--- 'UnsafeArrIx' it only returns 'True' when the arrays have an intensional
--- representation (i.e. were created to code generation).
+instance EvalEnv IOSym env
+
+-- | 'equal' always returns 'False'
 instance Equality IOSym
   where
-    equal (FreeVar v1) (FreeVar v2) = v1 == v2
     equal _ _ = False
 
 type FeldConstructs
-    =   Literal
-    :+: BindingT
+    =   BindingT
     :+: Let
     :+: Tuple
     :+: Primitive
-    :+: Array
-    :+: Condition
     :+: ForLoop
     :+: IOSym
 
-type FeldDomain = FeldConstructs :&: TypeRep FeldTypes
+type FeldDomain = FeldConstructs :&: TypeRepFun
 
 newtype Data a = Data { unData :: ASTF FeldDomain a }
 
@@ -285,107 +195,100 @@ instance Syntactic (Data a)
     desugar = unData
     sugar   = Data
 
-instance Syntactic (Virtual SmallType Data a)
+instance Syntactic (Struct PrimType' Data a)
+    -- Note that this instance places no constraints on `a`. This is crucial in
+    -- the way it is used in the rest of the code. It would be possible to
+    -- define `desugar` and `sugar` in terms of the instance for pairs; however,
+    -- that would require constraining `a`.
   where
-    type Domain   (Virtual SmallType Data a) = FeldDomain
-    type Internal (Virtual SmallType Data a) = a
-    desugar = desugar . mapVirtual (ASTFull . unData)
-    sugar   = mapVirtual (Data . unASTFull) . sugar
+    type Domain   (Struct PrimType' Data a) = FeldDomain
+    type Internal (Struct PrimType' Data a) = a
+
+    desugar (Single a) = unData a
+    desugar (Two a b)  = sugarSymDecor (ValT $ Two ta tb) Pair a' b'
+      where
+        a' = desugar a
+        b' = desugar b
+        ValT ta = getDecor a'
+        ValT tb = getDecor b'
+
+    sugar a = case getDecor a of
+        ValT (Single _)  -> Single $ Data a
+        ValT (Two ta tb) ->
+            Two (sugarSymDecor (ValT ta) Fst a) (sugarSymDecor (ValT tb) Snd a)
 
 -- | Specialization of the 'Syntactic' class for the Feldspar domain
 class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
 
---type instance PredicateExp Data = SmallType
+-- | Make a smart constructor for a symbol
+sugarSymFeld
+    :: ( Signature sig
+       , fi         ~ SmartFun FeldDomain sig
+       , sig        ~ SmartSig fi
+       , FeldDomain ~ SmartSym fi
+       , SyntacticN f fi
+       , sub :<: FeldConstructs
+       , Type (DenResult sig)
+       )
+    => sub sig -> f
+sugarSymFeld = sugarSymDecor $ ValT typeRep
 
--- | Evaluate an expression
+-- | Make a smart constructor for a symbol
+sugarSymFeldPrim
+    :: ( Signature sig
+       , fi         ~ SmartFun FeldDomain sig
+       , sig        ~ SmartSig fi
+       , FeldDomain ~ SmartSym fi
+       , SyntacticN f fi
+       , sub :<: FeldConstructs
+       , PrimType' (DenResult sig)
+       )
+    => sub sig -> f
+sugarSymFeldPrim = sugarSymDecor $ ValT $ Single primTypeRep
+
+-- | Evaluate a closed expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
 
 instance Imp.FreeExp Data
   where
-    type VarPred Data = SmallType
-    valExp = sugarSymTR . Literal
-    varExp = sugarSymTR . FreeVar
+    type FreePred Data = PrimType'
+    constExp = sugarSymFeldPrim . Lit
+    varExp   = sugarSymFeldPrim . FreeVar
 
 instance Imp.EvalExp Data
   where
     evalExp = eval
 
-instance Hard.FreeExp Data
-  where
-    type PredicateExp Data = SmallType
-    litE = sugarSymTR . Literal
-    varE = sugarSymTR . FreeVar
 
-instance Hard.EvaluateExp Data
-  where
-    evalE = eval
 
 --------------------------------------------------------------------------------
 -- * Monadic computations
 --------------------------------------------------------------------------------
 
 type CompCMD
-  =     Imp.RefCMD     Data
-  H.:+: Imp.ArrCMD     Data
-  H.:+: Imp.ControlCMD Data
+  =               Imp.RefCMD
+  Operational.:+: Imp.ArrCMD
+  Operational.:+: Imp.ControlCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
-newtype Comp a = Comp { unComp :: H.Program CompCMD a }
+newtype Comp a = Comp
+    { unComp ::
+        Operational.Program CompCMD (Operational.Param2 Data PrimType') a
+    }
   deriving (Functor, Applicative, Monad)
 
 
 
 --------------------------------------------------------------------------------
--- Uninteresting instances
+-- Template Haskell instances
 --------------------------------------------------------------------------------
-
-derivePWitness ''Type ''BoolType
-derivePWitness ''Type ''FloatType
-derivePWitness ''Type ''DoubleType
-derivePWitness ''Type ''IntWordType
-derivePWitness ''Type ''TupleType
-
-instance PWitness Type FunType t
-
-derivePWitness ''SmallType ''BoolType
-derivePWitness ''SmallType ''FloatType
-derivePWitness ''SmallType ''DoubleType
-derivePWitness ''SmallType ''IntWordType
-
-instance PWitness SmallType TupleType t
-instance PWitness SmallType FunType t
-
-deriveSymbol   ''Primitive
-deriveEquality ''Primitive
-
-instance StringTree Primitive
-
-deriveSymbol ''Array
-
-instance StringTree Array
-
-deriveSymbol    ''Condition
-deriveRender id ''Condition
-deriveEquality  ''Condition
-
-instance StringTree Condition
 
 deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop
 deriveEquality  ''ForLoop
 
-instance StringTree ForLoop
-
 deriveSymbol ''IOSym
-
-instance StringTree IOSym
-
-instance EvalEnv Primitive env
-instance EvalEnv Array env
-instance EvalEnv Condition env
-instance EvalEnv ForLoop env
-instance EvalEnv IOSym env
 

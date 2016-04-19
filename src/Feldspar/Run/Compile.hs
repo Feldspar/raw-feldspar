@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Feldspar.Run.Compile where
 
@@ -10,224 +9,81 @@ import Control.Monad.Reader
 import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Data.Constraint (Dict (..))
+
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
 import Language.Syntactic.Functional.Tuple
 
-import Data.TypeRep
-
 import qualified Control.Monad.Operational.Higher as Oper
 
+import Language.Embedded.Expression
 import Language.Embedded.Imperative hiding ((:+:) (..), (:<:) (..))
 import Language.Embedded.Concurrent
 import qualified Language.Embedded.Imperative as Imp
-import Language.Embedded.Imperative.CMD hiding (Ref, Arr)
-import Language.Embedded.Concurrent.CMD
-import Language.Embedded.CExp
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 import qualified Language.Embedded.Backend.C as Imp
 
-import Data.VirtualContainer
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
+import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
 import Feldspar.Run.Representation
 import Feldspar.Optimize
-import qualified Feldspar.Frontend as Feld
-import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 
 
 --------------------------------------------------------------------------------
--- * Virtual variables
+-- * Struct expressions and variables
 --------------------------------------------------------------------------------
 
-newRefV :: VirtualType SmallType a =>
-    String -> Target (Virtual SmallType Imp.Ref a)
-newRefV base = lift $ mapVirtualA (const (newNamedRef base)) virtRep
+-- | Struct expression
+type VExp = Struct PrimType' Prim
 
-initRefV :: VirtualType SmallType a =>
-    String -> VExp a -> Target (Virtual SmallType Imp.Ref a)
-initRefV base = lift . mapVirtualA (initNamedRef base)
-
-getRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> Target (VExp a)
-getRefV = lift . mapVirtualA getRef
-
-setRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> VExp a -> Target ()
-setRefV r = lift . sequence_ . zipListVirtual setRef r
-
-unsafeFreezeRefV :: VirtualType SmallType a =>
-    Virtual SmallType Imp.Ref a -> Target (VExp a)
-unsafeFreezeRefV = lift . mapVirtualA unsafeFreezeRef
-
-
-
---------------------------------------------------------------------------------
--- * Translation of programs
---------------------------------------------------------------------------------
-
--- | Virtual expression
-type VExp = Virtual SmallType CExp
-
--- | Virtual expression with hidden result type
+-- | Struct expression with hidden result type
 data VExp'
   where
-    VExp' :: Type a => Virtual SmallType CExp a -> VExp'
+    VExp' :: Struct PrimType' Prim a -> VExp'
 
-type TargetCMD
-    =       RefCMD CExp
-    Imp.:+: ArrCMD CExp
-    Imp.:+: ControlCMD CExp
-    Imp.:+: ThreadCMD
-    Imp.:+: ChanCMD CExp
-    Imp.:+: PtrCMD
-    Imp.:+: FileCMD CExp
-    Imp.:+: C_CMD CExp
+newRefV :: Monad m => TypeRep a -> String -> TargetT m (Struct PrimType' Imp.Ref a)
+newRefV t base = lift $ mapStructA (const (newNamedRef base)) t
 
+initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType' Imp.Ref a)
+initRefV base = lift . mapStructA (initNamedRef base)
+
+getRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
+getRefV = lift . mapStructA getRef
+
+setRefV :: Monad m => Struct PrimType' Imp.Ref a -> VExp a -> TargetT m ()
+setRefV r = lift . sequence_ . zipListStruct setRef r
+
+unsafeFreezeRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
+unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
+
+
+
+--------------------------------------------------------------------------------
+-- * Translation environment
+--------------------------------------------------------------------------------
+
+-- | Translation environment
 type Env = Map Name VExp'
 
--- | Target monad for translation
-type Target = ReaderT Env (Program TargetCMD)
-
 -- | Add a local alias to the environment
-localAlias :: Type a
+localAlias :: MonadReader Env m
     => Name    -- ^ Old name
     -> VExp a  -- ^ New expression
-    -> Target b
-    -> Target b
+    -> m b
+    -> m b
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment
-lookAlias :: Type a => Name -> Target (VExp a)
-lookAlias v = do
+lookAlias :: MonadReader Env m => TypeRep a -> Name -> m (VExp a)
+lookAlias t v = do
     env <- ask
     return $ case Map.lookup v env of
         Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
-        Just (VExp' e) -> case gcast pFeldTypes e of
-            Left msg -> error $ "lookAlias: " ++ msg
-            Right e' -> e'
-
--- | Translate instructions to the 'Target' monad
-class Lower instr
-  where
-    lowerInstr :: instr Target a -> Target a
-
--- | Lift a 'CExp' that has been created using
--- 'Language.Embedded.Expression.litExp' or
--- 'Language.Embedded.Expression.varExp'
-liftVar :: SmallType a => CExp a -> Data a
-liftVar (CExp (Sym (T (Var v))))   = Data $ Sym $ (inj (FreeVar v) :&: typeRep)
-liftVar (CExp (Sym (T (Lit _ a)))) = Feld.value a
-
-instance Lower (RefCMD Data)
-  where
-    lowerInstr (NewRef base)       = lift $ newNamedRef base
-    lowerInstr (InitRef base a)    = lift . initNamedRef base =<< translateSmallExp a
-    lowerInstr (GetRef r)          = fmap liftVar $ lift $ getRef r
-    lowerInstr (SetRef r a)        = lift . setRef r =<< translateSmallExp a
-    lowerInstr (UnsafeFreezeRef r) = fmap liftVar $ lift $ unsafeFreezeRef r
-
-instance Lower (ArrCMD Data)
-  where
-    lowerInstr (NewArr base n)   = lift . newNamedArr base =<< translateSmallExp n
-    lowerInstr (InitArr base as) = lift $ initNamedArr base as
-    lowerInstr (GetArr i arr) = do
-        i' <- translateSmallExp i
-        fmap liftVar $ lift $ getArr i' arr
-    lowerInstr (SetArr i a arr) = do
-        i' <- translateSmallExp i
-        a' <- translateSmallExp a
-        lift $ setArr i' a' arr
-    lowerInstr (CopyArr dst src n) =
-        lift . copyArr dst src =<< translateSmallExp n
-    lowerInstr (UnsafeFreezeArr arr) = lift $ unsafeFreezeArr arr
-
-instance Lower (ControlCMD Data)
-  where
-    lowerInstr (If c t f) = do
-        c' <- translateSmallExp c
-        ReaderT $ \env -> iff c'
-            (flip runReaderT env t)
-            (flip runReaderT env f)
-    lowerInstr (While cont body) = do
-        ReaderT $ \env -> while
-            (flip runReaderT env $ translateSmallExp =<< cont)
-            (flip runReaderT env body)
-    lowerInstr (For (lo,step,hi) body) = do
-        lo' <- translateSmallExp lo
-        hi' <- traverse translateSmallExp hi
-        ReaderT $ \env -> for (lo',step,hi') (flip runReaderT env . body . liftVar)
-    lowerInstr (Assert cond msg) = do
-        cond' <- translateSmallExp cond
-        lift $ assert cond' msg
-    lowerInstr Break = lift Imp.break
-
-instance Lower ThreadCMD
-  where
-    lowerInstr (ForkWithId p) = ReaderT $ \env -> forkWithId (flip runReaderT env . p)
-    lowerInstr (Kill t)       = lift $ killThread t
-    lowerInstr (Wait t)       = lift $ waitThread t
-
-instance Lower (ChanCMD Data)
-  where
-    lowerInstr (NewChan b) = do
-        b' <- translateSmallExp b
-        lift $ Oper.singleE $ NewChan b'
-    lowerInstr (ReadChan c)    = fmap liftVar $ lift $ readChan c
-    lowerInstr (WriteChan c a) = do
-        a' <- translateSmallExp a
-        fmap liftVar $ lift $ writeChan c a'
-    lowerInstr (CloseChan c) = lift $ closeChan c
-    lowerInstr (ReadOK c)    = fmap liftVar $ lift $ lastChanReadOK c
-
-instance Lower PtrCMD
-  where
-    lowerInstr (SwapPtr a b) = lift $ unsafeSwap a b
-
-instance Lower (FileCMD Data)
-  where
-    lowerInstr (FOpen file mode)   = lift $ fopen file mode
-    lowerInstr (FClose h)          = lift $ fclose h
-    lowerInstr (FEof h)            = fmap liftVar $ lift $ feof h
-    lowerInstr (FPrintf h form as) = lift . fprf h form . reverse =<< transPrintfArgs as
-    lowerInstr (FGet h)            = fmap liftVar $ lift $ fget h
-
-transPrintfArgs :: [PrintfArg Data] -> Target [PrintfArg CExp]
-transPrintfArgs = mapM $ \(PrintfArg a) -> PrintfArg <$> translateSmallExp a
-
-instance Lower (C_CMD Data)
-  where
-    lowerInstr (NewObject base p t) = lift $ newNamedObject base p t
-    lowerInstr (AddInclude incl)    = lift $ addInclude incl
-    lowerInstr (AddDefinition def)  = lift $ addDefinition def
-    lowerInstr (AddExternFun f (_ :: proxy (Data res)) as) =
-        lift . addExternFun f (Proxy :: Proxy (CExp res)) =<< transFunArgs as
-    lowerInstr (AddExternProc p as) = lift . addExternProc p =<< transFunArgs as
-    lowerInstr (CallFun f as) = fmap liftVar . lift . callFun f =<< transFunArgs as
-    lowerInstr (CallProc Nothing p as)  = lift . callProc p =<< transFunArgs as
-    lowerInstr (CallProc (Just o) p as) = lift . callProcAssign o p =<< transFunArgs as
-    lowerInstr (InModule mod prog)      = ReaderT $ inModule mod . runReaderT prog
-
-transFunArgs :: [FunArg Data] -> Target [FunArg CExp]
-transFunArgs = mapM $ mapMArg predCast translateSmallExp
-  where
-    predCast :: VarPredCast Data CExp
-    predCast _ a = a
-
-instance (Lower i1, Lower i2) => Lower (i1 Imp.:+: i2)
-  where
-    lowerInstr (Oper.Inl i) = lowerInstr i
-    lowerInstr (Oper.Inr i) = lowerInstr i
-
--- | Translate a Feldspar program to the 'Target' monad
-lower :: Program CompCMD a -> Target a
-lower = Oper.interpretWithMonad lowerInstr
-
--- | Translate a Feldspar program into a program that uses 'TargetCMD'
-lowerTop :: Run a -> Program TargetCMD a
-lowerTop
-    = flip runReaderT Map.empty
-    . Oper.interpretWithMonadT lowerInstr (Oper.interpretWithMonad lowerInstr)
-    . unRun
+        Just (VExp' e) -> case typeEq t (toTypeRep e) of Just Dict -> e
 
 
 
@@ -235,101 +91,112 @@ lowerTop
 -- * Translation of expressions
 --------------------------------------------------------------------------------
 
-transAST :: ASTF FeldDomain a -> Target (VExp a)
-transAST = goAST . optimize
+type TargetCMD
+    =       RefCMD
+    Imp.:+: ArrCMD
+    Imp.:+: ControlCMD
+    Imp.:+: ThreadCMD
+    Imp.:+: ChanCMD
+    Imp.:+: PtrCMD
+    Imp.:+: FileCMD
+    Imp.:+: C_CMD
+
+-- | Target monad during translation
+type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 Prim PrimType') m)
+
+-- | Monad for translated program
+type ProgC = Program TargetCMD (Param2 Prim PrimType')
+
+-- | Translate an expression
+translateExp :: forall m a . Monad m => Data a -> TargetT m (VExp a)
+translateExp = goAST . optimize . unData
   where
-    goAST :: ASTF FeldDomain a -> Target (VExp a)
-    goAST = simpleMatch (\(s :&: t) -> go t s)
+    -- Assumes that `b` is not a function type
+    goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
+    goAST = simpleMatch (\(s :&: ValT t) -> go t s)
 
-    goSmallAST :: SmallType a => ASTF FeldDomain a -> Target (CExp a)
-    goSmallAST = fmap viewActual . goAST
+    goSmallAST :: PrimType' b => ASTF FeldDomain b -> TargetT m (Prim b)
+    goSmallAST = fmap extractSingle . goAST
 
-    go :: TypeRep FeldTypes (DenResult sig) -> FeldConstructs sig
-       -> Args (AST FeldDomain) sig -> Target (VExp (DenResult sig))
+    go :: TypeRep (DenResult sig)
+       -> FeldConstructs sig
+       -> Args (AST FeldDomain) sig
+       -> TargetT m (VExp (DenResult sig))
+    go t lit Nil
+        | Just (Lit a) <- prj lit
+        = return $ mapStruct (constExp . runIdentity) $ toStruct t a
     go t lit Nil
         | Just (Literal a) <- prj lit
-        , Right Dict <- pwit pType t
-        = return $ mapVirtual (value . runIdentity) $ toVirtual a
+        = return $ mapStruct (constExp . runIdentity) $ toStruct t a
     go t var Nil
         | Just (VarT v) <- prj var
-        , Right Dict <- pwit pType t
-        = lookAlias v
+        = lookAlias t v
     go t lt (a :* (lam :$ body) :* Nil)
         | Just (Let tag) <- prj lt
         , Just (LamT v)  <- prj lam
-        , Right Dict     <- pwit pType (getDecor a)
         = do let base = if null tag then "let" else tag
              r  <- initRefV base =<< goAST a
              a' <- unsafeFreezeRefV r
              localAlias v a' $ goAST body
     go t tup (a :* b :* Nil)
-        | Just Tup2 <- prj tup = VTup2 <$> goAST a <*> goAST b
-    go t tup (a :* b :* c :* Nil)
-        | Just Tup3 <- prj tup = VTup3 <$> goAST a <*> goAST b <*> goAST c
-    go t tup (a :* b :* c :* d :* Nil)
-        | Just Tup4 <- prj tup = VTup4 <$> goAST a <*> goAST b <*> goAST c <*> goAST d
-    go t sel (a :* Nil)
-        | Just Sel1  <- prj sel = fmap vsel1  $ goAST a
-        | Just Sel2  <- prj sel = fmap vsel2  $ goAST a
-        | Just Sel3  <- prj sel = fmap vsel3  $ goAST a
-        | Just Sel4  <- prj sel = fmap vsel4  $ goAST a
-        | Just Sel5  <- prj sel = fmap vsel5  $ goAST a
-        | Just Sel6  <- prj sel = fmap vsel6  $ goAST a
-        | Just Sel7  <- prj sel = fmap vsel7  $ goAST a
-        | Just Sel8  <- prj sel = fmap vsel8  $ goAST a
-        | Just Sel9  <- prj sel = fmap vsel9  $ goAST a
-        | Just Sel10 <- prj sel = fmap vsel10 $ goAST a
-        | Just Sel11 <- prj sel = fmap vsel11 $ goAST a
-        | Just Sel12 <- prj sel = fmap vsel12 $ goAST a
-        | Just Sel13 <- prj sel = fmap vsel13 $ goAST a
-        | Just Sel14 <- prj sel = fmap vsel14 $ goAST a
-        | Just Sel15 <- prj sel = fmap vsel15 $ goAST a
-    go t c Nil
-        | Just Pi <- prj c = return $ Actual pi
-    go t op (a :* Nil)
-        | Just Neg   <- prj op = liftVirt negate <$> goAST a
-        | Just Sin   <- prj op = liftVirt sin    <$> goAST a
-        | Just Cos   <- prj op = liftVirt cos    <$> goAST a
-        | Just I2N   <- prj op = liftVirt i2n    <$> goAST a
-        | Just I2B   <- prj op = liftVirt i2b    <$> goAST a
-        | Just B2I   <- prj op = liftVirt b2i    <$> goAST a
-        | Just Round <- prj op = liftVirt round_ <$> goAST a
-        | Just Not   <- prj op = liftVirt not_   <$> goAST a
-    go t op (a :* b :* Nil)
-        | Just Add  <- prj op = liftVirt2 (+)   <$> goAST a <*> goAST b
-        | Just Sub  <- prj op = liftVirt2 (-)   <$> goAST a <*> goAST b
-        | Just Mul  <- prj op = liftVirt2 (*)   <$> goAST a <*> goAST b
-        | Just FDiv <- prj op = liftVirt2 (/)   <$> goAST a <*> goAST b
-        | Just Quot <- prj op = liftVirt2 quot_ <$> goAST a <*> goAST b
-        | Just Rem  <- prj op = liftVirt2 (#%)  <$> goAST a <*> goAST b
-        | Just Pow  <- prj op = liftVirt2 (**)  <$> goAST a <*> goAST b
-        | Just Eq   <- prj op = liftVirt2 (#==) <$> goAST a <*> goAST b
-        | Just And  <- prj op = liftVirt2 (#&&) <$> goAST a <*> goAST b
-        | Just Or   <- prj op = liftVirt2 (#||) <$> goAST a <*> goAST b
-        | Just Lt   <- prj op = liftVirt2 (#<)  <$> goAST a <*> goAST b
-        | Just Gt   <- prj op = liftVirt2 (#>)  <$> goAST a <*> goAST b
-        | Just Le   <- prj op = liftVirt2 (#<=) <$> goAST a <*> goAST b
-        | Just Ge   <- prj op = liftVirt2 (#>=) <$> goAST a <*> goAST b
-    go t arrIx (i :* Nil)
-        | Just (Feldspar.Representation.ArrIx arr) <- prj arrIx = do
+        | Just Pair <- prj tup = Two <$> goAST a <*> goAST b
+    go t sel (ab :* Nil)
+        | Just Fst <- prj sel = do
+            Two a _ <- goAST ab
+            return a
+        | Just Snd <- prj sel = do
+            Two _ b <- goAST ab
+            return b
+    go _ c Nil
+        | Just Pi <- prj c = return $ Single $ sugarSymPrim Pi
+    go _ op (a :* Nil)
+        | Just Neg   <- prj op = liftStruct (sugarSymPrim Neg)   <$> goAST a
+        | Just Abs   <- prj op = liftStruct (sugarSymPrim Abs)   <$> goAST a
+        | Just Sign  <- prj op = liftStruct (sugarSymPrim Sign)  <$> goAST a
+        | Just Sin   <- prj op = liftStruct (sugarSymPrim Sin)   <$> goAST a
+        | Just Cos   <- prj op = liftStruct (sugarSymPrim Cos)   <$> goAST a
+        | Just I2N   <- prj op = liftStruct (sugarSymPrim I2N)   <$> goAST a
+        | Just I2B   <- prj op = liftStruct (sugarSymPrim I2B)   <$> goAST a
+        | Just B2I   <- prj op = liftStruct (sugarSymPrim B2I)   <$> goAST a
+        | Just Round <- prj op = liftStruct (sugarSymPrim Round) <$> goAST a
+        | Just Not   <- prj op = liftStruct (sugarSymPrim Not)   <$> goAST a
+    go _ op (a :* b :* Nil)
+        | Just Add  <- prj op = liftStruct2 (sugarSymPrim Add)  <$> goAST a <*> goAST b
+        | Just Sub  <- prj op = liftStruct2 (sugarSymPrim Sub)  <$> goAST a <*> goAST b
+        | Just Mul  <- prj op = liftStruct2 (sugarSymPrim Mul)  <$> goAST a <*> goAST b
+        | Just FDiv <- prj op = liftStruct2 (sugarSymPrim FDiv) <$> goAST a <*> goAST b
+        | Just Quot <- prj op = liftStruct2 (sugarSymPrim Quot) <$> goAST a <*> goAST b
+        | Just Rem  <- prj op = liftStruct2 (sugarSymPrim Rem)  <$> goAST a <*> goAST b
+        | Just Pow  <- prj op = liftStruct2 (sugarSymPrim Pow)  <$> goAST a <*> goAST b
+        | Just Eq   <- prj op = liftStruct2 (sugarSymPrim Eq)   <$> goAST a <*> goAST b
+        | Just And  <- prj op = liftStruct2 (sugarSymPrim And)  <$> goAST a <*> goAST b
+        | Just Or   <- prj op = liftStruct2 (sugarSymPrim Or)   <$> goAST a <*> goAST b
+        | Just Lt   <- prj op = liftStruct2 (sugarSymPrim Lt)   <$> goAST a <*> goAST b
+        | Just Gt   <- prj op = liftStruct2 (sugarSymPrim Gt)   <$> goAST a <*> goAST b
+        | Just Le   <- prj op = liftStruct2 (sugarSymPrim Le)   <$> goAST a <*> goAST b
+        | Just Ge   <- prj op = liftStruct2 (sugarSymPrim Ge)   <$> goAST a <*> goAST b
+    go (Single _) arrIx (i :* Nil)
+        | Just (ArrIx arr) <- prj arrIx = do
             i' <- goSmallAST i
-            return $ Actual (arr #! i')
+            return $ Single $ sugarSymPrim (ArrIx arr) i'
     go ty cond (c :* t :* f :* Nil)
-        | Just Condition <- prj cond = do
+        | Just Cond <- prj cond = do
             env <- ask
             case (flip runReaderT env $ goAST t, flip runReaderT env $ goAST f) of
-              (t',f') | Oper.Return (Actual t'') <- Oper.view t'
-                      , Oper.Return (Actual f'') <- Oper.view f'
-                      -> do c' <- goSmallAST c
-                            return $ Actual (c' ? t'' $ f'')
-
               (t',f') -> do
-                  c'  <- goSmallAST c
-                  res <- newRefV "v"
-                  ReaderT $ \env -> iff c'
-                      (flip runReaderT env . setRefV res =<< t')
-                      (flip runReaderT env . setRefV res =<< f')
-                  unsafeFreezeRefV res
+                  tView <- lift $ lift $ Oper.viewT t'
+                  fView <- lift $ lift $ Oper.viewT f'
+                  case (tView,fView) of
+                      (Oper.Return (Single tExp), Oper.Return (Single fExp)) -> do
+                          c' <- goSmallAST c
+                          return $ Single $ sugarSymPrim Cond c' tExp fExp
+                      _ -> do
+                          c'  <- goSmallAST c
+                          res <- newRefV ty "v"
+                          ReaderT $ \env -> iff c'
+                              (flip runReaderT env . setRefV res =<< t')
+                              (flip runReaderT env . setRefV res =<< f')
+                          unsafeFreezeRefV res
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami
@@ -337,32 +204,46 @@ transAST = goAST . optimize
         = do len'  <- goSmallAST len
              state <- initRefV "state" =<< goAST init
              ReaderT $ \env -> for (0, 1, Excl len') $ \i -> flip runReaderT env $ do
-                s <- case pwit pSmallType t of
-                    Right Dict -> unsafeFreezeRefV state  -- For non-compound states
-                    _          -> getRefV state
-                s' <- localAlias iv (Actual i) $
+                s <- case t of
+                    Single _ -> unsafeFreezeRefV state  -- For non-compound states
+                    _        -> getRefV state
+                s' <- localAlias iv (Single i) $
                         localAlias sv s $
                           goAST body
                 setRefV state s'
              unsafeFreezeRefV state
-    go t free Nil
-        | Just (FreeVar v) <- prj free = return $ Actual $ variable v
+    go (Single _) free Nil  -- TODO match
+        | Just (FreeVar v) <- prj free = return $ Single $ sugarSymPrim $ FreeVar v
     go t unsPerf Nil
         | Just (UnsafePerform prog) <- prj unsPerf
-        = translateExp =<< lower (unComp prog)
+        = translateExp =<<
+            Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
     go t unsPerf (a :* Nil)
         | Just (UnsafePerformWith prog) <- prj unsPerf = do
             a' <- goAST a
-            lower (unComp prog)
+            Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
             return a'
+    go _ s _ = error $ "translateExp: unhandled symbol " ++ renderSym s
 
--- | Translate a Feldspar expression
-translateExp :: Data a -> Target (VExp a)
-translateExp = transAST . unData
+-- | Translate an expression that is assumed to fulfill @`PrimType` a@
+unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
+unsafeTransSmallExp a = do
+    Single b <- translateExp a
+    return b
+  -- This function should ideally have a `PrimType' a` constraint, but that is
+  -- not allowed when passing it to `reexpressEnv`. It should be possible to
+  -- make it work by changing the interface to `reexpressEnv`.
 
--- | Translate a Feldspar expression that can be represented as a simple 'CExp'
-translateSmallExp :: SmallType a => Data a -> Target (CExp a)
-translateSmallExp = fmap viewActual . translateExp
+translate :: Run a -> ProgC a
+translate
+    = Oper.interpretWithMonadT Oper.singleton id
+        -- fuse the monad stack
+    . flip runReaderT Map.empty . Oper.reexpressEnv unsafeTransSmallExp
+        -- compile outer monad
+    . Oper.interpretWithMonadT Oper.singleton
+        (lift . flip runReaderT Map.empty . Oper.reexpressEnv unsafeTransSmallExp)
+        -- compile inner monad
+    . unRun
 
 
 
@@ -372,12 +253,15 @@ translateSmallExp = fmap viewActual . translateExp
 
 -- | Interpret a program in the 'IO' monad
 runIO :: MonadRun m => m a -> IO a
-runIO = Imp.interpret . lowerTop . liftRun
+runIO = Imp.runIO . translate . liftRun
 
 -- | Interpret a program in the 'IO' monad
 runIO' :: MonadRun m => m a -> IO a
 runIO'
-    = Oper.interpretWithMonadT Oper.interp Imp.interpret
+    = Oper.interpretWithMonadBiT
+        (return . evalExp)
+        Oper.interpBi
+        (Imp.interpretBi (return . evalExp))
     . unRun
     . liftRun
   -- Unlike `runIO`, this function does the interpretation directly, without
@@ -393,31 +277,37 @@ captureIO :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureIO = Imp.captureIO . lowerTop . liftRun
+captureIO = Imp.captureIO . translate . liftRun
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
+--
+-- This function returns only the first (main) module. To get all C translation
+-- unit, use 'compileAll'.
 compile :: MonadRun m => m a -> String
-compile  = Imp.compile . lowerTop . liftRun
+compile = Imp.compile . translate . liftRun
 
+-- | Compile a program to C modules, each one represented as a pair of a name
+-- and the code represented as a string
+--
+-- To compile the resulting C code, use something like
+--
+-- > gcc -std=c99 YOURPROGRAM.c
 compileAll :: MonadRun m => m a -> [(String, String)]
-compileAll  = Imp.compileAll . lowerTop . liftRun
+compileAll = Imp.compileAll . translate . liftRun
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > gcc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
-icompile  = putStrLn . compile
-
-icompileAll :: MonadRun m => m a -> IO ()
-icompileAll  = mapM_ (\(n, m) -> putStrLn ("// module " ++ n) >> putStrLn m) . compileAll
+icompile = Imp.icompile . translate . liftRun
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
-compileAndCheck' opts = Imp.compileAndCheck' opts . lowerTop . liftRun
+compileAndCheck' opts = Imp.compileAndCheck' opts . translate . liftRun
 
 -- | Generate C code and use GCC to check that it compiles (no linking)
 compileAndCheck :: MonadRun m => m a -> IO ()
@@ -425,7 +315,7 @@ compileAndCheck = compileAndCheck' mempty
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
 runCompiled' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
-runCompiled' opts = Imp.runCompiled' opts . lowerTop . liftRun
+runCompiled' opts = Imp.runCompiled' opts . translate . liftRun
 
 -- | Generate C code, use GCC to compile it, and run the resulting executable
 runCompiled :: MonadRun m => m a -> IO ()
@@ -438,7 +328,7 @@ captureCompiled' :: MonadRun m
     -> m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureCompiled' opts = Imp.captureCompiled' opts . lowerTop . liftRun
+captureCompiled' opts = Imp.captureCompiled' opts . translate . liftRun
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@
@@ -456,7 +346,7 @@ compareCompiled' :: MonadRun m
     -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled' opts = Imp.compareCompiled' opts . lowerTop . liftRun
+compareCompiled' opts = Imp.compareCompiled' opts . translate . liftRun
 
 -- | Compare the content written to @stdout@ from the reference program and from
 -- running the compiled C code

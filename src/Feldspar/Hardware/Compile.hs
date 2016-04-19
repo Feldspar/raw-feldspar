@@ -4,6 +4,8 @@
 
 module Feldspar.Hardware.Compile where
 
+{-
+
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Identity (runIdentity)
 import qualified Control.Monad.Reader as Reader
@@ -433,3 +435,5 @@ instance PWitness HType FunType t
 -- ...
 
 --------------------------------------------------------------------------------
+
+-}

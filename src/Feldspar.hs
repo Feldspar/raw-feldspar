@@ -9,11 +9,12 @@ module Feldspar
     -- ** Values
   , module Data.Int
   , module Data.Word
-  , Internal
+  , PrimType'
+  , PrimType
   , Type
-  , SmallType
   , Length
   , Index
+  , Internal
   , Ref
   , Arr
   , IArr
@@ -42,6 +43,7 @@ import Language.Syntactic
 import Language.Embedded.Imperative (Border (..), IxRange)
 
 import Data.Inhabited
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 import Feldspar.Storable
