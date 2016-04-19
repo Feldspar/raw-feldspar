@@ -2,7 +2,7 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, Floating (..), RealFrac, error)
+import Prelude (Integral, Floating (..), RealFrac)
 import qualified Prelude
 import Prelude.EDSL
 
@@ -181,6 +181,16 @@ quotRem a b = (q,r)
   where
     q = quot a b
     r = a - b * q
+
+-- | Integer division truncated toward negative infinity
+div :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+div = sugarSymFeld Div
+
+-- | Integer modulus, satisfying
+--
+-- > (x `div` y)*y + (x `mod` y) == x
+mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+mod = sugarSymFeld Mod
 
 -- | Integral type casting
 i2n :: (Integral i, Num n, PrimType i, PrimType n) => Data i -> Data n

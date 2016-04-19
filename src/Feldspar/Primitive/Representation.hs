@@ -194,6 +194,8 @@ data Primitive sig
 
     Quot :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
     Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
+    Div  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
+    Mod  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
     FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
 
     Pi    :: (Floating a, PrimType' a) => Primitive (Full a)
@@ -272,6 +274,8 @@ instance Eval Primitive
     evalSym Sign        = signum
     evalSym Quot        = quot
     evalSym Rem         = rem
+    evalSym Div         = div
+    evalSym Mod         = mod
     evalSym FDiv        = (/)
     evalSym Pi          = pi
     evalSym Exp         = exp

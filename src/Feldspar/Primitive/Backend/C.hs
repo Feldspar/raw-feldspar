@@ -125,8 +125,8 @@ compRound :: (Integral a, RealFrac b, MonadC m) =>
 compRound t a = do
     addInclude "<tgmath.h>"
     case primTypeIntWidth t of
-        Just w | w < 64    -> compFun "lround" (a :* Nil)
-        Just w | otherwise -> compFun "llround" (a :* Nil)
+        Just w | w < 64 -> compFun "lround" (a :* Nil)
+        Just w          -> compFun "llround" (a :* Nil)
         _ -> error $ "compRound: type " ++ show t ++ " not supported"
 
 -- Note: There's no problem with including both `tgmath.h` and `math.h`. As long
@@ -134,6 +134,65 @@ compRound t a = do
 -- make a difference.
 --
 -- See: <https://gist.github.com/emilaxelsson/51310b3353f96914cd9bdb18b10b3103>
+
+ldiv_def = [cedecl|
+long int feld_ldiv(long int x, long int y) {
+    int q = x/y;
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) --q;
+    return q;
+}
+|]
+
+lldiv_def = [cedecl|
+long long int feld_lldiv(long long int x, long long int y) {
+    int q = x/y;
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) --q;
+    return q;
+}
+|]
+
+lmod_def = [cedecl|
+long int feld_lmod(long int x, long int y) {
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) { r += y; }
+    return r;
+}
+|]
+
+llmod_def = [cedecl|
+long long int feld_llmod(long long int x, long long int y) {
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) { r += y; }
+    return r;
+}
+|]
+
+-- The above C implementations are taken from
+-- <http://www.microhowto.info/howto/round_towards_minus_infinity_when_dividing_integers_in_c_or_c++.html>
+
+compDiv :: MonadC m =>
+    PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
+compDiv t a b = case primTypeIntWidth t of
+    Just w | w < 64 -> do
+        addGlobal ldiv_def
+        compFun "feld_ldiv" (a :* b :* Nil)
+    Just w -> do
+        addGlobal lldiv_def
+        compFun "feld_lldiv" (a :* b :* Nil)
+    _ -> error $ "compDiv: type " ++ show t ++ " not supported"
+
+compMod :: MonadC m =>
+    PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
+compMod t a b = case primTypeIntWidth t of
+    Just w | w < 64 -> do
+        addGlobal lmod_def
+        compFun "feld_lmod" (a :* b :* Nil)
+    Just w -> do
+        addGlobal llmod_def
+        compFun "feld_llmod" (a :* b :* Nil)
+    _ -> error $ "compMod: type " ++ show t ++ " not supported"
 
 -- | Compile an expression
 compPrim :: MonadC m => Prim a -> m C.Exp
@@ -157,6 +216,8 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
 
     go _ Quot (a :* b :* Nil) = compBinOp C.Div a b
     go _ Rem  (a :* b :* Nil) = compBinOp C.Mod a b
+    go t Div  (a :* b :* Nil) = compDiv t a b
+    go t Mod  (a :* b :* Nil) = compMod t a b
     go _ FDiv (a :* b :* Nil) = compBinOp C.Div a b
 
     go _ Pi Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
