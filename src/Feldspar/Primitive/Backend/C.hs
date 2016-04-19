@@ -23,6 +23,9 @@ import Feldspar.Primitive.Representation
 
 
 
+-- Note: This module assumes a 32-bit target. For example the C function `abs`
+-- is used up to 32-bits, and `labs` is used above that.
+
 instance CompTypeClass PrimType'
   where
     compType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
@@ -81,12 +84,12 @@ compAbs t a = do
     addInclude "<tgmath.h>"
     case t of
         BoolT   -> error "compAbs: type BoolT not supported"
-        Int8T   -> compFun "abs"   (a :* Nil)
-        Int16T  -> compFun "abs"   (a :* Nil)
-        Int32T  -> compFun "labs"  (a :* Nil)
-        Int64T  -> compFun "llabs" (a :* Nil)
-        FloatT  -> compFun "fabs"  (a :* Nil)
-        DoubleT -> compFun "fabs"  (a :* Nil)
+        Int8T   -> compFun "abs"  (a :* Nil)
+        Int16T  -> compFun "abs"  (a :* Nil)
+        Int32T  -> compFun "abs"  (a :* Nil)
+        Int64T  -> compFun "labs" (a :* Nil)
+        FloatT  -> compFun "fabs" (a :* Nil)
+        DoubleT -> compFun "fabs" (a :* Nil)
         _       -> compPrim $ Prim a
 
 -- | Compile a call to 'signum'
@@ -125,8 +128,8 @@ compRound :: (Integral a, RealFrac b, MonadC m) =>
 compRound t a = do
     addInclude "<tgmath.h>"
     case primTypeIntWidth t of
-        Just w | w < 64 -> compFun "lround" (a :* Nil)
-        Just w          -> compFun "llround" (a :* Nil)
+        Just w | w < 64 -> compFun "round" (a :* Nil)
+        Just w          -> compFun "lround" (a :* Nil)
         _ -> error $ "compRound: type " ++ show t ++ " not supported"
 
 -- Note: There's no problem with including both `tgmath.h` and `math.h`. As long
@@ -134,6 +137,15 @@ compRound t a = do
 -- make a difference.
 --
 -- See: <https://gist.github.com/emilaxelsson/51310b3353f96914cd9bdb18b10b3103>
+
+div_def = [cedecl|
+int feld_div(int x, int y) {
+    int q = x/y;
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) --q;
+    return q;
+}
+|]
 
 ldiv_def = [cedecl|
 long int feld_ldiv(long int x, long int y) {
@@ -144,25 +156,16 @@ long int feld_ldiv(long int x, long int y) {
 }
 |]
 
-lldiv_def = [cedecl|
-long long int feld_lldiv(long long int x, long long int y) {
-    int q = x/y;
-    int r = x%y;
-    if ((r!=0) && ((r<0) != (y<0))) --q;
-    return q;
-}
-|]
-
-lmod_def = [cedecl|
-long int feld_lmod(long int x, long int y) {
+mod_def = [cedecl|
+int feld_mod(int x, int y) {
     int r = x%y;
     if ((r!=0) && ((r<0) != (y<0))) { r += y; }
     return r;
 }
 |]
 
-llmod_def = [cedecl|
-long long int feld_llmod(long long int x, long long int y) {
+lmod_def = [cedecl|
+long int feld_lmod(long int x, long int y) {
     int r = x%y;
     if ((r!=0) && ((r<0) != (y<0))) { r += y; }
     return r;
@@ -176,22 +179,22 @@ compDiv :: MonadC m =>
     PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
 compDiv t a b = case primTypeIntWidth t of
     Just w | w < 64 -> do
+        addGlobal div_def
+        compFun "feld_div" (a :* b :* Nil)
+    Just w -> do
         addGlobal ldiv_def
         compFun "feld_ldiv" (a :* b :* Nil)
-    Just w -> do
-        addGlobal lldiv_def
-        compFun "feld_lldiv" (a :* b :* Nil)
     _ -> error $ "compDiv: type " ++ show t ++ " not supported"
 
 compMod :: MonadC m =>
     PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
 compMod t a b = case primTypeIntWidth t of
     Just w | w < 64 -> do
+        addGlobal mod_def
+        compFun "feld_mod" (a :* b :* Nil)
+    Just w -> do
         addGlobal lmod_def
         compFun "feld_lmod" (a :* b :* Nil)
-    Just w -> do
-        addGlobal llmod_def
-        compFun "feld_llmod" (a :* b :* Nil)
     _ -> error $ "compMod: type " ++ show t ++ " not supported"
 
 -- | Compile an expression
