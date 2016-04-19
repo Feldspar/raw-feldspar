@@ -46,6 +46,63 @@ data PrimTypeRep a
     FloatT  :: PrimTypeRep Float
     DoubleT :: PrimTypeRep Double
 
+data IntTypeRep a
+  where
+    Int8Type  :: IntTypeRep Int8
+    Int16Type :: IntTypeRep Int16
+    Int32Type :: IntTypeRep Int32
+    Int64Type :: IntTypeRep Int64
+
+data WordTypeRep a
+  where
+    Word8Type  :: WordTypeRep Word8
+    Word16Type :: WordTypeRep Word16
+    Word32Type :: WordTypeRep Word32
+    Word64Type :: WordTypeRep Word64
+
+data IntWordTypeRep a
+  where
+    IntType  :: IntTypeRep a -> IntWordTypeRep a
+    WordType :: WordTypeRep a -> IntWordTypeRep a
+
+data FloatDoubleTypeRep a
+  where
+    FloatType  :: FloatDoubleTypeRep Float
+    DoubleType :: FloatDoubleTypeRep Double
+
+-- | A different view of 'PrimTypeRep' that allows matching on similar types
+data PrimTypeView a
+  where
+    PrimTypeBool        :: PrimTypeView Bool
+    PrimTypeIntWord     :: IntWordTypeRep a -> PrimTypeView a
+    PrimTypeFloatDouble :: FloatDoubleTypeRep a -> PrimTypeView a
+
+viewPrimTypeRep :: PrimTypeRep a -> PrimTypeView a
+viewPrimTypeRep BoolT   = PrimTypeBool
+viewPrimTypeRep Int8T   = PrimTypeIntWord $ IntType $ Int8Type
+viewPrimTypeRep Int16T  = PrimTypeIntWord $ IntType $ Int16Type
+viewPrimTypeRep Int32T  = PrimTypeIntWord $ IntType $ Int32Type
+viewPrimTypeRep Int64T  = PrimTypeIntWord $ IntType $ Int64Type
+viewPrimTypeRep Word8T  = PrimTypeIntWord $ WordType $ Word8Type
+viewPrimTypeRep Word16T = PrimTypeIntWord $ WordType $ Word16Type
+viewPrimTypeRep Word32T = PrimTypeIntWord $ WordType $ Word32Type
+viewPrimTypeRep Word64T = PrimTypeIntWord $ WordType $ Word64Type
+viewPrimTypeRep FloatT  = PrimTypeFloatDouble FloatType
+viewPrimTypeRep DoubleT = PrimTypeFloatDouble DoubleType
+
+unviewPrimTypeRep :: PrimTypeView a -> PrimTypeRep a
+unviewPrimTypeRep PrimTypeBool                                 = BoolT
+unviewPrimTypeRep (PrimTypeIntWord (IntType (Int8Type)))    = Int8T
+unviewPrimTypeRep (PrimTypeIntWord (IntType (Int16Type)))   = Int16T
+unviewPrimTypeRep (PrimTypeIntWord (IntType (Int32Type)))   = Int32T
+unviewPrimTypeRep (PrimTypeIntWord (IntType (Int64Type)))   = Int64T
+unviewPrimTypeRep (PrimTypeIntWord (WordType (Word8Type)))  = Word8T
+unviewPrimTypeRep (PrimTypeIntWord (WordType (Word16Type))) = Word16T
+unviewPrimTypeRep (PrimTypeIntWord (WordType (Word32Type))) = Word32T
+unviewPrimTypeRep (PrimTypeIntWord (WordType (Word64Type))) = Word64T
+unviewPrimTypeRep (PrimTypeFloatDouble FloatType)              = FloatT
+unviewPrimTypeRep (PrimTypeFloatDouble DoubleType)             = DoubleT
+
 -- | Primitive supported types
 class (Eq a, Ord a, Show a, Typeable a) => PrimType' a
   where
