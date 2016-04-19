@@ -223,7 +223,7 @@ translateExp = goAST . optimize . unData
             a' <- goAST a
             Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
             return a'
-    go _ s _ = error $ renderSym s
+    go _ s _ = error $ "translateExp: unhandled symbol " ++ renderSym s
 
 -- | Translate an expression that is assumed to fulfill @`PrimType` a@
 unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
