@@ -184,7 +184,6 @@ data Primitive sig
   where
     FreeVar :: String -> Primitive (Full a)
     Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
-    Pi      :: (Floating a, PrimType' a) => Primitive (Full a)
 
     Add  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
     Sub  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
@@ -197,6 +196,7 @@ data Primitive sig
     Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
     FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
 
+    Pi  :: (Floating a, PrimType' a) => Primitive (Full a)
     Sin :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
     Cos :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
     Pow :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
@@ -237,7 +237,6 @@ instance Render Primitive
   where
     renderSym (FreeVar v) = v
     renderSym (Lit a)     = show a
-    renderSym Pi          = "Pi"
     renderSym Add         = "(+)"
     renderSym Sub         = "(-)"
     renderSym Mul         = "(*)"
@@ -247,6 +246,7 @@ instance Render Primitive
     renderSym Quot        = "Quot"
     renderSym Rem         = "Rem"
     renderSym FDiv        = "FDiv"
+    renderSym Pi          = "Pi"
     renderSym Sin         = "Sin"
     renderSym Cos         = "Cos"
     renderSym Pow         = "Pow"
@@ -275,7 +275,6 @@ instance Eval Primitive
   where
     evalSym (FreeVar v) = error $ "evaluating free variable " ++ show v
     evalSym (Lit a)     = a
-    evalSym Pi          = pi
     evalSym Add         = (+)
     evalSym Sub         = (-)
     evalSym Mul         = (*)
@@ -285,6 +284,7 @@ instance Eval Primitive
     evalSym Quot        = quot
     evalSym Rem         = rem
     evalSym FDiv        = (/)
+    evalSym Pi          = pi
     evalSym Sin         = sin
     evalSym Cos         = cos
     evalSym Pow         = (**)
@@ -321,7 +321,6 @@ instance Equality Primitive
   where
     equal (FreeVar v) (FreeVar w) = v==w
     equal (Lit a)     (Lit b)     = show a == show b
-    equal Pi          Pi          = True
     equal Add         Add         = True
     equal Sub         Sub         = True
     equal Mul         Mul         = True
@@ -331,6 +330,7 @@ instance Equality Primitive
     equal Quot        Quot        = True
     equal Rem         Rem         = True
     equal FDiv        FDiv        = True
+    equal Pi          Pi          = True
     equal Sin         Sin         = True
     equal Cos         Cos         = True
     equal Pow         Pow         = True

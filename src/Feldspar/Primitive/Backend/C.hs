@@ -149,19 +149,30 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go t (Lit a) Nil
         | Dict <- witPrimType t
         = compLit (Proxy :: Proxy PrimType') a
-    go _ Pi Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
-      where pi_def = [cedecl|$esc:("#define FELD_PI 3.141592653589793")|]
-              -- This is the value of `pi :: Double`.
-              -- Apparently there is no standard C99 definition of pi.
     go _ Add  (a :* b :* Nil) = compBinOp C.Add a b
     go _ Sub  (a :* b :* Nil) = compBinOp C.Sub a b
     go _ Mul  (a :* b :* Nil) = compBinOp C.Mul a b
     go _ Neg  (a :* Nil)      = compUnOp C.Negate a
     go t Abs  (a :* Nil)      = compAbs t a
     go t Sign (a :* Nil)      = compSign t a
+
     go _ Quot (a :* b :* Nil) = compBinOp C.Div a b
     go _ Rem  (a :* b :* Nil) = compBinOp C.Mod a b
     go _ FDiv (a :* b :* Nil) = compBinOp C.Div a b
+
+    go _ Pi Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
+      where pi_def = [cedecl|$esc:("#define FELD_PI 3.141592653589793")|]
+              -- This is the value of `pi :: Double`.
+              -- Apparently there is no standard C99 definition of pi.
+    go _ Sin   args = addInclude "<tgmath.h>" >> compFun "sin" args
+    go _ Cos   args = addInclude "<tgmath.h>" >> compFun "cos" args
+    go _ Pow   args = addInclude "<tgmath.h>" >> compFun "pow" args
+
+    go t I2N   (a :* Nil) = compCast t a
+    go t I2B   (a :* Nil) = compCast t a
+    go t B2I   (a :* Nil) = compCast t a
+    go t Round (a :* Nil) = compRound t a
+
     go _ Not  (a :* Nil)      = compUnOp C.Lnot a
     go _ And  (a :* b :* Nil) = compBinOp C.Land a b
     go _ Or   (a :* b :* Nil) = compBinOp C.Lor a b
@@ -171,15 +182,6 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Gt   (a :* b :* Nil) = compBinOp C.Gt a b
     go _ Le   (a :* b :* Nil) = compBinOp C.Le a b
     go _ Ge   (a :* b :* Nil) = compBinOp C.Ge a b
-
-    go _ Sin   args = addInclude "<tgmath.h>" >> compFun "sin" args
-    go _ Cos   args = addInclude "<tgmath.h>" >> compFun "cos" args
-    go _ Pow   args = addInclude "<tgmath.h>" >> compFun "pow" args
-
-    go t I2N   (a :* Nil) = compCast t a
-    go t I2B   (a :* Nil) = compCast t a
-    go t B2I   (a :* Nil) = compCast t a
-    go t Round (a :* Nil) = compRound t a
 
     go _ (ArrIx arr) (i :* Nil) = do
         i' <- compPrim $ Prim i
