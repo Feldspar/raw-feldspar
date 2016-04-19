@@ -91,26 +91,22 @@ compAbs t a = do
 
 -- | Compile a call to 'signum'
 compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
-compSign t a = case viewPrimTypeRep t of
-    PrimTypeBool -> error "compSign: there shouldn't be a Num instance for Bool"
-    PrimTypeIntWord (WordType _) -> do
-        addTagMacro
-        a' <- compPrim $ Prim a
-        return [cexp| TAG("signum", $a' > 0) |]
-    PrimTypeIntWord (IntType _) -> do
-        addTagMacro
-        a' <- compPrim $ Prim a
-        return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
-    PrimTypeFloatDouble FloatType -> do
-        addTagMacro
-        a' <- compPrim $ Prim a
-        return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
-    PrimTypeFloatDouble DoubleType -> do
-        addTagMacro
-        addTagMacro
-        addTagMacro
-        a' <- compPrim $ Prim a
-        return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
+compSign t a = do
+    addTagMacro
+    case viewPrimTypeRep t of
+      PrimTypeBool -> error "compSign: there shouldn't be a Num instance for Bool"
+      PrimTypeIntWord (WordType _) -> do
+          a' <- compPrim $ Prim a
+          return [cexp| TAG("signum", $a' > 0) |]
+      PrimTypeIntWord (IntType _) -> do
+          a' <- compPrim $ Prim a
+          return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
+      PrimTypeFloatDouble FloatType -> do
+          a' <- compPrim $ Prim a
+          return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
+      PrimTypeFloatDouble DoubleType -> do
+          a' <- compPrim $ Prim a
+          return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
   -- TODO The floating point cases give `sign (-0.0) = 0.0`, which is (slightly)
   -- wrong. They should return -0.0. I don't know whether it's correct for other
   -- strange values.
