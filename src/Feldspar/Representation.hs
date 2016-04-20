@@ -7,6 +7,7 @@ module Feldspar.Representation where
 
 
 
+import Data.Complex
 import Data.Int
 import Data.List (genericTake)
 import Data.Typeable (Typeable)
@@ -38,22 +39,24 @@ import Feldspar.Primitive.Representation
 type TypeRep = Struct PrimType' PrimTypeRep
 
 -- | Supported types
-class (Eq a, Show a, Ord a, Typeable a, Inhabited a) => Type a
+class (Eq a, Show a, Typeable a, Inhabited a) => Type a
   where
     -- | Reify a type
     typeRep :: TypeRep a
 
-instance Type Bool    where typeRep = Single BoolT
-instance Type Int8    where typeRep = Single Int8T
-instance Type Int16   where typeRep = Single Int16T
-instance Type Int32   where typeRep = Single Int32T
-instance Type Int64   where typeRep = Single Int64T
-instance Type Word8   where typeRep = Single Word8T
-instance Type Word16  where typeRep = Single Word16T
-instance Type Word32  where typeRep = Single Word32T
-instance Type Word64  where typeRep = Single Word64T
-instance Type Float   where typeRep = Single FloatT
-instance Type Double  where typeRep = Single DoubleT
+instance Type Bool             where typeRep = Single BoolT
+instance Type Int8             where typeRep = Single Int8T
+instance Type Int16            where typeRep = Single Int16T
+instance Type Int32            where typeRep = Single Int32T
+instance Type Int64            where typeRep = Single Int64T
+instance Type Word8            where typeRep = Single Word8T
+instance Type Word16           where typeRep = Single Word16T
+instance Type Word32           where typeRep = Single Word32T
+instance Type Word64           where typeRep = Single Word64T
+instance Type Float            where typeRep = Single FloatT
+instance Type Double           where typeRep = Single DoubleT
+instance Type (Complex Float)  where typeRep = Single ComplexFloatT
+instance Type (Complex Double) where typeRep = Single ComplexDoubleT
 instance (Type a, Type b) => Type (a,b) where typeRep = Two typeRep typeRep
 
 -- | Alias for the conjunction of 'PrimType'' and 'Type'

@@ -9,6 +9,7 @@ module Feldspar
     -- ** Values
   , module Data.Int
   , module Data.Word
+  , Complex (..)
   , PrimType'
   , PrimType
   , Type
@@ -24,6 +25,7 @@ module Feldspar
   , module Feldspar.Frontend
   , Bits
   , Integral
+  , Ord
   , RealFrac
   , Border (..)
   , IxRange
@@ -36,6 +38,7 @@ import Prelude.EDSL
 import Control.Monad
 
 import Data.Bits (Bits)
+import Data.Complex (Complex (..))
 import Data.Int
 import Data.Word
 

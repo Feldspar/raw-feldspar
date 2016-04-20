@@ -10,6 +10,7 @@ module Feldspar.Primitive.Representation where
 
 import Data.Array
 import Data.Bits
+import Data.Complex
 import Data.Int
 import Data.Typeable
 import Data.Word
@@ -46,6 +47,8 @@ data PrimTypeRep a
     Word64T        :: PrimTypeRep Word64
     FloatT         :: PrimTypeRep Float
     DoubleT        :: PrimTypeRep Double
+    ComplexFloatT  :: PrimTypeRep (Complex Float)
+    ComplexDoubleT :: PrimTypeRep (Complex Double)
 
 data IntTypeRep a
   where
@@ -71,32 +74,41 @@ data FloatingTypeRep a
     FloatType  :: FloatingTypeRep Float
     DoubleType :: FloatingTypeRep Double
 
+data ComplexTypeRep a
+  where
+    ComplexFloatType  :: ComplexTypeRep (Complex Float)
+    ComplexDoubleType :: ComplexTypeRep (Complex Double)
+
 -- | A different view of 'PrimTypeRep' that allows matching on similar types
 data PrimTypeView a
   where
     PrimTypeBool     :: PrimTypeView Bool
     PrimTypeIntWord  :: IntWordTypeRep a -> PrimTypeView a
     PrimTypeFloating :: FloatingTypeRep a -> PrimTypeView a
+    PrimTypeComplex  :: ComplexTypeRep a -> PrimTypeView a
 
 deriving instance Show (PrimTypeRep a)
 deriving instance Show (IntTypeRep a)
 deriving instance Show (WordTypeRep a)
 deriving instance Show (IntWordTypeRep a)
 deriving instance Show (FloatingTypeRep a)
+deriving instance Show (ComplexTypeRep a)
 deriving instance Show (PrimTypeView a)
 
 viewPrimTypeRep :: PrimTypeRep a -> PrimTypeView a
-viewPrimTypeRep BoolT   = PrimTypeBool
-viewPrimTypeRep Int8T   = PrimTypeIntWord $ IntType $ Int8Type
-viewPrimTypeRep Int16T  = PrimTypeIntWord $ IntType $ Int16Type
-viewPrimTypeRep Int32T  = PrimTypeIntWord $ IntType $ Int32Type
-viewPrimTypeRep Int64T  = PrimTypeIntWord $ IntType $ Int64Type
-viewPrimTypeRep Word8T  = PrimTypeIntWord $ WordType $ Word8Type
-viewPrimTypeRep Word16T = PrimTypeIntWord $ WordType $ Word16Type
-viewPrimTypeRep Word32T = PrimTypeIntWord $ WordType $ Word32Type
-viewPrimTypeRep Word64T = PrimTypeIntWord $ WordType $ Word64Type
-viewPrimTypeRep FloatT  = PrimTypeFloating FloatType
-viewPrimTypeRep DoubleT = PrimTypeFloating DoubleType
+viewPrimTypeRep BoolT          = PrimTypeBool
+viewPrimTypeRep Int8T          = PrimTypeIntWord $ IntType $ Int8Type
+viewPrimTypeRep Int16T         = PrimTypeIntWord $ IntType $ Int16Type
+viewPrimTypeRep Int32T         = PrimTypeIntWord $ IntType $ Int32Type
+viewPrimTypeRep Int64T         = PrimTypeIntWord $ IntType $ Int64Type
+viewPrimTypeRep Word8T         = PrimTypeIntWord $ WordType $ Word8Type
+viewPrimTypeRep Word16T        = PrimTypeIntWord $ WordType $ Word16Type
+viewPrimTypeRep Word32T        = PrimTypeIntWord $ WordType $ Word32Type
+viewPrimTypeRep Word64T        = PrimTypeIntWord $ WordType $ Word64Type
+viewPrimTypeRep FloatT         = PrimTypeFloating FloatType
+viewPrimTypeRep DoubleT        = PrimTypeFloating DoubleType
+viewPrimTypeRep ComplexFloatT  = PrimTypeComplex ComplexFloatType
+viewPrimTypeRep ComplexDoubleT = PrimTypeComplex ComplexDoubleType
 
 unviewPrimTypeRep :: PrimTypeView a -> PrimTypeRep a
 unviewPrimTypeRep PrimTypeBool                              = BoolT
@@ -110,6 +122,8 @@ unviewPrimTypeRep (PrimTypeIntWord (WordType (Word32Type))) = Word32T
 unviewPrimTypeRep (PrimTypeIntWord (WordType (Word64Type))) = Word64T
 unviewPrimTypeRep (PrimTypeFloating FloatType)              = FloatT
 unviewPrimTypeRep (PrimTypeFloating DoubleType)             = DoubleT
+unviewPrimTypeRep (PrimTypeComplex ComplexFloatType)        = ComplexFloatT
+unviewPrimTypeRep (PrimTypeComplex ComplexDoubleType)       = ComplexDoubleT
 
 primTypeIntWidth :: PrimTypeRep a -> Maybe Int
 primTypeIntWidth Int8T   = Just 8
@@ -123,22 +137,24 @@ primTypeIntWidth Word64T = Just 64
 primTypeIntWidth _       = Nothing
 
 -- | Primitive supported types
-class (Eq a, Ord a, Show a, Typeable a) => PrimType' a
+class (Eq a, Show a, Typeable a) => PrimType' a
   where
     -- | Reify a primitive type
     primTypeRep :: PrimTypeRep a
 
-instance PrimType' Bool   where primTypeRep = BoolT
-instance PrimType' Int8   where primTypeRep = Int8T
-instance PrimType' Int16  where primTypeRep = Int16T
-instance PrimType' Int32  where primTypeRep = Int32T
-instance PrimType' Int64  where primTypeRep = Int64T
-instance PrimType' Word8  where primTypeRep = Word8T
-instance PrimType' Word16 where primTypeRep = Word16T
-instance PrimType' Word32 where primTypeRep = Word32T
-instance PrimType' Word64 where primTypeRep = Word64T
-instance PrimType' Float  where primTypeRep = FloatT
-instance PrimType' Double where primTypeRep = DoubleT
+instance PrimType' Bool             where primTypeRep = BoolT
+instance PrimType' Int8             where primTypeRep = Int8T
+instance PrimType' Int16            where primTypeRep = Int16T
+instance PrimType' Int32            where primTypeRep = Int32T
+instance PrimType' Int64            where primTypeRep = Int64T
+instance PrimType' Word8            where primTypeRep = Word8T
+instance PrimType' Word16           where primTypeRep = Word16T
+instance PrimType' Word32           where primTypeRep = Word32T
+instance PrimType' Word64           where primTypeRep = Word64T
+instance PrimType' Float            where primTypeRep = FloatT
+instance PrimType' Double           where primTypeRep = DoubleT
+instance PrimType' (Complex Float)  where primTypeRep = ComplexFloatT
+instance PrimType' (Complex Double) where primTypeRep = ComplexDoubleT
 
 -- | Convenience function; like 'primTypeRep' but with an extra argument to
 -- constrain the type parameter. The extra argument is ignored.
@@ -162,17 +178,19 @@ primTypeEq _ _ = Nothing
 
 -- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint
 witPrimType :: PrimTypeRep a -> Dict (PrimType' a)
-witPrimType BoolT   = Dict
-witPrimType Int8T   = Dict
-witPrimType Int16T  = Dict
-witPrimType Int32T  = Dict
-witPrimType Int64T  = Dict
-witPrimType Word8T  = Dict
-witPrimType Word16T = Dict
-witPrimType Word32T = Dict
-witPrimType Word64T = Dict
-witPrimType FloatT  = Dict
-witPrimType DoubleT = Dict
+witPrimType BoolT          = Dict
+witPrimType Int8T          = Dict
+witPrimType Int16T         = Dict
+witPrimType Int32T         = Dict
+witPrimType Int64T         = Dict
+witPrimType Word8T         = Dict
+witPrimType Word16T        = Dict
+witPrimType Word32T        = Dict
+witPrimType Word64T        = Dict
+witPrimType FloatT         = Dict
+witPrimType DoubleT        = Dict
+witPrimType ComplexFloatT  = Dict
+witPrimType ComplexDoubleT = Dict
 
 
 
@@ -184,7 +202,7 @@ witPrimType DoubleT = Dict
 data Primitive sig
   where
     FreeVar :: PrimType' a => String -> Primitive (Full a)
-    Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
+    Lit     :: (Eq a, Show a) => a -> Primitive (Full a)
 
     Add  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
     Sub  :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)

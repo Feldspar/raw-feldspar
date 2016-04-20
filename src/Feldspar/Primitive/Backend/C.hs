@@ -8,6 +8,8 @@ module Feldspar.Primitive.Backend.C where
 
 
 
+import Data.Complex
+
 import Data.Constraint (Dict (..))
 import Data.Proxy
 
@@ -40,6 +42,8 @@ instance CompTypeClass PrimType'
       Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint64_t |]
       FloatT  -> return [cty| float |]
       DoubleT -> return [cty| double |]
+      ComplexFloatT  -> addSystemInclude "tgmath.h" >> return [cty| float  _Complex |]
+      ComplexDoubleT -> addSystemInclude "tgmath.h" >> return [cty| double _Complex |]
 
     compLit _ a = case primTypeOf a of
       BoolT   -> do addSystemInclude "stdbool.h"
@@ -54,6 +58,14 @@ instance CompTypeClass PrimType'
       Word64T -> return [cexp| $a |]
       FloatT  -> return [cexp| $a |]
       DoubleT -> return [cexp| $a |]
+      ComplexFloatT  -> return $ compComplexLit a
+      ComplexDoubleT -> return $ compComplexLit a
+
+-- | Compile a complex literal
+compComplexLit :: (Eq a, Num a, ToExp a) => Complex a -> C.Exp
+compComplexLit (r :+ 0) = [cexp| $r |]
+compComplexLit (0 :+ i) = [cexp| $i * I |]
+compComplexLit (r :+ i) = [cexp| $r + $i * I |]
 
 addTagMacro :: MonadC m => m ()
 addTagMacro = addGlobal [cedecl|$esc:("#define TAG(tag,exp) (exp)")|]
@@ -83,33 +95,69 @@ compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
 compAbs t a = do
     addInclude "<tgmath.h>"
     case t of
-        BoolT   -> error "compAbs: type BoolT not supported"
-        Int8T   -> compFun "abs"  (a :* Nil)
-        Int16T  -> compFun "abs"  (a :* Nil)
-        Int32T  -> compFun "abs"  (a :* Nil)
-        Int64T  -> compFun "labs" (a :* Nil)
-        FloatT  -> compFun "fabs" (a :* Nil)
-        DoubleT -> compFun "fabs" (a :* Nil)
-        _       -> compPrim $ Prim a
+        BoolT          -> error "compAbs: type BoolT not supported"
+        Int8T          -> compFun "abs"  (a :* Nil)
+        Int16T         -> compFun "abs"  (a :* Nil)
+        Int32T         -> compFun "abs"  (a :* Nil)
+        Int64T         -> compFun "labs" (a :* Nil)
+        FloatT         -> compFun "fabs" (a :* Nil)
+        DoubleT        -> compFun "fabs" (a :* Nil)
+        ComplexFloatT  -> compFun "fabs" (a :* Nil)
+        ComplexDoubleT -> compFun "fabs" (a :* Nil)
+        _ -> compPrim $ Prim a  -- Unsigned integers
+
+complexSign_def = [cedecl|
+double _Complex feld_complexSign(double _Complex c) {
+    double z = cabs(c);
+    if (z == 0) {
+        return 0;
+    } else {
+        return (creal(c)/z + I*(cimag(c)/z));
+    }
+}
+|]
+
+complexSignf_def = [cedecl|
+float _Complex feld_complexSignf(float _Complex c) {
+    float z = cabsf(c);
+    if (z == 0) {
+        return 0;
+    } else {
+        return (crealf(c)/z + I*(cimagf(c)/z));
+    }
+}
+|]
 
 -- | Compile a call to 'signum'
 compSign :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
-compSign t a = do
-    addTagMacro
-    case viewPrimTypeRep t of
-      PrimTypeBool -> error "compSign: type BoolT not supported"
-      PrimTypeIntWord (WordType _) -> do
-          a' <- compPrim $ Prim a
-          return [cexp| TAG("signum", $a' > 0) |]
-      PrimTypeIntWord (IntType _) -> do
-          a' <- compPrim $ Prim a
-          return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
-      PrimTypeFloating FloatType -> do
-          a' <- compPrim $ Prim a
-          return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
-      PrimTypeFloating DoubleType -> do
-          a' <- compPrim $ Prim a
-          return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
+compSign t a = case viewPrimTypeRep t of
+    PrimTypeBool -> error "compSign: type BoolT not supported"
+    PrimTypeIntWord (WordType _) -> do
+        addTagMacro
+        a' <- compPrim $ Prim a
+        return [cexp| TAG("signum", $a' > 0) |]
+    PrimTypeIntWord (IntType _) -> do
+        addTagMacro
+        a' <- compPrim $ Prim a
+        return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
+    PrimTypeFloating FloatType -> do
+        addTagMacro
+        a' <- compPrim $ Prim a
+        return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
+    PrimTypeFloating DoubleType -> do
+        addTagMacro
+        a' <- compPrim $ Prim a
+        return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
+    PrimTypeComplex ComplexDoubleType -> do
+        addInclude "<tgmath.h>"
+        addGlobal complexSign_def
+        a' <- compPrim $ Prim a
+        return [cexp| feld_complexSign($a') |]
+    PrimTypeComplex ComplexFloatType -> do
+        addInclude "<complex.h>"
+        addGlobal complexSignf_def
+        a' <- compPrim $ Prim a
+        return [cexp| feld_complexSignf($a') |]
   -- TODO The floating point cases give `sign (-0.0) = 0.0`, which is (slightly)
   -- wrong. They should return -0.0. I don't know whether it's correct for other
   -- strange values.

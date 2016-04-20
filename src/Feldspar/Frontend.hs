@@ -2,7 +2,7 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, RealFrac)
+import Prelude (Integral, Ord, RealFrac)
 import qualified Prelude
 import Prelude.EDSL
 
@@ -235,25 +235,25 @@ infixr 2 ||
 a /= b = not (a==b)
 
 -- | Less than
-(<) :: PrimType a => Data a -> Data a -> Data Bool
+(<) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
 (<) = sugarSymFeld Lt
 
 -- | Greater than
-(>) :: PrimType a => Data a -> Data a -> Data Bool
+(>) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
 (>) = sugarSymFeld Gt
 
 -- | Less than or equal
-(<=) :: PrimType a => Data a -> Data a -> Data Bool
+(<=) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
 (<=) = sugarSymFeld Le
 
 -- | Greater than or equal
-(>=) :: PrimType a => Data a -> Data a -> Data Bool
+(>=) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
 (>=) = sugarSymFeld Ge
 
 infix 4 ==, /=, <, >, <=, >=
 
 -- | Return the smallest of two values
-min :: PrimType a => Data a -> Data a -> Data a
+min :: (Ord a, PrimType a) => Data a -> Data a -> Data a
 min a b = a<=b ? a $ b
   -- There's no standard definition of min/max in C:
   -- <http://stackoverflow.com/questions/3437404/min-and-max-in-c>
@@ -264,7 +264,7 @@ min a b = a<=b ? a $ b
   -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>
 
 -- | Return the greatest of two values
-max :: PrimType a => Data a -> Data a -> Data a
+max :: (Ord a, PrimType a) => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
 
 

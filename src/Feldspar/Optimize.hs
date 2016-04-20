@@ -5,6 +5,7 @@ module Feldspar.Optimize where
 
 
 import Control.Monad.Writer hiding (Any (..))
+import Data.Maybe
 import qualified Data.Monoid as Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -22,14 +23,20 @@ import Feldspar.Representation
 
 
 
+witInteger :: ASTF FeldDomain a -> Maybe (Dict (Integral a, Ord a))
+witInteger a = case getDecor a of
+    ValT (Single Int8T)   -> Just Dict
+    ValT (Single Int16T)  -> Just Dict
+    ValT (Single Int32T)  -> Just Dict
+    ValT (Single Int64T)  -> Just Dict
+    ValT (Single Word8T)  -> Just Dict
+    ValT (Single Word16T) -> Just Dict
+    ValT (Single Word32T) -> Just Dict
+    ValT (Single Word64T) -> Just Dict
+    _ -> Nothing
+
 isExact :: ASTF FeldDomain a -> Bool
-isExact a = simpleMatch
-    ( \(_ :&: t) _ -> case t of
-          ValT (Single FloatT)  -> False
-          ValT (Single DoubleT) -> False
-          _ -> True
-    )
-    a
+isExact = isJust . witInteger
 
 -- | 'prj' with a stronger constraint to allow using it in bidirectional
 -- patterns
@@ -44,7 +51,7 @@ viewLit lit
     | Just (Lit a) <- prj lit = Just a
 viewLit _ = Nothing
 
-pattern LitP :: (Eq a, Ord a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern LitP :: (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
 pattern LitP t a <- Sym ((prj -> Just (Lit a)) :&: ValT t)
   where
     LitP t a = Sym (inj (Lit a) :&: ValT t)
@@ -92,7 +99,7 @@ simplifyUp (AddP t a@(LitP _ _) b@NonLitP) | isExact a = AddP t b a
   -- Move literals to the right
 simplifyUp (AddP t (AddP _ a (LitP _ b)) (LitP _ c)) | isExact a = AddP t a (LitP t (b+c))
 simplifyUp (AddP t (SubP _ a (LitP _ b)) (LitP _ c)) | isExact a = AddP t a (LitP t (c-b))
-simplifyUp (AddP t a (LitP _ b)) | b < 0, isExact a = SubP t a (LitP t (negate b))
+simplifyUp (AddP t a (LitP _ b)) | Just Dict <- witInteger a, b < 0 = SubP t a (LitP t (negate b))
 
 simplifyUp (SubP t (LitP _ 0) b) | isExact b = NegP t b
 simplifyUp (SubP t a (LitP _ 0)) | isExact a = a
@@ -100,7 +107,7 @@ simplifyUp (SubP t a@(LitP _ _) b@NonLitP) | isExact a = AddP t (NegP t b) a
   -- Move literals to the right
 simplifyUp (SubP t (AddP _ a (LitP _ b)) (LitP _ c)) | isExact a = AddP t a (LitP t (b-c))
 simplifyUp (SubP t (SubP _ a (LitP _ b)) (LitP _ c)) | isExact a = SubP t a (LitP t (b+c))
-simplifyUp (SubP t a (LitP _ b)) | b < 0, isExact a = AddP t a (LitP t (negate b))
+simplifyUp (SubP t a (LitP _ b)) | Just Dict <- witInteger a, b < 0 = AddP t a (LitP t (negate b))
 
 simplifyUp (MulP t (LitP _ 0) b) | isExact b = LitP t 0
 simplifyUp (MulP t a (LitP _ 0)) | isExact a = LitP t 0
