@@ -104,10 +104,10 @@ compSign t a = do
       PrimTypeIntWord (IntType _) -> do
           a' <- compPrim $ Prim a
           return [cexp| TAG("signum", ($a' > 0) - ($a' < 0)) |]
-      PrimTypeFloatDouble FloatType -> do
+      PrimTypeFloating FloatType -> do
           a' <- compPrim $ Prim a
           return [cexp| TAG("signum", (float) (($a' > 0) - ($a' < 0))) |]
-      PrimTypeFloatDouble DoubleType -> do
+      PrimTypeFloating DoubleType -> do
           a' <- compPrim $ Prim a
           return [cexp| TAG("signum", (double) (($a' > 0) - ($a' < 0))) |]
   -- TODO The floating point cases give `sign (-0.0) = 0.0`, which is (slightly)

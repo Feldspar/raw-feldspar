@@ -35,17 +35,17 @@ type Index  = Word32
 -- | Representation of primitive supported types
 data PrimTypeRep a
   where
-    BoolT   :: PrimTypeRep Bool
-    Int8T   :: PrimTypeRep Int8
-    Int16T  :: PrimTypeRep Int16
-    Int32T  :: PrimTypeRep Int32
-    Int64T  :: PrimTypeRep Int64
-    Word8T  :: PrimTypeRep Word8
-    Word16T :: PrimTypeRep Word16
-    Word32T :: PrimTypeRep Word32
-    Word64T :: PrimTypeRep Word64
-    FloatT  :: PrimTypeRep Float
-    DoubleT :: PrimTypeRep Double
+    BoolT          :: PrimTypeRep Bool
+    Int8T          :: PrimTypeRep Int8
+    Int16T         :: PrimTypeRep Int16
+    Int32T         :: PrimTypeRep Int32
+    Int64T         :: PrimTypeRep Int64
+    Word8T         :: PrimTypeRep Word8
+    Word16T        :: PrimTypeRep Word16
+    Word32T        :: PrimTypeRep Word32
+    Word64T        :: PrimTypeRep Word64
+    FloatT         :: PrimTypeRep Float
+    DoubleT        :: PrimTypeRep Double
 
 data IntTypeRep a
   where
@@ -66,23 +66,23 @@ data IntWordTypeRep a
     IntType  :: IntTypeRep a -> IntWordTypeRep a
     WordType :: WordTypeRep a -> IntWordTypeRep a
 
-data FloatDoubleTypeRep a
+data FloatingTypeRep a
   where
-    FloatType  :: FloatDoubleTypeRep Float
-    DoubleType :: FloatDoubleTypeRep Double
+    FloatType  :: FloatingTypeRep Float
+    DoubleType :: FloatingTypeRep Double
 
 -- | A different view of 'PrimTypeRep' that allows matching on similar types
 data PrimTypeView a
   where
-    PrimTypeBool        :: PrimTypeView Bool
-    PrimTypeIntWord     :: IntWordTypeRep a -> PrimTypeView a
-    PrimTypeFloatDouble :: FloatDoubleTypeRep a -> PrimTypeView a
+    PrimTypeBool     :: PrimTypeView Bool
+    PrimTypeIntWord  :: IntWordTypeRep a -> PrimTypeView a
+    PrimTypeFloating :: FloatingTypeRep a -> PrimTypeView a
 
 deriving instance Show (PrimTypeRep a)
 deriving instance Show (IntTypeRep a)
 deriving instance Show (WordTypeRep a)
 deriving instance Show (IntWordTypeRep a)
-deriving instance Show (FloatDoubleTypeRep a)
+deriving instance Show (FloatingTypeRep a)
 deriving instance Show (PrimTypeView a)
 
 viewPrimTypeRep :: PrimTypeRep a -> PrimTypeView a
@@ -95,11 +95,11 @@ viewPrimTypeRep Word8T  = PrimTypeIntWord $ WordType $ Word8Type
 viewPrimTypeRep Word16T = PrimTypeIntWord $ WordType $ Word16Type
 viewPrimTypeRep Word32T = PrimTypeIntWord $ WordType $ Word32Type
 viewPrimTypeRep Word64T = PrimTypeIntWord $ WordType $ Word64Type
-viewPrimTypeRep FloatT  = PrimTypeFloatDouble FloatType
-viewPrimTypeRep DoubleT = PrimTypeFloatDouble DoubleType
+viewPrimTypeRep FloatT  = PrimTypeFloating FloatType
+viewPrimTypeRep DoubleT = PrimTypeFloating DoubleType
 
 unviewPrimTypeRep :: PrimTypeView a -> PrimTypeRep a
-unviewPrimTypeRep PrimTypeBool                                 = BoolT
+unviewPrimTypeRep PrimTypeBool                              = BoolT
 unviewPrimTypeRep (PrimTypeIntWord (IntType (Int8Type)))    = Int8T
 unviewPrimTypeRep (PrimTypeIntWord (IntType (Int16Type)))   = Int16T
 unviewPrimTypeRep (PrimTypeIntWord (IntType (Int32Type)))   = Int32T
@@ -108,8 +108,8 @@ unviewPrimTypeRep (PrimTypeIntWord (WordType (Word8Type)))  = Word8T
 unviewPrimTypeRep (PrimTypeIntWord (WordType (Word16Type))) = Word16T
 unviewPrimTypeRep (PrimTypeIntWord (WordType (Word32Type))) = Word32T
 unviewPrimTypeRep (PrimTypeIntWord (WordType (Word64Type))) = Word64T
-unviewPrimTypeRep (PrimTypeFloatDouble FloatType)              = FloatT
-unviewPrimTypeRep (PrimTypeFloatDouble DoubleType)             = DoubleT
+unviewPrimTypeRep (PrimTypeFloating FloatType)              = FloatT
+unviewPrimTypeRep (PrimTypeFloating DoubleType)             = DoubleT
 
 primTypeIntWidth :: PrimTypeRep a -> Maybe Int
 primTypeIntWidth Int8T   = Just 8
