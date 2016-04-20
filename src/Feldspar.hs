@@ -22,6 +22,7 @@ module Feldspar
     -- * Front end
   , eval
   , module Feldspar.Frontend
+  , Bits
   , Integral
   , RealFrac
   , Border (..)
@@ -34,6 +35,7 @@ import Prelude.EDSL
 
 import Control.Monad
 
+import Data.Bits (Bits)
 import Data.Int
 import Data.Word
 

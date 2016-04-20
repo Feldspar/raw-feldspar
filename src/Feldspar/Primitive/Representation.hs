@@ -9,6 +9,7 @@ module Feldspar.Primitive.Representation where
 
 
 import Data.Array
+import Data.Bits
 import Data.Int
 import Data.Typeable
 import Data.Word
@@ -231,6 +232,13 @@ data Primitive sig
     Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
     Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
 
+    BitAnd   :: (Bits a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    BitOr    :: (Bits a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    BitXor   :: (Bits a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    BitCompl :: (Bits a, PrimType' a) => Primitive (a :-> Full a)
+    ShiftL   :: (Bits a, PrimType' a, Integral b, PrimType' b) => Primitive (a :-> b :-> Full a)
+    ShiftR   :: (Bits a, PrimType' a, Integral b, PrimType' b) => Primitive (a :-> b :-> Full a)
+
     ArrIx :: PrimType' a => IArr Index a -> Primitive (Index :-> Full a)
 
     Cond :: Primitive (Bool :-> a :-> a :-> Full a)
@@ -307,6 +315,12 @@ instance Eval Primitive
     evalSym Gt          = (>)
     evalSym Le          = (<=)
     evalSym Ge          = (>=)
+    evalSym BitAnd      = (.&.)
+    evalSym BitOr       = (.|.)
+    evalSym BitXor      = xor
+    evalSym BitCompl    = complement
+    evalSym ShiftL      = \a -> shiftL a . fromIntegral
+    evalSym ShiftR      = \a -> shiftR a . fromIntegral
     evalSym Cond        = \c t f -> if c then t else f
     evalSym (ArrIx (IArrRun arr)) = \i ->
         if i<l || i>h

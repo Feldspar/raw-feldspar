@@ -259,6 +259,13 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Le   (a :* b :* Nil) = compBinOp C.Le a b
     go _ Ge   (a :* b :* Nil) = compBinOp C.Ge a b
 
+    go _ BitAnd   (a :* b :* Nil) = compBinOp C.And a b
+    go _ BitOr    (a :* b :* Nil) = compBinOp C.Or a b
+    go _ BitXor   (a :* b :* Nil) = compBinOp C.Xor a b
+    go _ BitCompl (a :* Nil)      = compUnOp C.Not a
+    go _ ShiftL   (a :* b :* Nil) = compBinOp C.Lsh a b
+    go _ ShiftR   (a :* b :* Nil) = compBinOp C.Rsh a b
+
     go _ (ArrIx arr) (i :* Nil) = do
         i' <- compPrim $ Prim i
         touchVar arr

@@ -7,6 +7,7 @@ import qualified Prelude
 import Prelude.EDSL
 
 import Control.Monad.Identity
+import Data.Bits (Bits)
 import Data.Int
 
 import Language.Syntactic (Internal)
@@ -265,6 +266,43 @@ min a b = a<=b ? a $ b
 -- | Return the greatest of two values
 max :: PrimType a => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
+
+
+
+----------------------------------------
+-- ** Bit manipulation
+----------------------------------------
+
+(.&.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(.&.) = sugarSymFeld BitAnd
+
+(.|.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(.|.) = sugarSymFeld BitOr
+
+xor :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+xor = sugarSymFeld BitXor
+
+(⊕) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(⊕) = xor
+
+complement :: (Bits a, PrimType a) => Data a -> Data a
+complement = sugarSymFeld BitCompl
+
+shiftL :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+shiftL = sugarSymFeld ShiftL
+
+shiftR :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+shiftR = sugarSymFeld ShiftR
+
+(.<<.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+(.<<.) = shiftL
+
+(.>>.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+(.>>.) = shiftR
 
 
 
