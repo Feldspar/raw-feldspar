@@ -309,20 +309,16 @@ xor = sugarSymFeld BitXor
 complement :: (Bits a, PrimType a) => Data a -> Data a
 complement = sugarSymFeld BitCompl
 
-shiftL :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+shiftL :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
 shiftL = sugarSymFeld ShiftL
 
-shiftR :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+shiftR :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
 shiftR = sugarSymFeld ShiftR
 
-(.<<.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+(.<<.) :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
 (.<<.) = shiftL
 
-(.>>.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+(.>>.) :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
 (.>>.) = shiftR
 
 
