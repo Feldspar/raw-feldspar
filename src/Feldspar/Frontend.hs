@@ -164,6 +164,7 @@ instance (Floating a, PrimType a) => Floating (Data a)
     acosh = sugarSymFeld Acosh
     atanh = sugarSymFeld Atanh
 
+-- | Alias for 'pi'
 π :: (Floating a, PrimType a) => Data a
 π = pi
 
@@ -208,20 +209,25 @@ polar :: (Floating a, PrimType a, PrimType (Complex a))
     -> Data (Complex a)
 polar = sugarSymFeld Polar
 
+-- | Extract the real part of a complex number
 realPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
 realPart = sugarSymFeld Real
 
+-- | Extract the imaginary part of a complex number
 imagPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
 imagPart = sugarSymFeld Imag
 
+-- | Extract the magnitude of a complex number's polar form
 magnitude :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
     Data (Complex a) -> Data a
 magnitude = sugarSymFeld Magnitude
 
+-- | Extract the phase of a complex number's polar form
 phase :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
     Data (Complex a) -> Data a
 phase = sugarSymFeld Phase
 
+-- | Complex conjugate
 conjugate :: (RealFloat a, PrimType (Complex a)) =>
     Data (Complex a) -> Data (Complex a)
 conjugate = sugarSymFeld Conjugate
@@ -308,31 +314,52 @@ max a b = a>=b ? a $ b
 -- ** Bit manipulation
 ----------------------------------------
 
+-- | Bit-wise \"and\"
 (.&.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (.&.) = sugarSymFeld BitAnd
 
+-- | Bit-wise \"or\"
 (.|.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (.|.) = sugarSymFeld BitOr
 
+-- | Bit-wise \"xor\"
 xor :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 xor = sugarSymFeld BitXor
 
+-- | Bit-wise \"xor\"
 (⊕) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (⊕) = xor
 
+-- | Bit-wise complement
 complement :: (Bits a, PrimType a) => Data a -> Data a
 complement = sugarSymFeld BitCompl
 
-shiftL :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
+-- | Left shift
+shiftL :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives right shift)
+    -> Data a
 shiftL = sugarSymFeld ShiftL
 
-shiftR :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
+-- | Right shift
+shiftR :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives left shift)
+    -> Data a
 shiftR = sugarSymFeld ShiftR
 
-(.<<.) :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
+-- | Left shift
+(.<<.) :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives right shift)
+    -> Data a
 (.<<.) = shiftL
 
-(.>>.) :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
+-- | Right shift
+(.>>.) :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives left shift)
+    -> Data a
 (.>>.) = shiftR
 
 -- | Set all bits to one
