@@ -321,6 +321,18 @@ shiftR = sugarSymFeld ShiftR
 (.>>.) :: (Bits a, PrimType a) => Data a -> Data Int32 -> Data a
 (.>>.) = shiftR
 
+-- | Set all bits to one
+allOnes :: (Bits a, Num a, PrimType a) => Data a
+allOnes = complement 0
+
+-- | Set the @n@ lowest bits to one
+oneBits :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a
+oneBits n = complement (allOnes .<<. n)
+
+-- | Extract the @k@ lowest bits
+lsbs :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a -> Data a
+lsbs k i = i .&. oneBits k
+
 
 
 ----------------------------------------
