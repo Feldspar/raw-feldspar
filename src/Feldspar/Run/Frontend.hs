@@ -9,15 +9,15 @@ module Feldspar.Run.Frontend
 
 
 
-import Data.Proxy
-
 import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr, IArr)
 import qualified Language.Embedded.Imperative as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
-import Data.VirtualContainer
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
+import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
 import Feldspar.Run.Representation
 
@@ -26,6 +26,7 @@ import Feldspar.Run.Representation
 --------------------------------------------------------------------------------
 -- * Pointer operations
 --------------------------------------------------------------------------------
+
 -- | Swap two pointers
 --
 -- This is generally an unsafe operation. E.g. it can be used to make a
@@ -60,9 +61,9 @@ class PrintfType r
 
 instance (a ~ ()) => PrintfType (Run a)
   where
-    fprf h form = Run . Oper.singleE . Imp.FPrintf h form . reverse
+    fprf h form = Run . Oper.singleInj . Imp.FPrintf h form . reverse
 
-instance (Formattable a, SmallType a, PrintfType r) => PrintfType (Data a -> r)
+instance (Formattable a, PrimType a, PrintfType r) => PrintfType (Data a -> r)
   where
     fprf h form as = \a -> fprf h form (Imp.PrintfArg a : as)
 
@@ -71,7 +72,7 @@ fprintf :: PrintfType r => Handle -> String -> r
 fprintf h format = fprf h format []
 
 -- | Put a single value to a handle
-fput :: (Formattable a, SmallType a)
+fput :: (Formattable a, PrimType a)
     => Handle
     -> String  -- Prefix
     -> Data a  -- Expression to print
@@ -80,7 +81,7 @@ fput :: (Formattable a, SmallType a)
 fput h pre e post = Run $ Imp.fput h pre e post
 
 -- | Get a single value from a handle
-fget :: (Formattable a, SmallType a) => Handle -> Run (Data a)
+fget :: (Formattable a, PrimType a) => Handle -> Run (Data a)
 fget = Run . Imp.fget
 
 -- | Print to @stdout@. Accepts a variable number of arguments.
@@ -94,21 +95,21 @@ printf = fprintf Imp.stdout
 --------------------------------------------------------------------------------
 
 -- | Create a null pointer
-newPtr :: SmallType a => Run (Ptr a)
+newPtr :: PrimType a => Run (Ptr a)
 newPtr = newNamedPtr "p"
 
 -- | Create a named null pointer
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedPtr :: SmallType a
+newNamedPtr :: PrimType a
     => String  -- ^ Base name
     -> Run (Ptr a)
 newNamedPtr = Run . Imp.newNamedPtr
 
 -- | Cast a pointer to an array
-ptrToArr :: SmallType a => Ptr a -> Run (Arr a)
-ptrToArr = fmap (Arr . Actual) . Run . Imp.ptrToArr
+ptrToArr :: PrimType a => Ptr a -> Run (Arr a)
+ptrToArr = fmap (Arr . Single) . Run . Imp.ptrToArr
 
 -- | Create a pointer to an abstract object. The only thing one can do with such
 -- objects is to pass them to 'callFun' or 'callProc'.
@@ -129,10 +130,6 @@ newNamedObject
     -> Bool    -- ^ Pointed?
     -> Run Object
 newNamedObject base t p = Run $ Imp.newNamedObject base t p
-
--- | Generate code into another translation unit
-inModule :: String -> Run () -> Run ()
-inModule mod = Run . Imp.inModule mod . unRun
 
 -- | Add an @#include@ statement to the generated code
 addInclude :: String -> Run ()
@@ -162,91 +159,100 @@ addDefinition :: Imp.Definition -> Run ()
 addDefinition = Run . Imp.addDefinition
 
 -- | Declare an external function
-addExternFun :: forall proxy res . SmallType res
-    => String         -- ^ Function name
-    -> proxy res      -- ^ Proxy for expression and result type
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
+addExternFun :: PrimType res
+    => String                   -- ^ Function name
+    -> proxy res                -- ^ Proxy for expression and result type
+    -> [FunArg Data PrimType']  -- ^ Arguments (only used to determine types)
     -> Run ()
-addExternFun fun res args = Run $ Imp.addExternFun fun res' args
-  where
-    res' = Proxy :: Proxy (Data res)
+addExternFun fun res args = Run $ Imp.addExternFun fun res args
 
 -- | Declare an external procedure
 addExternProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments (only used to determine types)
+    :: String                   -- ^ Procedure name
+    -> [FunArg Data PrimType']  -- ^ Arguments (only used to determine types)
     -> Run ()
 addExternProc proc args = Run $ Imp.addExternProc proc args
 
 -- | Call a function
-callFun :: SmallType a
-    => String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
+callFun :: PrimType a
+    => String                   -- ^ Function name
+    -> [FunArg Data PrimType']  -- ^ Arguments
     -> Run (Data a)
 callFun fun as = Run $ Imp.callFun fun as
 
 -- | Call a procedure
 callProc
-    :: String         -- ^ Function name
-    -> [FunArg Data]  -- ^ Arguments
+    :: String                   -- ^ Function name
+    -> [FunArg Data PrimType']  -- ^ Arguments
     -> Run ()
 callProc fun as = Run $ Imp.callProc fun as
 
 -- | Call a procedure and assign its result
 callProcAssign :: Assignable obj
-    => obj            -- ^ Object to which the result should be assigned
-    -> String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+    => obj                      -- ^ Object to which the result should be assigned
+    -> String                   -- ^ Procedure name
+    -> [FunArg Data PrimType']  -- ^ Arguments
     -> Run ()
 callProcAssign obj fun as = Run $ Imp.callProcAssign obj fun as
 
 -- | Declare and call an external function
-externFun :: SmallType res
-    => String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+externFun :: PrimType res
+    => String                   -- ^ Procedure name
+    -> [FunArg Data PrimType']  -- ^ Arguments
     -> Run (Data res)
 externFun fun args = Run $ Imp.externFun fun args
 
 -- | Declare and call an external procedure
 externProc
-    :: String         -- ^ Procedure name
-    -> [FunArg Data]  -- ^ Arguments
+    :: String                   -- ^ Procedure name
+    -> [FunArg Data PrimType']  -- ^ Arguments
     -> Run ()
 externProc proc args = Run $ Imp.externProc proc args
+
+-- | Generate code into another translation unit
+inModule :: String -> Run () -> Run ()
+inModule mod = Run . Imp.inModule mod . unRun
 
 -- | Get current time as number of seconds passed today
 getTime :: Run (Data Double)
 getTime = Run Imp.getTime
 
 -- | Constant string argument
-strArg :: String -> FunArg Data
+strArg :: String -> FunArg Data PrimType'
 strArg = Imp.strArg
 
 -- | Value argument
-valArg :: SmallType a => Data a -> FunArg Data
+valArg :: PrimType a => Data a -> FunArg Data PrimType'
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: SmallType a => Ref a -> FunArg Data
-refArg (Ref r) = Imp.refArg (viewActual r)
+refArg :: PrimType a => Ref a -> FunArg Data PrimType'
+refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
-arrArg :: SmallType a => Arr a -> FunArg Data
-arrArg (Arr a) = Imp.arrArg (viewActual a)
+arrArg :: PrimType a => Arr a -> FunArg Data PrimType'
+arrArg (Arr a) = Imp.arrArg (extractSingle a)
 
 -- | Immutable array argument
-iarrArg :: SmallType a => IArr a -> FunArg Data
-iarrArg (IArr a) = Imp.iarrArg (viewActual a)
+iarrArg :: PrimType a => IArr a -> FunArg Data PrimType'
+iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
 
 -- | Abstract object argument
-objArg :: Object -> FunArg Data
+objArg :: Object -> FunArg Data PrimType'
 objArg = Imp.objArg
 
+-- | Named constant argument
+constArg
+    :: String  -- ^ Type
+    -> String  -- ^ Named constant
+    -> FunArg Data PrimType'
+constArg = Imp.constArg
+
 -- | Modifier that takes the address of another argument
-addr :: FunArg Data -> FunArg Data
+addr :: FunArg Data PrimType' -> FunArg Data PrimType'
 addr = Imp.addr
 
 -- | Modifier that dereferences another argument
-deref :: FunArg Data -> FunArg Data
+deref :: FunArg Data PrimType' -> FunArg Data PrimType'
 deref = Imp.deref
 

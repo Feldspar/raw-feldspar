@@ -52,35 +52,35 @@ waitThread = Run . Imp.waitThread
 --
 --   We'll likely want to change this, actually copying arrays and the like
 --   into the queue instead of sharing them across threads.
-newChan :: SmallType a => Data ChanBound -> Run (Chan Uncloseable a)
+newChan :: PrimType a => Data ChanBound -> Run (Chan Uncloseable a)
 newChan = Run . Imp.newChan
 
-newCloseableChan :: SmallType a => Data ChanBound -> Run (Chan Closeable a)
+newCloseableChan :: PrimType a => Data ChanBound -> Run (Chan Closeable a)
 newCloseableChan = Run . Imp.newCloseableChan
 
 -- | Read an element from a channel. If channel is empty, blocks until there
 --   is an item available.
 --   If 'closeChan' has been called on the channel *and* if the channel is
 --   empty, @readChan@ returns an undefined value immediately.
-readChan :: SmallType a => Chan t a -> Run (Data a)
+readChan :: PrimType a => Chan t a -> Run (Data a)
 readChan = Run . Imp.readChan
 
 -- | Write a data element to a channel.
 --   If 'closeChan' has been called on the channel, all calls to @writeChan@
 --   become non-blocking no-ops and return @False@, otherwise returns @True@.
-writeChan :: SmallType a => Chan t a -> Data a -> Run (Data Bool)
+writeChan :: PrimType a => Chan t a -> Data a -> Run (Data Bool)
 writeChan c = Run . Imp.writeChan c
 
 -- | When 'readChan' was last called on the given channel, did the read
 --   succeed?
 --   Always returns @True@ unless 'closeChan' has been called on the channel.
 --   Always returns @True@ if the channel has never been read.
-lastChanReadOK :: SmallType a => Chan Closeable a -> Run (Data Bool)
+lastChanReadOK :: PrimType a => Chan Closeable a -> Run (Data Bool)
 lastChanReadOK = Run . Imp.lastChanReadOK
 
 -- | Close a channel. All subsequent write operations will be no-ops.
 --   After the channel is drained, all subsequent read operations will be
 --   no-ops as well.
-closeChan :: SmallType a => Chan Closeable a -> Run ()
+closeChan :: PrimType a => Chan Closeable a -> Run ()
 closeChan = Run . Imp.closeChan
 

@@ -9,21 +9,29 @@ import Control.Monad.Trans
 import Language.Embedded.Imperative as Imp
 import Language.Embedded.Concurrent
 
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 
 
 
 type RunCMD
-    =   ControlCMD Data
+    =   ControlCMD
     :+: PtrCMD
     :+: ThreadCMD
-    :+: ChanCMD    Data
-    :+: FileCMD    Data
-    :+: C_CMD      Data
+    :+: ChanCMD
+    :+: FileCMD
+    :+: C_CMD
 
 -- | Monad for running Feldspar programs
-newtype Run a = Run { unRun :: ProgramT RunCMD (Program CompCMD) a }
+newtype Run a = Run
+    { unRun ::
+        ProgramT
+          RunCMD
+          (Param2 Data PrimType')
+          (Program CompCMD (Param2 Data PrimType'))
+          a
+    }
   deriving (Functor, Applicative, Monad)
 
 instance MonadComp Run

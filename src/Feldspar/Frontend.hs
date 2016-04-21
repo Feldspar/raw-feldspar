@@ -2,24 +2,27 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, Floating (..), RealFrac, error, (=<<), sequence_)
+import Prelude (Integral, Ord, RealFloat, RealFrac)
 import qualified Prelude
 import Prelude.EDSL
 
+import Control.Monad.Identity
+import Data.Bits (Bits)
+import Data.Complex (Complex)
 import Data.Int
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
-import Language.Syntactic.TypeRep
-
 import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
 
 import qualified Data.Inhabited as Inhabited
-import Data.VirtualContainer
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
+import Feldspar.Sugar ()
 
 
 
@@ -40,16 +43,16 @@ share = shareTag ""
 
 -- | Explicit tagged sharing
 shareTag :: (Syntax a, Syntax b)
-    => String
-         -- ^ A tag (that may be empty). May be used by a back end to generate a sensible variable name.
+    => String    -- ^ A tag (that may be empty). May be used by a back end to
+                 --   generate a sensible variable name.
     -> a         -- ^ Value to share
     -> (a -> b)  -- ^ Body in which to share the value
     -> b
-shareTag tag = sugarSymTR (Let tag)
+shareTag tag = sugarSymFeld (Let tag)
 
 -- | For loop
 forLoop :: Syntax st => Data Length -> st -> (Data Index -> st -> st) -> st
-forLoop = sugarSymTR ForLoop
+forLoop = sugarSymFeld ForLoop
 
 -- | Conditional expression
 cond :: Syntax a
@@ -57,7 +60,7 @@ cond :: Syntax a
     -> a          -- ^ True branch
     -> a          -- ^ False branch
     -> a
-cond = sugarSymTR Condition
+cond = sugarSymFeld Cond
 
 -- | Condition operator; use as follows:
 --
@@ -74,7 +77,7 @@ cond = sugarSymTR Condition
 
 infixl 1 ?
 
-switch :: (Syntax a, Syntax b, SmallType (Internal a)) =>
+switch :: (Syntax a, Syntax b, PrimType (Internal a)) =>
     b -> [(Internal a, b)] -> a -> b
 switch def [] _ = def
 switch def cs s = Prelude.foldr
@@ -90,7 +93,7 @@ switch def cs s = Prelude.foldr
 
 -- | Literal
 value :: Syntax a => Internal a -> a
-value = sugarSymTR . Literal
+value = sugarSymFeld . Lit
 
 false :: Data Bool
 false = value False
@@ -121,103 +124,157 @@ example = value Inhabited.example
 -- ** Primitive functions
 ----------------------------------------
 
-instance (Num a, SmallType a) => Num (Data a)
+instance (Bounded a, Type a) => Bounded (Data a)
+  where
+    minBound = value minBound
+    maxBound = value maxBound
+
+instance (Num a, PrimType a) => Num (Data a)
   where
     fromInteger = value . fromInteger
-    (+)         = sugarSymTR Add
-    (-)         = sugarSymTR Sub
-    (*)         = sugarSymTR Mul
-    negate      = sugarSymTR Neg
-    abs    = error "abs not yet defined for Data"
-    signum = error "signum not yet defined for Data"
+    (+)         = sugarSymFeld Add
+    (-)         = sugarSymFeld Sub
+    (*)         = sugarSymFeld Mul
+    negate      = sugarSymFeld Neg
+    abs         = sugarSymFeld Abs
+    signum      = sugarSymFeld Sign
 
-instance (Fractional a, SmallType a) => Fractional (Data a)
+instance (Fractional a, PrimType a) => Fractional (Data a)
   where
-    (/) = sugarSymTR FDiv
     fromRational = value . fromRational
-    recip = error "recip not defined for (Data a)"
+    (/) = sugarSymFeld FDiv
 
-instance (Floating a, SmallType a) => Floating (Data a)
+instance (Floating a, PrimType a) => Floating (Data a)
   where
-    pi   = sugarSymTR Pi
-    (**) = sugarSymTR Pow
-    sin  = sugarSymTR Sin
-    cos  = sugarSymTR Cos
+    pi    = sugarSymFeld Pi
+    exp   = sugarSymFeld Exp
+    log   = sugarSymFeld Log
+    sqrt  = sugarSymFeld Sqrt
+    (**)  = sugarSymFeld Pow
+    sin   = sugarSymFeld Sin
+    cos   = sugarSymFeld Cos
+    tan   = sugarSymFeld Tan
+    asin  = sugarSymFeld Asin
+    acos  = sugarSymFeld Acos
+    atan  = sugarSymFeld Atan
+    sinh  = sugarSymFeld Sinh
+    cosh  = sugarSymFeld Cosh
+    tanh  = sugarSymFeld Tanh
+    asinh = sugarSymFeld Asinh
+    acosh = sugarSymFeld Acosh
+    atanh = sugarSymFeld Atanh
 
-quot :: (Integral a, SmallType a) => Data a -> Data a -> Data a
-quot = sugarSymTR Quot
+π :: (Floating a, PrimType a) => Data a
+π = pi
 
-rem :: (Integral a, SmallType a) => Data a -> Data a -> Data a
-rem = sugarSymTR Rem
+-- | Integer division truncated toward zero
+quot :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+quot = sugarSymFeld Quot
+
+-- | Integer remainder satisfying
+--
+-- > (x `quot` y)*y + (x `rem` y) == x
+rem :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+rem = sugarSymFeld Rem
 
 -- | Simultaneous @quot@ and @rem@
-quotRem :: (Integral a, SmallType a) => Data a -> Data a -> (Data a, Data a)
+quotRem :: (Integral a, PrimType a) => Data a -> Data a -> (Data a, Data a)
 quotRem a b = (q,r)
   where
     q = quot a b
     r = a - b * q
 
+-- | Integer division truncated toward negative infinity
+div :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+div = sugarSymFeld Div
+
+-- | Integer modulus, satisfying
+--
+-- > (x `div` y)*y + (x `mod` y) == x
+mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+mod = sugarSymFeld Mod
+
+realPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
+realPart = sugarSymFeld Real
+
+imagPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
+imagPart = sugarSymFeld Imag
+
+magnitude :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data a
+magnitude = sugarSymFeld Magnitude
+
+phase :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data a
+phase = sugarSymFeld Phase
+
+conjugate :: (RealFloat a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data (Complex a)
+conjugate = sugarSymFeld Conjugate
+  -- `RealFloat` could be replaced by `Num` here, but it seems more consistent
+  -- to use `RealFloat` for all functions.
+
 -- | Integral type casting
-i2n :: (Integral i, Num n, SmallType i, SmallType n) => Data i -> Data n
-i2n = sugarSymTR I2N
+i2n :: (Integral i, Num n, PrimType i, PrimType n) => Data i -> Data n
+i2n = sugarSymFeld I2N
 
 -- | Cast integer to 'Bool'
-i2b :: (Integral a, SmallType a) => Data a -> Data Bool
-i2b = sugarSymTR I2B
+i2b :: (Integral a, PrimType a) => Data a -> Data Bool
+i2b = sugarSymFeld I2B
 
 -- | Cast 'Bool' to integer
-b2i :: (Integral a, SmallType a) => Data Bool -> Data a
-b2i = sugarSymTR B2I
+b2i :: (Integral a, PrimType a) => Data Bool -> Data a
+b2i = sugarSymFeld B2I
 
 -- | Round a floating-point number to an integer
-round :: (RealFrac n, Integral i, SmallType i, SmallType n) => Data n -> Data i
-round = sugarSymTR Round
+round :: (RealFrac n, Integral i, PrimType i, PrimType n) => Data n -> Data i
+round = sugarSymFeld Round
 
 -- | Boolean negation
 not :: Data Bool -> Data Bool
-not = sugarSymTR Not
+not = sugarSymFeld Not
 
 -- | Boolean conjunction
 (&&) :: Data Bool -> Data Bool -> Data Bool
-(&&) = sugarSymTR And
+(&&) = sugarSymFeld And
 
 infixr 3 &&
 
 -- | Boolean disjunction
 (||) :: Data Bool -> Data Bool -> Data Bool
-(||) = sugarSymTR Or
+(||) = sugarSymFeld Or
 
 infixr 2 ||
 
 
 -- | Equality
-(==) :: SmallType a => Data a -> Data a -> Data Bool
-(==) = sugarSymTR Eq
+(==) :: PrimType a => Data a -> Data a -> Data Bool
+(==) = sugarSymFeld Eq
 
 -- | Inequality
-(/=) :: SmallType a => Data a -> Data a -> Data Bool
+(/=) :: PrimType a => Data a -> Data a -> Data Bool
 a /= b = not (a==b)
 
 -- | Less than
-(<) :: SmallType a => Data a -> Data a -> Data Bool
-(<) = sugarSymTR Lt
+(<) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
+(<) = sugarSymFeld Lt
 
 -- | Greater than
-(>) :: SmallType a => Data a -> Data a -> Data Bool
-(>) = sugarSymTR Gt
+(>) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
+(>) = sugarSymFeld Gt
 
 -- | Less than or equal
-(<=) :: SmallType a => Data a -> Data a -> Data Bool
-(<=) = sugarSymTR Le
+(<=) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
+(<=) = sugarSymFeld Le
 
 -- | Greater than or equal
-(>=) :: SmallType a => Data a -> Data a -> Data Bool
-(>=) = sugarSymTR Ge
+(>=) :: (Ord a, PrimType a) => Data a -> Data a -> Data Bool
+(>=) = sugarSymFeld Ge
 
 infix 4 ==, /=, <, >, <=, >=
 
 -- | Return the smallest of two values
-min :: SmallType a => Data a -> Data a -> Data a
+min :: (Ord a, PrimType a) => Data a -> Data a -> Data a
 min a b = a<=b ? a $ b
   -- There's no standard definition of min/max in C:
   -- <http://stackoverflow.com/questions/3437404/min-and-max-in-c>
@@ -228,8 +285,45 @@ min a b = a<=b ? a $ b
   -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>
 
 -- | Return the greatest of two values
-max :: SmallType a => Data a -> Data a -> Data a
+max :: (Ord a, PrimType a) => Data a -> Data a -> Data a
 max a b = a>=b ? a $ b
+
+
+
+----------------------------------------
+-- ** Bit manipulation
+----------------------------------------
+
+(.&.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(.&.) = sugarSymFeld BitAnd
+
+(.|.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(.|.) = sugarSymFeld BitOr
+
+xor :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+xor = sugarSymFeld BitXor
+
+(⊕) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
+(⊕) = xor
+
+complement :: (Bits a, PrimType a) => Data a -> Data a
+complement = sugarSymFeld BitCompl
+
+shiftL :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+shiftL = sugarSymFeld ShiftL
+
+shiftR :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+shiftR = sugarSymFeld ShiftR
+
+(.<<.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+(.<<.) = shiftL
+
+(.>>.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
+    Data a -> Data b -> Data a
+(.>>.) = shiftR
 
 
 
@@ -239,10 +333,10 @@ max a b = a>=b ? a $ b
 
 -- | Index into an array
 arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
-arrIx arr i = resugar $ mapVirtual ix $ unIArr arr
+arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
-    ix :: SmallType b => Imp.IArr Index b -> Data b
-    ix arr = sugarSymTR (ArrIx arr) i
+    ix :: PrimType' b => Imp.IArr Index b -> Data b
+    ix arr = sugarSymFeldPrim (ArrIx arr) i
 
 
 
@@ -256,6 +350,7 @@ desugar = Data . Syntactic.desugar
 sugar :: Syntax a => Data (Internal a) -> a
 sugar = Syntactic.sugar . unData
 
+-- | Cast between two values that have the same syntactic representation
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
 
@@ -274,7 +369,8 @@ class Monad m => MonadComp m
     -- | Conditional statement
     iff :: Data Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: (Integral n, SmallType n) => IxRange (Data n) -> (Data n -> m ()) -> m ()
+    for :: (Integral n, PrimType n) =>
+        IxRange (Data n) -> (Data n -> m ()) -> m ()
     -- | While loop
     while :: m (Data Bool) -> m () -> m ()
 
@@ -282,7 +378,7 @@ instance MonadComp Comp
   where
     liftComp        = id
     iff c t f       = Comp $ Imp.iff c (unComp t) (unComp f)
-    for  range body = Comp $ Imp.for range (unComp . body)
+    for range body  = Comp $ Imp.for range (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
 
 
@@ -303,7 +399,7 @@ newNamedRef :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> m (Ref a)
 newNamedRef base = liftComp $ fmap Ref $
-    mapVirtualA (const $ Comp $ Imp.newNamedRef base) virtRep
+    mapStructA (const $ Comp $ Imp.newNamedRef base) typeRep
 
 -- | Create an initialized named reference
 initRef :: (Syntax a, MonadComp m) => a -> m (Ref (Internal a))
@@ -318,18 +414,18 @@ initNamedRef :: (Syntax a, MonadComp m)
     -> a       -- ^ Initial value
     -> m (Ref (Internal a))
 initNamedRef base =
-    liftComp . fmap Ref . mapVirtualA (Comp . Imp.initNamedRef base) . resugar
+    liftComp . fmap Ref . mapStructA (Comp . Imp.initNamedRef base) . resugar
 
 -- | Get the contents of a reference.
 getRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
-getRef = liftComp . fmap resugar . mapVirtualA (Comp . Imp.getRef) . unRef
+getRef = liftComp . fmap resugar . mapStructA (Comp . Imp.getRef) . unRef
 
 -- | Set the contents of a reference.
 setRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> a -> m ()
 setRef r
     = liftComp
     . sequence_
-    . zipListVirtual (\r' a' -> Comp $ Imp.setRef r' a') (unRef r)
+    . zipListStruct (\r' a' -> Comp $ Imp.setRef r' a') (unRef r)
     . resugar
 
 -- | Modify the contents of reference.
@@ -346,7 +442,7 @@ unsafeFreezeRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
 unsafeFreezeRef
     = liftComp
     . fmap resugar
-    . mapVirtualA (Comp . Imp.unsafeFreezeRef)
+    . mapStructA (Comp . Imp.unsafeFreezeRef)
     . unRef
 
 
@@ -363,35 +459,35 @@ newArr = newNamedArr "a"
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedArr :: forall m a . (Type a, MonadComp m)
+newNamedArr :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)
 newNamedArr base l = liftComp $ fmap Arr $
-    mapVirtualA (const (Comp $ Imp.newNamedArr base l)) rep
-  where
-    rep = virtRep :: VirtualRep SmallType a
+    mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
 
 -- | Create and initialize an array
-initArr :: (SmallType a, MonadComp m)
+initArr :: (PrimType a, MonadComp m)
     => [a]  -- ^ Initial contents
     -> m (Arr a)
 initArr = initNamedArr "a"
+
+-- It would seem
 
 -- | Create and initialize a named array
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr :: (SmallType a, MonadComp m)
+initNamedArr :: (PrimType a, MonadComp m)
     => String  -- ^ Base name
     -> [a]     -- ^ Initial contents
     -> m (Arr a)
 initNamedArr base =
-    liftComp . fmap (Arr . Actual) . Comp . Imp.initNamedArr base
+    liftComp . fmap (Arr . Single) . Comp . Imp.initNamedArr base
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
-getArr i = liftComp . fmap resugar . mapVirtualA (Comp . Imp.getArr i) . unArr
+getArr i = liftComp . fmap resugar . mapStructA (Comp . Imp.getArr i) . unArr
 
 -- | Set an element of an array
 setArr :: forall m a . (Syntax a, MonadComp m) =>
@@ -399,10 +495,10 @@ setArr :: forall m a . (Syntax a, MonadComp m) =>
 setArr i a
     = liftComp
     . sequence_
-    . zipListVirtual (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
+    . zipListStruct (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
     . unArr
   where
-    rep = resugar a :: Virtual SmallType Data (Internal a)
+    rep = resugar a :: Struct PrimType' Data (Internal a)
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either
@@ -413,7 +509,7 @@ copyArr :: (Type a, MonadComp m)
     -> Data Length  -- ^ Number of elements
     -> m ()
 copyArr arr1 arr2 len = liftComp $ sequence_ $
-    zipListVirtual (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
+    zipListStruct (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
       (unArr arr1)
       (unArr arr2)
 
@@ -426,7 +522,7 @@ freezeArr :: (Type a, MonadComp m)
 freezeArr arr n
     = liftComp
     $ fmap IArr
-    $ mapVirtualA (Comp . flip Imp.freezeArr n)
+    $ mapStructA (Comp . flip Imp.freezeArr n)
     $ unArr arr
 
 -- | Freeze a mutable array to an immutable one without making a copy. This is
@@ -436,7 +532,7 @@ unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
 unsafeFreezeArr
     = liftComp
     . fmap IArr
-    . mapVirtualA (Comp . Imp.unsafeFreezeArr)
+    . mapStructA (Comp . Imp.unsafeFreezeArr)
     . unArr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
@@ -448,7 +544,7 @@ thawArr :: (Type a, MonadComp m)
 thawArr arr n
     = liftComp
     $ fmap Arr
-    $ mapVirtualA (Comp . flip Imp.thawArr n)
+    $ mapStructA (Comp . flip Imp.thawArr n)
     $ unIArr
     $ arr
 
@@ -459,12 +555,12 @@ unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
 unsafeThawArr
     = liftComp
     . fmap Arr
-    . mapVirtualA (Comp . Imp.unsafeThawArr)
+    . mapStructA (Comp . Imp.unsafeThawArr)
     . unIArr
 
 -- | Create and initialize an immutable array
-initIArr :: (SmallType a, MonadComp m) => [a] -> m (IArr a)
-initIArr = liftComp . fmap (IArr . Actual) . Comp . Imp.initIArr
+initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
+initIArr = liftComp . fmap (IArr . Single) . Comp . Imp.initIArr
 
 
 

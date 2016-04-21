@@ -1,5 +1,7 @@
 module CoDesign where
 
+{-
+
 import qualified Prelude
 
 import Feldspar.Run
@@ -58,3 +60,5 @@ testAll = do
     testSoftware
 
 --------------------------------------------------------------------------------
+
+-}

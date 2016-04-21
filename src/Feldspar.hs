@@ -9,11 +9,13 @@ module Feldspar
     -- ** Values
   , module Data.Int
   , module Data.Word
-  , Internal
+  , Complex (..)
+  , PrimType'
+  , PrimType
   , Type
-  , SmallType
   , Length
   , Index
+  , Internal
   , Ref
   , Arr
   , IArr
@@ -21,9 +23,11 @@ module Feldspar
     -- * Front end
   , eval
   , module Feldspar.Frontend
+  , Bits
   , Integral
-  , Fractional (..)
-  , Floating (..)
+  , Ord
+  , RealFloat
+  , RealFrac
   , Border (..)
   , IxRange
     -- * Storable types
@@ -34,6 +38,8 @@ import Prelude.EDSL
 
 import Control.Monad
 
+import Data.Bits (Bits)
+import Data.Complex (Complex (..))
 import Data.Int
 import Data.Word
 
@@ -42,6 +48,7 @@ import Language.Syntactic
 import Language.Embedded.Imperative (Border (..), IxRange)
 
 import Data.Inhabited
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 import Feldspar.Storable

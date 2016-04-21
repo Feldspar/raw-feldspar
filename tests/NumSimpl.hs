@@ -11,7 +11,6 @@ import Test.Tasty.TH
 
 import Language.Syntactic
 import Language.Syntactic.Functional
-import Language.Syntactic.TypeRep
 
 import Feldspar.Representation
 import Feldspar.Optimize
@@ -36,9 +35,9 @@ evalNumExp env (SUB a b) = evalNumExp env a - evalNumExp env b
 evalNumExp env (MUL a b) = evalNumExp env a * evalNumExp env b
 evalNumExp env (NEG a)   = negate (evalNumExp env a)
 
-num2AST :: (Num a, SmallType a) => NumExp -> ASTF FeldDomain a
+num2AST :: (Num a, PrimType a) => NumExp -> ASTF FeldDomain a
 num2AST = simplify . unData .
-    evalNumExp (\v -> sugarSymTR $ VarT $ fromIntegral v)
+    evalNumExp (\v -> sugarSymFeld $ VarT $ fromIntegral v)
 
 genNumExp :: Gen NumExp
 genNumExp = sized go

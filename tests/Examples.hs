@@ -4,6 +4,6 @@ import qualified Concurrent
 
 main = do
     Demo.testAll
-    CoDesign.testAll
+--     CoDesign.testAll
     Concurrent.testAll
 
