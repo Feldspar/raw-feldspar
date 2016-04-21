@@ -159,6 +159,15 @@ simplifyUp (Sym ((prj -> Just ForLoop) :&: _) :$ LitP _ 0 :$ init :$ _) = init
 simplifyUp (SymP _ ForLoop :$ _ :$ init :$ LamP _ _ (LamP _ vs (VarP _ vs')))
     | vs==vs' = init
 
+simplifyUp (SymP t Pair :$ (SymP _ Fst :$ a) :$ (SymP _ Snd :$ b))
+    | alphaEq a b
+    , ValT t' <- getDecor a
+    , Just Dict <- typeEq t t' = a
+simplifyUp (SymP t Fst :$ (SymP _ Pair :$ a :$ _)) = a
+simplifyUp (SymP t Snd :$ (SymP _ Pair :$ _ :$ a)) = a
+  -- The cases for pairs don't affect the generated code, but they improve the
+  -- output of functions like `drawAST`
+
 simplifyUp a = constFold a
   -- `constFold` here ensures that `simplifyUp` does not produce any expressions
   -- that can be statically constant folded. This property is needed, e.g. to
