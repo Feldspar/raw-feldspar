@@ -1,9 +1,9 @@
+{-# LANGUAGE TupleSections #-}
 module Feldspar.Run.Concurrent
   ( ThreadId
+  , Transferable(..)
   , ChanBound
   , Chan
-  , Closeable
-  , Uncloseable
   , fork
   , forkWithId
   , asyncKillThread
@@ -18,15 +18,18 @@ module Feldspar.Run.Concurrent
 
 
 
+import Prelude hiding ((-))
 import Data.Proxy
+import Data.TypedStruct
 
 import Language.Embedded.Concurrent (ThreadId, ChanBound, Closeable, Uncloseable)
 import qualified Language.Embedded.Concurrent as Imp
 
-import Feldspar.Frontend
+import Feldspar
 import Feldspar.Representation
 import Feldspar.Primitive.Representation
 import Feldspar.Run.Representation
+import Feldspar.Vector
 
 
 
@@ -90,7 +93,9 @@ class Transferable a
     --   no-ops as well.
     closeChanRep :: proxy a -> ChanRep a -> Run ()
 
-instance PrimType a => Transferable (Data a)
+
+
+instance PrimType' a => Transferable (Data a)
   where
     type ChanRep (Data a) = Imp.Chan Closeable a
     newChanRep _        = Run . Imp.newCloseableChan
@@ -102,8 +107,8 @@ instance PrimType a => Transferable (Data a)
 instance (Transferable a, Transferable b) => Transferable (a,b)
   where
     type ChanRep (a,b) = (ChanRep a, ChanRep b)
-    newChanRep _ sz = (,) <$> newChanRep (Proxy :: Proxy a) sz <*> newChanRep (Proxy :: Proxy b) sz
-    readChanRep (a,b) = (,) <$> readChanRep a <*> readChanRep b
+    newChanRep _ sz    = (,) <$> newChanRep (Proxy :: Proxy a) sz <*> newChanRep (Proxy :: Proxy b) sz
+    readChanRep (a,b)  = (,) <$> readChanRep a <*> readChanRep b
     writeChanRep (a,b) (va,vb) = do
         sa <- writeChanRep a va
         ifE sa (writeChanRep b vb) (return false)
@@ -113,6 +118,37 @@ instance (Transferable a, Transferable b) => Transferable (a,b)
     closeChanRep _ (a,b) = do
         closeChanRep (Proxy :: Proxy a) a
         closeChanRep (Proxy :: Proxy b) b
+
+
+
+instance PrimType a => Transferable (Arr a)
+  where
+    type ChanRep (Arr a) = (Imp.Chan Closeable a, Data Imp.ChanOffset)
+    newChanRep _    len  = (,i2n len) <$> newChanRep (Proxy :: Proxy (Data a)) len
+    readChanRep (c,len)  = do
+        warr <- newArr (i2n len)
+        let arr = case unArr warr of Single x -> x
+        Run $ Imp.readChanBuf c 0 (len - 1) arr
+        return warr
+    writeChanRep (c,len) warr = do
+        let arr = case unArr warr of Single x -> x
+        Run $ Imp.writeChanBuf c 0 (len - 1) arr
+    lastChanReadOKRep _ (c,_) = Run $ Imp.lastChanReadOK c
+    closeChanRep      _ (c,_) = Run $ Imp.closeChan c
+
+instance PrimType a => Transferable (Vector (Data a))
+  where
+    type ChanRep (Vector (Data a)) = ChanRep (Arr a)
+    newChanRep _     sz = newChanRep (Proxy :: Proxy (Arr a)) sz
+    readChanRep (c,len) = do
+        arr <- readChanRep (c,len)
+        lenRef <- initRef (i2n len)
+        readStore (Store (lenRef,arr))
+    writeChanRep (c,len) v = do
+        Store (lenRef,arr) <- initStore v
+        writeChanRep (c,len) arr
+    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Arr a))
+    closeChanRep _      = closeChanRep (Proxy :: Proxy (Arr a))
 
 
 
