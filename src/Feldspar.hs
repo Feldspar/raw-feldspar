@@ -26,6 +26,7 @@ module Feldspar
   , Bits
   , Integral
   , Ord
+  , RealFloat
   , RealFrac
   , Border (..)
   , IxRange

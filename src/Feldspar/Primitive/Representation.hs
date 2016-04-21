@@ -235,6 +235,12 @@ data Primitive sig
     Acosh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
     Atanh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
 
+    Real      :: (PrimType' a, PrimType' (Complex a))              => Primitive (Complex a :-> Full a)
+    Imag      :: (PrimType' a, PrimType' (Complex a))              => Primitive (Complex a :-> Full a)
+    Magnitude :: (RealFloat a, PrimType' a, PrimType' (Complex a)) => Primitive (Complex a :-> Full a)
+    Phase     :: (RealFloat a, PrimType' a, PrimType' (Complex a)) => Primitive (Complex a :-> Full a)
+    Conjugate :: (Num a, PrimType' (Complex a))                    => Primitive (Complex a :-> Full (Complex a))
+
     I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
     I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
     B2I   :: (Integral a, PrimType' a)                          => Primitive (Bool :-> Full a)
@@ -320,6 +326,11 @@ instance Eval Primitive
     evalSym Asinh       = asinh
     evalSym Acosh       = acosh
     evalSym Atanh       = atanh
+    evalSym Real        = realPart
+    evalSym Imag        = imagPart
+    evalSym Magnitude   = magnitude
+    evalSym Phase       = phase
+    evalSym Conjugate   = conjugate
     evalSym I2N         = fromInteger . toInteger
     evalSym I2B         = (/=0)
     evalSym B2I         = \a -> if a then 1 else 0

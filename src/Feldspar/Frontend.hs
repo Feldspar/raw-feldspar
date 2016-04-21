@@ -2,12 +2,13 @@ module Feldspar.Frontend where
 
 
 
-import Prelude (Integral, Ord, RealFrac)
+import Prelude (Integral, Ord, RealFloat, RealFrac)
 import qualified Prelude
 import Prelude.EDSL
 
 import Control.Monad.Identity
 import Data.Bits (Bits)
+import Data.Complex (Complex)
 import Data.Int
 
 import Language.Syntactic (Internal)
@@ -192,6 +193,26 @@ div = sugarSymFeld Div
 -- > (x `div` y)*y + (x `mod` y) == x
 mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 mod = sugarSymFeld Mod
+
+realPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
+realPart = sugarSymFeld Real
+
+imagPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
+imagPart = sugarSymFeld Imag
+
+magnitude :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data a
+magnitude = sugarSymFeld Magnitude
+
+phase :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data a
+phase = sugarSymFeld Phase
+
+conjugate :: (RealFloat a, PrimType (Complex a)) =>
+    Data (Complex a) -> Data (Complex a)
+conjugate = sugarSymFeld Conjugate
+  -- `RealFloat` could be replaced by `Num` here, but it seems more consistent
+  -- to use `RealFloat` for all functions.
 
 -- | Integral type casting
 i2n :: (Integral i, Num n, PrimType i, PrimType n) => Data i -> Data n

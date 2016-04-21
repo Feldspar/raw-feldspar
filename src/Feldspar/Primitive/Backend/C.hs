@@ -292,6 +292,12 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Acosh args = addInclude "<tgmath.h>" >> compFun "acosh" args
     go _ Atanh args = addInclude "<tgmath.h>" >> compFun "atanh" args
 
+    go _ Real      args = addInclude "<tgmath.h>" >> compFun "creal"  args
+    go _ Imag      args = addInclude "<tgmath.h>" >> compFun "cimag"  args
+    go _ Magnitude args = addInclude "<tgmath.h>" >> compFun "cabs"   args
+    go _ Phase     args = addInclude "<tgmath.h>" >> compFun "carg"   args
+    go _ Conjugate args = addInclude "<tgmath.h>" >> compFun "conj"   args
+
     go t I2N   (a :* Nil) = compCast t a
     go t I2B   (a :* Nil) = compCast t a
     go t B2I   (a :* Nil) = compCast t a
