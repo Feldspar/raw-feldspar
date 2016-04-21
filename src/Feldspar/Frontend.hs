@@ -362,6 +362,11 @@ shiftR = sugarSymFeld ShiftR
     -> Data a
 (.>>.) = shiftR
 
+infixl 8 `shiftL`, `shiftR`, .<<., .>>.
+infixl 7 .&.
+infixl 6 `xor`
+infixl 5 .|.
+
 -- | Set all bits to one
 allOnes :: (Bits a, Num a, PrimType a) => Data a
 allOnes = complement 0
