@@ -28,6 +28,11 @@ import Feldspar.Primitive.Representation
 -- Note: This module assumes a 32-bit target. For example the C function `abs`
 -- is used up to 32-bits, and `labs` is used above that.
 
+viewLitPrim :: ASTF (Primitive :&: PrimTypeRep) a -> Maybe a
+viewLitPrim (Sym (Lit a :&: _)) = Just a
+viewLitPrim (Sym (Pi :&: _))    = Just pi
+viewLitPrim _ = Nothing
+
 instance CompTypeClass PrimType'
   where
     compType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
@@ -292,11 +297,35 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ Acosh args = addInclude "<tgmath.h>" >> compFun "acosh" args
     go _ Atanh args = addInclude "<tgmath.h>" >> compFun "atanh" args
 
-    go _ Real      args = addInclude "<tgmath.h>" >> compFun "creal"  args
-    go _ Imag      args = addInclude "<tgmath.h>" >> compFun "cimag"  args
-    go _ Magnitude args = addInclude "<tgmath.h>" >> compFun "cabs"   args
-    go _ Phase     args = addInclude "<tgmath.h>" >> compFun "carg"   args
-    go _ Conjugate args = addInclude "<tgmath.h>" >> compFun "conj"   args
+    go _ Complex (a :* b :* Nil) = do
+        addInclude "<tgmath.h>"
+        a' <- compPrim $ Prim a
+        b' <- compPrim $ Prim b
+        return $ case (viewLitPrim a, viewLitPrim b) of
+            (Just 0, _) -> [cexp| I*$b'       |]
+            (_, Just 0) -> [cexp| $a'         |]
+            _           -> [cexp| $a' + I*$b' |]
+      -- We assume that constant folding has been performed, so that not both
+      -- `a` and `b` are constants
+    go _ Polar (m :* p :* Nil)
+        | Just 0 <- viewLitPrim m = return [cexp| 0 |]
+        | Just 0 <- viewLitPrim p = do
+            m' <- compPrim $ Prim m
+            return [cexp| $m' |]
+        | Just 1 <- viewLitPrim m = do
+            p' <- compPrim $ Prim p
+            return [cexp| exp(I*$p') |]
+        | otherwise = do
+            m' <- compPrim $ Prim m
+            p' <- compPrim $ Prim p
+            return [cexp| $m' * exp(I*$p') |]
+      -- We assume that constant folding has been performed, so that not both
+      -- `m` and `p` are constants
+    go _ Real      args = addInclude "<tgmath.h>" >> compFun "creal" args
+    go _ Imag      args = addInclude "<tgmath.h>" >> compFun "cimag" args
+    go _ Magnitude args = addInclude "<tgmath.h>" >> compFun "cabs"  args
+    go _ Phase     args = addInclude "<tgmath.h>" >> compFun "carg"  args
+    go _ Conjugate args = addInclude "<tgmath.h>" >> compFun "conj"  args
 
     go t I2N   (a :* Nil) = compCast t a
     go t I2B   (a :* Nil) = compCast t a

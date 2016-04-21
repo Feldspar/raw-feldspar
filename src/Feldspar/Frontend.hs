@@ -194,6 +194,20 @@ div = sugarSymFeld Div
 mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 mod = sugarSymFeld Mod
 
+-- | Construct a complex number
+complex :: (Num a, PrimType a, PrimType (Complex a))
+    => Data a  -- ^ Real part
+    -> Data a  -- ^ Imaginary part
+    -> Data (Complex a)
+complex = sugarSymFeld Complex
+
+-- | Construct a complex number
+polar :: (Floating a, PrimType a, PrimType (Complex a))
+    => Data a  -- ^ Magnitude
+    -> Data a  -- ^ Phase
+    -> Data (Complex a)
+polar = sugarSymFeld Polar
+
 realPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
 realPart = sugarSymFeld Real
 
