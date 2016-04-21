@@ -3,11 +3,12 @@ module Feldspar.Frontend where
 
 
 import Prelude (Integral, Ord, RealFloat, RealFrac)
-import qualified Prelude
+import qualified Prelude as P
 import Prelude.EDSL
 
 import Control.Monad.Identity
-import Data.Bits (Bits)
+import Data.Bits (Bits, FiniteBits)
+import qualified Data.Bits as Bits
 import Data.Complex (Complex)
 import Data.Int
 
@@ -80,7 +81,7 @@ infixl 1 ?
 switch :: (Syntax a, Syntax b, PrimType (Internal a)) =>
     b -> [(Internal a, b)] -> a -> b
 switch def [] _ = def
-switch def cs s = Prelude.foldr
+switch def cs s = P.foldr
     (\(c,a) b -> value c == desugar s ? a $ b)
     def
     cs
@@ -367,6 +368,11 @@ infixl 7 .&.
 infixl 6 `xor`
 infixl 5 .|.
 
+bitSize :: forall a . FiniteBits a => Data a -> Length
+bitSize _ = P.fromIntegral $ Bits.finiteBitSize (a :: a)
+  where
+    a = P.error "finiteBitSize evaluates its argument"
+
 -- | Set all bits to one
 allOnes :: (Bits a, Num a, PrimType a) => Data a
 allOnes = complement 0
@@ -378,6 +384,23 @@ oneBits n = complement (allOnes .<<. n)
 -- | Extract the @k@ lowest bits
 lsbs :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a -> Data a
 lsbs k i = i .&. oneBits k
+
+-- | Integer logarithm in base 2
+ilog2 :: (FiniteBits a, Integral a, PrimType a) => Data a -> Data a
+ilog2 a = snd $ P.foldr (\ffi vr -> share vr (step ffi)) (a,0) ffis
+  where
+    step (ff,i) (v,r) =
+        share (b2i (v > fromInteger ff) .<<. value i) $ \shift ->
+          (v .>>. i2n shift, r .|. shift)
+
+    -- [(0x1, 0), (0x3, 1), (0xF, 2), (0xFF, 3), (0xFFFF, 4), ...]
+    ffis
+        = (`P.zip` [0..])
+        $ P.takeWhile (P.<= (2 P.^ (bitSize a `P.div` 2) - 1 :: Integer))
+        $ P.map ((subtract 1) . (2 P.^) . (2 P.^))
+        $ [(0::Integer)..]
+  -- Based on this algorithm:
+  -- <http://graphics.stanford.edu/~seander/bithacks.html#IntegerLog>
 
 
 

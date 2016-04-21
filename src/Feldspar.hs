@@ -28,6 +28,7 @@ module Feldspar
   , drawAST
   , module Feldspar.Frontend
   , Bits
+  , FiniteBits
   , Integral
   , Ord
   , RealFloat
@@ -42,7 +43,7 @@ import Prelude.EDSL
 
 import Control.Monad
 
-import Data.Bits (Bits)
+import Data.Bits (Bits, FiniteBits)
 import Data.Complex (Complex (..))
 import Data.Int
 import Data.Word
