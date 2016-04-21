@@ -19,10 +19,16 @@ module Feldspar.Run.Concurrent
 
 
 
-import Language.Embedded.Concurrent (ThreadId, ChanBound, Chan, Closeable, Uncloseable)
-import qualified Language.Embedded.Concurrent as Imp
+import Prelude hiding ((&&), all)
+import Data.TypedStruct
 
+import Language.Embedded.Concurrent (ThreadId, ChanBound, Closeable, Uncloseable)
+import qualified Language.Embedded.Concurrent as Imp
+import Language.Syntactic
+
+import Feldspar (true, (&&))
 import Feldspar.Representation
+import Feldspar.Primitive.Representation
 import Feldspar.Run.Representation
 
 
@@ -47,40 +53,51 @@ killThread = Run . Imp.killThread
 waitThread :: ThreadId -> Run ()
 waitThread = Run . Imp.waitThread
 
+
+-- | Communication channel
+newtype Chan b a = Chan { unChan :: Struct PrimType' (Imp.Chan b) a }
+
 -- | Create a new channel. Writing a reference type to a channel will copy the
 --   /reference/ into the queue, not its contents.
 --
 --   We'll likely want to change this, actually copying arrays and the like
 --   into the queue instead of sharing them across threads.
-newChan :: PrimType a => Data ChanBound -> Run (Chan Uncloseable a)
-newChan = Run . Imp.newChan
+newChan :: Type a => Data ChanBound -> Run (Chan Uncloseable a)
+newChan b = Chan <$> mapStructA (const $ Run $ Imp.newChan b) typeRep
 
-newCloseableChan :: PrimType a => Data ChanBound -> Run (Chan Closeable a)
-newCloseableChan = Run . Imp.newCloseableChan
+newCloseableChan :: Type a => Data ChanBound -> Run (Chan Closeable a)
+newCloseableChan b = Chan <$> mapStructA (const $ Run $ Imp.newCloseableChan b) typeRep
 
 -- | Read an element from a channel. If channel is empty, blocks until there
 --   is an item available.
 --   If 'closeChan' has been called on the channel *and* if the channel is
 --   empty, @readChan@ returns an undefined value immediately.
-readChan :: PrimType a => Chan t a -> Run (Data a)
-readChan = Run . Imp.readChan
+readChan :: Syntax a => Chan t (Internal a) -> Run a
+readChan = fmap resugar . mapStructA (Run . Imp.readChan) . unChan
 
 -- | Write a data element to a channel.
 --   If 'closeChan' has been called on the channel, all calls to @writeChan@
 --   become non-blocking no-ops and return @False@, otherwise returns @True@.
-writeChan :: PrimType a => Chan t a -> Data a -> Run (Data Bool)
-writeChan c = Run . Imp.writeChan c
+writeChan :: Syntax a => Chan t (Internal a) -> a -> Run (Data Bool)
+writeChan c
+    = all
+    . zipListStruct (\c' a' -> Run $ Imp.writeChan c' a') (unChan c)
+    . resugar
 
 -- | When 'readChan' was last called on the given channel, did the read
 --   succeed?
 --   Always returns @True@ unless 'closeChan' has been called on the channel.
 --   Always returns @True@ if the channel has never been read.
-lastChanReadOK :: PrimType a => Chan Closeable a -> Run (Data Bool)
-lastChanReadOK = Run . Imp.lastChanReadOK
+lastChanReadOK :: Type a => Chan Closeable a -> Run(Data Bool)
+lastChanReadOK = all . listStruct (Run . Imp.lastChanReadOK) . unChan
 
 -- | Close a channel. All subsequent write operations will be no-ops.
 --   After the channel is drained, all subsequent read operations will be
 --   no-ops as well.
-closeChan :: PrimType a => Chan Closeable a -> Run ()
-closeChan = Run . Imp.closeChan
+closeChan :: Type a => Chan Closeable a -> Run ()
+closeChan = mapStructA_ (Run . Imp.closeChan) . unChan
 
+
+-- | Conjunction of boolean computation results
+all :: [Run (Data Bool)] -> Run (Data Bool)
+all = foldl (\a b -> do { x <- a; y <- b; return (x && y) }) (return true)
