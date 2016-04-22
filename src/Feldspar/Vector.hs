@@ -3,8 +3,10 @@ module Feldspar.Vector where
 
 
 import Prelude ()
+import Data.Proxy
 
 import Feldspar
+import Feldspar.Run.Concurrent
 
 
 
@@ -54,6 +56,28 @@ instance Syntax a => Storable (Vector a)
         sLen <- unsafeFreezeRef sLenRef
         setRef dLenRef sLen
         copyArr dst src sLen
+
+instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
+  where
+    type ChanRep (Vector (Data a)) = (ChanRep (Data Length), ChanRep (Arr a))
+    newChanRep _     sz = newChanRep (Proxy :: Proxy (Data Length, Arr a)) sz
+    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Data Length, Arr a))
+    closeChanRep _      = closeChanRep (Proxy :: Proxy (Data Length, Arr a))
+
+instance PrimType a => Transferable (Vector (Data a))
+  where
+    readChanRep (lenc,elemc) = do
+        len <- readChanRep lenc
+        arr <- readChanBulkRep elemc len
+        lenRef <- initRef (i2n len)
+        readStore (Store (lenRef,arr))
+    writeChanRep (lenc,elemc) v = do
+        Store (lenRef,arr) <- initStore v
+        len <- getRef lenRef
+        writeChanRep lenc len
+        writeChanBulkRep elemc (i2n len) arr
+
+
 
 length :: Vector a -> Data Length
 length (Indexed len _) = len
