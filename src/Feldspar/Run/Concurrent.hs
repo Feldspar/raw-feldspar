@@ -53,7 +53,6 @@ waitThread :: ThreadId -> Run ()
 waitThread = Run . Imp.waitThread
 
 
-
 --------------------------------------------------------------------------------
 -- * 'Transferable' class
 --------------------------------------------------------------------------------
@@ -63,11 +62,9 @@ class ChanType a
     -- | Channel data representation
     type ChanRep a
 
-    -- | Create a new channel. Writing a reference type to a channel will copy the
-    --   /reference/ into the queue, not its contents.
-    --
-    --   We'll likely want to change this, actually copying arrays and the like
-    --   into the queue instead of sharing them across threads.
+    -- | Create a new channel. Writing a reference type to a channel will copy
+    --   contents into the channel, so modifying it post-write is completely
+    --   safe.
     newChanRep :: proxy a -> Data Length -> Run (ChanRep a)
 
     -- | When 'readChan' was last called on the given channel, did the read
