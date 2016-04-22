@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Concurrent where
 
 
@@ -7,9 +8,6 @@ import qualified Prelude
 import Feldspar.Run
 import Feldspar.Run.Concurrent
 import Feldspar.Vector
-
-import Data.Proxy
-import Data.TypedStruct
 
 
 -- | Waiting for thread completion.
