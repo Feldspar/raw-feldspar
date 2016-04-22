@@ -84,8 +84,8 @@ runStorableChanTest = mapM_ (runCompiled' opts) [ primChan, pairChan, vecChan ]
   where
     opts = defaultExtCompilerOpts
          { externalFlagsPost = ["-lpthread"]
-         , externalFlagsPre  = [ "-I/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/include"
-                               , "/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/csrc/chan.c" ] }
+         , externalFlagsPre  = [ "-I../imperative-edsl/include"
+                               , "../imperative-edsl/csrc/chan.c" ] }
 
 
 
