@@ -1,8 +1,9 @@
-{-# LANGUAGE TupleSections #-}
 module Feldspar.Run.Concurrent
   ( ThreadId
-  , Transferable(..)
   , Chan
+  , ChanType(..)
+  , Transferable(..)
+  , BulkTransferable(..)
   , fork
   , forkWithId
   , asyncKillThread
@@ -17,7 +18,6 @@ module Feldspar.Run.Concurrent
 
 
 
-import Prelude hiding ((-))
 import Data.Proxy
 import Data.TypedStruct
 
@@ -28,7 +28,6 @@ import Feldspar
 import Feldspar.Representation
 import Feldspar.Primitive.Representation
 import Feldspar.Run.Representation
-import Feldspar.Vector
 
 
 
@@ -53,7 +52,6 @@ waitThread :: ThreadId -> Run ()
 waitThread = Run . Imp.waitThread
 
 
-
 --------------------------------------------------------------------------------
 -- * 'Transferable' class
 --------------------------------------------------------------------------------
@@ -63,11 +61,9 @@ class ChanType a
     -- | Channel data representation
     type ChanRep a
 
-    -- | Create a new channel. Writing a reference type to a channel will copy the
-    --   /reference/ into the queue, not its contents.
-    --
-    --   We'll likely want to change this, actually copying arrays and the like
-    --   into the queue instead of sharing them across threads.
+    -- | Create a new closeable channel. Writing a reference type to a channel
+    --   will copy contents into the channel, so modifying it post-write is
+    --   completely safe.
     newChanRep :: proxy a -> Data Length -> Run (ChanRep a)
 
     -- | When 'readChan' was last called on the given channel, did the read
@@ -92,11 +88,21 @@ class ChanType a => Transferable a
     -- | Write a data element to a channel.
     --   If 'closeChan' has been called on the channel, all calls to @writeChan@
     --   become non-blocking no-ops and return @False@, otherwise returns @True@.
+    --   If the channel is full, this function blocks until there's space in the
+    --   queue.
     writeChanRep :: ChanRep a -> a -> Run (Data Bool)
 
 class ChanType a => BulkTransferable a
   where
+    -- | Read a given number of elements from a channel into a new container.
+    --   The semantics are the same as for 'readChan', where "channel is empty"
+    --   is defined as "channel contains less data than requested".
     readChanBulkRep  :: ChanRep a -> Data Length-> Run a
+
+    -- | Write the given number of data elemets to a channel from a container.
+    --   The semantics are the same as for 'writeChan', where "channel is full"
+    --   is defined as "channel has insufficient free space to store all written
+    --   data".
     writeChanBulkRep :: ChanRep a -> Data Length -> a -> Run (Data Bool)
 
 
@@ -133,7 +139,6 @@ instance (Transferable a, Transferable b) => Transferable (a,b)
 
 
 
-
 instance PrimType a => ChanType (Arr a)
   where
     type ChanRep (Arr a) = Imp.Chan Closeable a
@@ -151,26 +156,6 @@ instance PrimType a => BulkTransferable (Arr a)
     writeChanBulkRep c len warr = do
         let arr = case unArr warr of Single x -> x
         Run $ Imp.writeChanBuf c 0 len arr
-
-instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
-  where
-    type ChanRep (Vector (Data a)) = (ChanRep (Data Length), ChanRep (Arr a))
-    newChanRep _     sz = newChanRep (Proxy :: Proxy (Data Length, Arr a)) sz
-    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Data Length, Arr a))
-    closeChanRep _      = closeChanRep (Proxy :: Proxy (Data Length, Arr a))
-
-instance (PrimType a, BulkTransferable (Arr a)) => Transferable (Vector (Data a))
-  where
-    readChanRep (lenc,elemc) = do
-        len <- readChanRep lenc
-        arr <- readChanBulkRep elemc len
-        lenRef <- initRef (i2n len)
-        readStore (Store (lenRef,arr))
-    writeChanRep (lenc,elemc) v = do
-        Store (lenRef,arr) <- initStore v
-        len <- getRef lenRef
-        writeChanRep lenc len
-        writeChanBulkRep elemc (i2n len) arr
 
 
 
