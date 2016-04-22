@@ -147,11 +147,11 @@ instance PrimType a => BulkTransferable (Arr a)
     readChanBulkRep c len = do
         warr <- newArr (i2n len)
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.readChanBuf c 0 (i2n $ len - 1) arr
+        Run $ Imp.readChanBuf c 0 (i2n len) arr
         return warr
     writeChanBulkRep c len warr = do
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.writeChanBuf c 0 (i2n $ len - 1) arr
+        Run $ Imp.writeChanBuf c 0 (i2n len) arr
 
 instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
   where
