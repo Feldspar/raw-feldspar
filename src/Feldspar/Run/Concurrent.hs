@@ -2,7 +2,6 @@
 module Feldspar.Run.Concurrent
   ( ThreadId
   , Transferable(..)
-  , ChanBound
   , Chan
   , fork
   , forkWithId
@@ -22,7 +21,7 @@ import Prelude hiding ((-))
 import Data.Proxy
 import Data.TypedStruct
 
-import Language.Embedded.Concurrent (ThreadId, ChanBound, Closeable, Uncloseable)
+import Language.Embedded.Concurrent (ThreadId, Closeable, Uncloseable)
 import qualified Language.Embedded.Concurrent as Imp
 
 import Feldspar
@@ -69,7 +68,7 @@ class ChanType a
     --
     --   We'll likely want to change this, actually copying arrays and the like
     --   into the queue instead of sharing them across threads.
-    newChanRep :: proxy a -> Data ChanBound -> Run (ChanRep a)
+    newChanRep :: proxy a -> Data Length -> Run (ChanRep a)
 
     -- | When 'readChan' was last called on the given channel, did the read
     --   succeed?
@@ -147,11 +146,11 @@ instance PrimType a => BulkTransferable (Arr a)
     readChanBulkRep c len = do
         warr <- newArr (i2n len)
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.readChanBuf c 0 (i2n len) arr
+        Run $ Imp.readChanBuf c 0 len arr
         return warr
     writeChanBulkRep c len warr = do
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.writeChanBuf c 0 (i2n len) arr
+        Run $ Imp.writeChanBuf c 0 len arr
 
 instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
   where
@@ -182,7 +181,7 @@ instance (PrimType a, BulkTransferable (Arr a)) => Transferable (Vector (Data a)
 -- | Communication channel
 newtype Chan a = Chan { unChan :: ChanRep a }
 
-newChan :: forall a. Transferable a => Data ChanBound -> Run (Chan a)
+newChan :: forall a. Transferable a => Data Length -> Run (Chan a)
 newChan = fmap Chan . newChanRep (Proxy :: Proxy a)
 
 readChan :: Transferable a => Chan a -> Run a
