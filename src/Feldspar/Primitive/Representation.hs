@@ -235,6 +235,8 @@ data Primitive sig
     Acosh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
     Atanh :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
 
+    Complex   :: (Num a, PrimType' a, PrimType' (Complex a))       => Primitive (a :-> a :-> Full (Complex a))
+    Polar     :: (Floating a, PrimType' a, PrimType' (Complex a))  => Primitive (a :-> a :-> Full (Complex a))
     Real      :: (PrimType' a, PrimType' (Complex a))              => Primitive (Complex a :-> Full a)
     Imag      :: (PrimType' a, PrimType' (Complex a))              => Primitive (Complex a :-> Full a)
     Magnitude :: (RealFloat a, PrimType' a, PrimType' (Complex a)) => Primitive (Complex a :-> Full a)
@@ -326,6 +328,8 @@ instance Eval Primitive
     evalSym Asinh       = asinh
     evalSym Acosh       = acosh
     evalSym Atanh       = atanh
+    evalSym Complex     = (:+)
+    evalSym Polar       = mkPolar
     evalSym Real        = realPart
     evalSym Imag        = imagPart
     evalSym Magnitude   = magnitude

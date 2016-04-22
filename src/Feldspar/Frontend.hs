@@ -3,11 +3,12 @@ module Feldspar.Frontend where
 
 
 import Prelude (Integral, Ord, RealFloat, RealFrac)
-import qualified Prelude
+import qualified Prelude as P
 import Prelude.EDSL
 
 import Control.Monad.Identity
-import Data.Bits (Bits)
+import Data.Bits (Bits, FiniteBits)
+import qualified Data.Bits as Bits
 import Data.Complex (Complex)
 import Data.Int
 
@@ -80,7 +81,7 @@ infixl 1 ?
 switch :: (Syntax a, Syntax b, PrimType (Internal a)) =>
     b -> [(Internal a, b)] -> a -> b
 switch def [] _ = def
-switch def cs s = Prelude.foldr
+switch def cs s = P.foldr
     (\(c,a) b -> value c == desugar s ? a $ b)
     def
     cs
@@ -164,6 +165,7 @@ instance (Floating a, PrimType a) => Floating (Data a)
     acosh = sugarSymFeld Acosh
     atanh = sugarSymFeld Atanh
 
+-- | Alias for 'pi'
 π :: (Floating a, PrimType a) => Data a
 π = pi
 
@@ -194,20 +196,39 @@ div = sugarSymFeld Div
 mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 mod = sugarSymFeld Mod
 
+-- | Construct a complex number
+complex :: (Num a, PrimType a, PrimType (Complex a))
+    => Data a  -- ^ Real part
+    -> Data a  -- ^ Imaginary part
+    -> Data (Complex a)
+complex = sugarSymFeld Complex
+
+-- | Construct a complex number
+polar :: (Floating a, PrimType a, PrimType (Complex a))
+    => Data a  -- ^ Magnitude
+    -> Data a  -- ^ Phase
+    -> Data (Complex a)
+polar = sugarSymFeld Polar
+
+-- | Extract the real part of a complex number
 realPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
 realPart = sugarSymFeld Real
 
+-- | Extract the imaginary part of a complex number
 imagPart :: (PrimType a, PrimType (Complex a)) => Data (Complex a) -> Data a
 imagPart = sugarSymFeld Imag
 
+-- | Extract the magnitude of a complex number's polar form
 magnitude :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
     Data (Complex a) -> Data a
 magnitude = sugarSymFeld Magnitude
 
+-- | Extract the phase of a complex number's polar form
 phase :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
     Data (Complex a) -> Data a
 phase = sugarSymFeld Phase
 
+-- | Complex conjugate
 conjugate :: (RealFloat a, PrimType (Complex a)) =>
     Data (Complex a) -> Data (Complex a)
 conjugate = sugarSymFeld Conjugate
@@ -294,36 +315,92 @@ max a b = a>=b ? a $ b
 -- ** Bit manipulation
 ----------------------------------------
 
+-- | Bit-wise \"and\"
 (.&.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (.&.) = sugarSymFeld BitAnd
 
+-- | Bit-wise \"or\"
 (.|.) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (.|.) = sugarSymFeld BitOr
 
+-- | Bit-wise \"xor\"
 xor :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 xor = sugarSymFeld BitXor
 
+-- | Bit-wise \"xor\"
 (⊕) :: (Bits a, PrimType a) => Data a -> Data a -> Data a
 (⊕) = xor
 
+-- | Bit-wise complement
 complement :: (Bits a, PrimType a) => Data a -> Data a
 complement = sugarSymFeld BitCompl
 
-shiftL :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+-- | Left shift
+shiftL :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives right shift)
+    -> Data a
 shiftL = sugarSymFeld ShiftL
 
-shiftR :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+-- | Right shift
+shiftR :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives left shift)
+    -> Data a
 shiftR = sugarSymFeld ShiftR
 
-(.<<.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+-- | Left shift
+(.<<.) :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives right shift)
+    -> Data a
 (.<<.) = shiftL
 
-(.>>.) :: (Bits a, PrimType a, Integral b, PrimType b) =>
-    Data a -> Data b -> Data a
+-- | Right shift
+(.>>.) :: (Bits a, PrimType a)
+    => Data a      -- ^ Value to shift
+    -> Data Int32  -- ^ Shift amount (negative value gives left shift)
+    -> Data a
 (.>>.) = shiftR
+
+infixl 8 `shiftL`, `shiftR`, .<<., .>>.
+infixl 7 .&.
+infixl 6 `xor`
+infixl 5 .|.
+
+bitSize :: forall a . FiniteBits a => Data a -> Length
+bitSize _ = P.fromIntegral $ Bits.finiteBitSize (a :: a)
+  where
+    a = P.error "finiteBitSize evaluates its argument"
+
+-- | Set all bits to one
+allOnes :: (Bits a, Num a, PrimType a) => Data a
+allOnes = complement 0
+
+-- | Set the @n@ lowest bits to one
+oneBits :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a
+oneBits n = complement (allOnes .<<. n)
+
+-- | Extract the @k@ lowest bits
+lsbs :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a -> Data a
+lsbs k i = i .&. oneBits k
+
+-- | Integer logarithm in base 2
+ilog2 :: (FiniteBits a, Integral a, PrimType a) => Data a -> Data a
+ilog2 a = snd $ P.foldr (\ffi vr -> share vr (step ffi)) (a,0) ffis
+  where
+    step (ff,i) (v,r) =
+        share (b2i (v > fromInteger ff) .<<. value i) $ \shift ->
+          (v .>>. i2n shift, r .|. shift)
+
+    -- [(0x1, 0), (0x3, 1), (0xF, 2), (0xFF, 3), (0xFFFF, 4), ...]
+    ffis
+        = (`P.zip` [0..])
+        $ P.takeWhile (P.<= (2 P.^ (bitSize a `P.div` 2) - 1 :: Integer))
+        $ P.map ((subtract 1) . (2 P.^) . (2 P.^))
+        $ [(0::Integer)..]
+  -- Based on this algorithm:
+  -- <http://graphics.stanford.edu/~seander/bithacks.html#IntegerLog>
 
 
 
