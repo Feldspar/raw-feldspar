@@ -1,6 +1,5 @@
 module Feldspar.Run.Concurrent
   ( ThreadId
-  , ChanBound
   , Chan
   , Closeable
   , Uncloseable
@@ -19,12 +18,12 @@ module Feldspar.Run.Concurrent
 
 
 
-import Language.Embedded.Concurrent (ThreadId, ChanBound, Chan, Closeable, Uncloseable)
+import Language.Embedded.Concurrent (ThreadId, Chan, Closeable, Uncloseable)
 import qualified Language.Embedded.Concurrent as Imp
 
+import Feldspar.Primitive.Representation (Length)
 import Feldspar.Representation
 import Feldspar.Run.Representation
-
 
 
 -- | Fork off a computation as a new thread.
@@ -52,10 +51,10 @@ waitThread = Run . Imp.waitThread
 --
 --   We'll likely want to change this, actually copying arrays and the like
 --   into the queue instead of sharing them across threads.
-newChan :: PrimType a => Data ChanBound -> Run (Chan Uncloseable a)
+newChan :: PrimType a => Data Length -> Run (Chan Uncloseable a)
 newChan = Run . Imp.newChan
 
-newCloseableChan :: PrimType a => Data ChanBound -> Run (Chan Closeable a)
+newCloseableChan :: PrimType a => Data Length -> Run (Chan Closeable a)
 newCloseableChan = Run . Imp.newCloseableChan
 
 -- | Read an element from a channel. If channel is empty, blocks until there
