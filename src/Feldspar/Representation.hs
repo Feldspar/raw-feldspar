@@ -10,6 +10,7 @@ module Feldspar.Representation where
 import Data.Complex
 import Data.Int
 import Data.List (genericTake)
+import Data.Proxy
 import Data.Typeable (Typeable)
 import Data.Word
 
@@ -24,10 +25,12 @@ import qualified Control.Monad.Operational.Higher as Operational
 
 import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
+import qualified Language.Embedded.Backend.C.Expression as Imp
 
 import Data.Inhabited
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
+import Feldspar.Primitive.Backend.C ()
 
 
 
@@ -62,6 +65,12 @@ instance (Type a, Type b) => Type (a,b) where typeRep = Two typeRep typeRep
 -- | Alias for the conjunction of 'PrimType'' and 'Type'
 class    (PrimType' a, Type a) => PrimType a
 instance (PrimType' a, Type a) => PrimType a
+
+instance Imp.CompTypeClass PrimType
+  where
+    compType _ = Imp.compType (Proxy :: Proxy PrimType')
+    compLit _  = Imp.compLit (Proxy :: Proxy PrimType')
+  -- This instance is used by <https://github.com/kmate/raw-feldspar-mcs>
 
 -- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
 toTypeRep :: Struct PrimType' c a -> TypeRep a

@@ -108,8 +108,8 @@ map f (Indexed len ixf) = Indexed len (f . ixf)
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f a b = map (uncurry f) $ zip a b
 
-fold :: Syntax b => (a -> b -> b) -> b -> Vector a -> b
-fold f b (Indexed len ixf) = forLoop len b (\i st -> f (ixf i) st)
+fold :: Syntax a => (a -> b -> a) -> a -> Vector b -> a
+fold f x (Indexed l ixf) = forLoop l x $ \i s -> f s (ixf i)
 
 fold1 :: Syntax a => (a -> a -> a) -> Vector a -> a
 fold1 f (Indexed len ixf) = forLoop len (ixf 0) (\i st -> f (ixf i) st)
@@ -151,7 +151,7 @@ fromPull (Indexed len ixf) = do
 spanVec :: Vector (Data Float) -> Data Float
 spanVec vec = hi-lo
   where
-    (lo,hi) = fold (\a (l,h) -> (min a l, max a h)) (vec!0,vec!0) vec
+    (lo,hi) = fold (\(l,h) a -> (min a l, max a h)) (vec!0,vec!0) vec
   -- This demonstrates how tuples interplay with sharing. Tuples are essentially
   -- useless without sharing. This function would get two identical for loops if
   -- it wasn't for sharing.
