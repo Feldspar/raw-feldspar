@@ -59,7 +59,7 @@ waitThread = Run . Imp.waitThread
 -- * 'Transferable' class
 --------------------------------------------------------------------------------
 
-class Transferable a
+class ChanType a
   where
     -- | Channel data representation
     type ChanRep a
@@ -70,17 +70,6 @@ class Transferable a
     --   We'll likely want to change this, actually copying arrays and the like
     --   into the queue instead of sharing them across threads.
     newChanRep :: proxy a -> Data ChanBound -> Run (ChanRep a)
-
-    -- | Read an element from a channel. If channel is empty, blocks until there
-    --   is an item available.
-    --   If 'closeChan' has been called on the channel *and* if the channel is
-    --   empty, @readChan@ returns an undefined value immediately.
-    readChanRep :: ChanRep a -> Run a
-
-    -- | Write a data element to a channel.
-    --   If 'closeChan' has been called on the channel, all calls to @writeChan@
-    --   become non-blocking no-ops and return @False@, otherwise returns @True@.
-    writeChanRep :: ChanRep a -> a -> Run (Data Bool)
 
     -- | When 'readChan' was last called on the given channel, did the read
     --   succeed?
@@ -93,25 +82,42 @@ class Transferable a
     --   no-ops as well.
     closeChanRep :: proxy a -> ChanRep a -> Run ()
 
+class ChanType a => Transferable a
+  where
+    -- | Read an element from a channel. If channel is empty, blocks until there
+    --   is an item available.
+    --   If 'closeChan' has been called on the channel *and* if the channel is
+    --   empty, @readChan@ returns an undefined value immediately.
+    readChanRep :: ChanRep a -> Run a
+
+    -- | Write a data element to a channel.
+    --   If 'closeChan' has been called on the channel, all calls to @writeChan@
+    --   become non-blocking no-ops and return @False@, otherwise returns @True@.
+    writeChanRep :: ChanRep a -> a -> Run (Data Bool)
+
+class ChanType a => BulkTransferable a
+  where
+    readChanBulkRep  :: ChanRep a -> Data Length-> Run a
+    writeChanBulkRep :: ChanRep a -> Data Length -> a -> Run (Data Bool)
 
 
-instance PrimType' a => Transferable (Data a)
+
+instance PrimType' a => ChanType (Data a)
   where
     type ChanRep (Data a) = Imp.Chan Closeable a
     newChanRep _        = Run . Imp.newCloseableChan
-    readChanRep         = Run . Imp.readChan
-    writeChanRep c      = Run . Imp.writeChan c
     lastChanReadOKRep _ = Run . Imp.lastChanReadOK
     closeChanRep _      = Run . Imp.closeChan
 
-instance (Transferable a, Transferable b) => Transferable (a,b)
+instance PrimType' a => Transferable (Data a)
+  where
+    readChanRep    = Run . Imp.readChan
+    writeChanRep c = Run . Imp.writeChan c
+
+instance (ChanType a, ChanType b) => ChanType (a,b)
   where
     type ChanRep (a,b) = (ChanRep a, ChanRep b)
     newChanRep _ sz    = (,) <$> newChanRep (Proxy :: Proxy a) sz <*> newChanRep (Proxy :: Proxy b) sz
-    readChanRep (a,b)  = (,) <$> readChanRep a <*> readChanRep b
-    writeChanRep (a,b) (va,vb) = do
-        sa <- writeChanRep a va
-        ifE sa (writeChanRep b vb) (return false)
     lastChanReadOKRep _ (a,b) = do
         sa <- lastChanReadOKRep (Proxy :: Proxy a) a
         ifE sa (lastChanReadOKRep (Proxy :: Proxy b) b) (return false)
@@ -119,36 +125,53 @@ instance (Transferable a, Transferable b) => Transferable (a,b)
         closeChanRep (Proxy :: Proxy a) a
         closeChanRep (Proxy :: Proxy b) b
 
-
-
-instance PrimType a => Transferable (Arr a)
+instance (Transferable a, Transferable b) => Transferable (a,b)
   where
-    type ChanRep (Arr a) = (Imp.Chan Closeable a, Data Imp.ChanOffset)
-    newChanRep _    len  = (,i2n len) <$> newChanRep (Proxy :: Proxy (Data a)) len
-    readChanRep (c,len)  = do
+    readChanRep (a,b)  = (,) <$> readChanRep a <*> readChanRep b
+    writeChanRep (a,b) (va,vb) = do
+        sa <- writeChanRep a va
+        ifE sa (writeChanRep b vb) (return false)
+
+
+
+
+instance PrimType a => ChanType (Arr a)
+  where
+    type ChanRep (Arr a) = Imp.Chan Closeable a
+    newChanRep _    sz   = newChanRep (Proxy :: Proxy (Data a)) sz
+    lastChanReadOKRep _  = Run . Imp.lastChanReadOK
+    closeChanRep      _  = Run . Imp.closeChan
+
+instance PrimType a => BulkTransferable (Arr a)
+  where
+    readChanBulkRep c len = do
         warr <- newArr (i2n len)
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.readChanBuf c 0 (len - 1) arr
+        Run $ Imp.readChanBuf c 0 (i2n $ len - 1) arr
         return warr
-    writeChanRep (c,len) warr = do
+    writeChanBulkRep c len warr = do
         let arr = case unArr warr of Single x -> x
-        Run $ Imp.writeChanBuf c 0 (len - 1) arr
-    lastChanReadOKRep _ (c,_) = Run $ Imp.lastChanReadOK c
-    closeChanRep      _ (c,_) = Run $ Imp.closeChan c
+        Run $ Imp.writeChanBuf c 0 (i2n $ len - 1) arr
 
-instance PrimType a => Transferable (Vector (Data a))
+instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
   where
-    type ChanRep (Vector (Data a)) = ChanRep (Arr a)
-    newChanRep _     sz = newChanRep (Proxy :: Proxy (Arr a)) sz
-    readChanRep (c,len) = do
-        arr <- readChanRep (c,len)
+    type ChanRep (Vector (Data a)) = (ChanRep (Data Length), ChanRep (Arr a))
+    newChanRep _     sz = newChanRep (Proxy :: Proxy (Data Length, Arr a)) sz
+    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Data Length, Arr a))
+    closeChanRep _      = closeChanRep (Proxy :: Proxy (Data Length, Arr a))
+
+instance (PrimType a, BulkTransferable (Arr a)) => Transferable (Vector (Data a))
+  where
+    readChanRep (lenc,elemc) = do
+        len <- readChanRep lenc
+        arr <- readChanBulkRep elemc len
         lenRef <- initRef (i2n len)
         readStore (Store (lenRef,arr))
-    writeChanRep (c,len) v = do
+    writeChanRep (lenc,elemc) v = do
         Store (lenRef,arr) <- initStore v
-        writeChanRep (c,len) arr
-    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Arr a))
-    closeChanRep _      = closeChanRep (Proxy :: Proxy (Arr a))
+        len <- getRef lenRef
+        writeChanRep lenc len
+        writeChanBulkRep elemc (i2n len) arr
 
 
 
