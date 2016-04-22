@@ -315,5 +315,5 @@ cmInterface = defaultInterfaceDecor
 
 -- | Optimize a Feldspar expression
 optimize :: ASTF FeldDomain a -> ASTF FeldDomain a
-optimize = codeMotion cmInterface . simplify
+optimize = simplify
 
