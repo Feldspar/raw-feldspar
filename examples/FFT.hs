@@ -84,9 +84,7 @@ ifft :: MonadComp m =>
     Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
 ifft v = normalize <$> fft' True v
   where
-    normalize = map divide
-    divide c = complex (realPart c / n) (imagPart c / n)
-    n = i2n $ length v
+    normalize = map (/ (i2n $ length v))
 
 
 ---
