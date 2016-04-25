@@ -79,7 +79,7 @@ fft = fft' False
 -- | Radix-2 Decimation-In-Frequeny Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
--- thus giving 'fft . ifft == id'.
+-- thus giving 'ifft . fft == id'.
 ifft :: MonadComp m =>
     Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
 ifft v = normalize <$> fft' True v
