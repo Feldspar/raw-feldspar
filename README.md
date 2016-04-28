@@ -16,11 +16,9 @@ See the [examples](examples/) directory.
 Here is a suggested incantation:
 
     git clone git@github.com:emilaxelsson/imperative-edsl
-    git clone git://github.com/markus-git/hardware-edsl
     git clone git@github.com:emilaxelsson/raw-feldspar
     cd raw-feldspar
     cabal sandbox init
     cabal sandbox add-source ../imperative-edsl
-    cabal sandbox add-source ../hardware-edsl
     cabal install --constraint="language-c-quote -full-haskell-antiquotes"
 

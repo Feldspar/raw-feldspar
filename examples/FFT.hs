@@ -41,10 +41,11 @@ testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
 fftCore :: MonadComp m
-    => Data Index
+    => Bool  -- ^ Inverse?
+    -> Data Index
     -> Vector (Data (Complex Double))
     -> m (Vector (Data (Complex Double)))
-fftCore n = stages (reverse (0...n)) step
+fftCore inv n = stages (reverse (0...n)) step
   where
     step k vec = Indexed (length vec) ixf
       where
@@ -53,44 +54,40 @@ fftCore n = stages (reverse (0...n)) step
             k'   = i2n k
             a    = vec ! i
             b    = vec ! (i `xor` k2)
-            twid = polar 1 (-π * i2n (lsbs k' i) / i2n k2)
+            twid = polar 1 ((if inv then π else -π) * i2n (lsbs k' i) / i2n k2)
             k2   = 1 .<<. k'
+
+fft' :: MonadComp m
+     => Bool  -- ^ Inverse?
+     -> Vector (Data (Complex Double))
+     -> m (Vector (Data (Complex Double)))
+fft' inv v = do
+    n' <- force n
+    fftCore inv n' v >>= bitRev n'
+  where
+    n = ilog2 (length v) - 1
+
 
 -- | Radix-2 Decimation-In-Frequeny Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
--- 4, 8, 16, 32, etc.)
+-- 4, 8, 16, 32, etc.) The output is non-normalized.
 fft :: MonadComp m =>
     Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
-fft v = do
-    n' <- force n
-    fftCore n' v >>= bitRev n'
-  where
-    n = ilog2 (length v) - 1
+fft = fft' False
 
-ifftCore :: MonadComp m
-    => Data Index
-    -> Vector (Data (Complex Double))
-    -> m (Vector (Data (Complex Double)))
-ifftCore n = stages (reverse (0...n)) step
-  where
-    step k vec = Indexed (length vec) ixf
-      where
-        ixf i = testBit i k ? (twid * (b - a)) $ (a+b)
-          where
-            k'   = i2n k
-            a    = vec ! i
-            b    = vec ! (i `xor` k2)
-            twid = polar 1 (π * i2n (lsbs k' i) / i2n k2)
-            k2   = 1 .<<. k'
 
 -- | Radix-2 Decimation-In-Frequeny Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
--- example 2, 4, 8, 16, 32, etc.)
+-- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
+-- thus giving 'ifft . fft == id'.
 ifft :: MonadComp m =>
     Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
-ifft v = ifftCore n v >>= bitRev n
+ifft v = normalize <$> fft' True v
   where
-    n = ilog2 (length v) - 1
+    normalize = map (/ (i2n $ length v))
+
+
+---
 
 prog :: Run ()
 prog = do
@@ -99,4 +96,45 @@ prog = do
     v  <- force $ map i2n (0...n)
     v' <- fft v
     printf "%.10f\n" $ sum $ map abs $ map realPart v'
+
+
+---
+
+transformFile :: String -> Bool -> Run ()
+transformFile inputFile forward = do
+    h <- fopen inputFile ReadMode
+    n :: Data Length <- fget h
+    printf "%d\n" n
+    input :: Arr (Complex Double) <- newArr n
+    for (0, 1, Excl n) $ \i -> do
+        re :: Data Double <- fget h
+        im :: Data Double <- fget h
+        setArr i (complex re im) input
+
+    v <- unsafeFreezeVec n input
+    output <- (if forward then fft else ifft) v
+
+    for (0, 1, Excl n) $ \i -> do
+        let xi :: Data (Complex Double) = output ! i
+            re = realPart xi
+            im = imagPart xi
+        printf "%f %f\n" re im
+    fclose h
+
+transformFileCompiled inputFile forward
+    = runCompiled' opts $ transformFile inputFile forward
+  where
+    opts = defaultExtCompilerOpts {externalFlagsPost = ["-lm"]}
+
+{- expected results, for all a/b/c test file variants:
+
+transformFileCompiled "examples/FFT_in8a.txt" True == "examples/FFT_out8a.txt"
+
+and
+
+transformFileCompiled "examples/FFT_out8a.txt" False == "examples/FFT_in8a.txt"
+
+where '==' means that the files are the same, apart from numerical errors.
+
+-}
 

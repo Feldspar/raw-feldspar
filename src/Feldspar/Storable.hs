@@ -128,6 +128,17 @@ class Storable a
         -> StoreRep a  -- ^ Source
         -> m ()
 
+instance Storable ()
+  where
+    type StoreRep ()  = ()
+    type StoreSize () = ()
+    newStoreRep _ _        = return ()
+    initStoreRep _         = return ()
+    readStoreRep _         = return ()
+    unsafeFreezeStoreRep _ = return ()
+    writeStoreRep _ _      = return ()
+    copyStoreRep _ _ _     = return ()
+
 instance Type a => Storable (Data a)
   where
     type StoreRep (Data a)  = Ref a
