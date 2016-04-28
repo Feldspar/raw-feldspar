@@ -64,7 +64,8 @@ ofLength :: Data Length -> lenSpec -> VecChanSizeSpec lenSpec
 ofLength = VecChanSizeSpec
 
 instance ( Syntax a, BulkTransferable a
-         , ContainerType a ~ Arr (Internal a)) => Transferable (Vector a)
+         , ContainerType a ~ Arr (Internal a)
+         ) => Transferable (Vector a)
   where
     type SizeSpec (Vector a) = VecChanSizeSpec (SizeSpec a)
     calcChanSize _ (VecChanSizeSpec n m) =

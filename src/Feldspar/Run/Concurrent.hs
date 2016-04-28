@@ -186,10 +186,7 @@ instance ( Transferable a, Transferable b
       let asz = calcChanSize (Proxy :: Proxy a) sz
           bsz = calcChanSize (Proxy :: Proxy b) sz
       in error "TODO: merge sizes: asz + bsz"
-    untypedReadChan c = do
-      a :: a <- untypedReadChan c
-      b :: b <- untypedReadChan c
-      return (a, b)
+    untypedReadChan c = (,) <$> untypedReadChan c <*> untypedReadChan c
     untypedWriteChan c (a, b) = do
       sa <- untypedWriteChan c a
       ifE sa (untypedWriteChan c b) (return false)
