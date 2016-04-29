@@ -186,7 +186,56 @@ instance ( Transferable a, Transferable b
       let asz = calcChanSize (Proxy :: Proxy a) sz
           bsz = calcChanSize (Proxy :: Proxy b) sz
       in  asz `Imp.plusSize` bsz
-    untypedReadChan c = (,) <$> untypedReadChan c <*> untypedReadChan c
-    untypedWriteChan c (a, b) = do
-      sa <- untypedWriteChan c a
-      ifE sa (untypedWriteChan c b) (return false)
+    untypedReadChan ch = (,) <$> untypedReadChan ch <*> untypedReadChan ch
+    untypedWriteChan ch (a, b) = do
+      sa <- untypedWriteChan ch a
+      ifE sa (untypedWriteChan ch b) (return false)
+
+instance ( Transferable a, Transferable b, Transferable c
+         , SizeSpec a ~ SizeSpec b, SizeSpec b ~ SizeSpec c
+         ) => Transferable (a, b, c)
+  where
+    type SizeSpec (a, b, c) = SizeSpec a
+    calcChanSize _ sz =
+      let asz = calcChanSize (Proxy :: Proxy a) sz
+          bsz = calcChanSize (Proxy :: Proxy b) sz
+          csz = calcChanSize (Proxy :: Proxy c) sz
+      in  asz `Imp.plusSize` bsz `Imp.plusSize` csz
+    untypedReadChan ch = (,,)
+                     <$> untypedReadChan ch
+                     <*> untypedReadChan ch
+                     <*> untypedReadChan ch
+    untypedWriteChan ch (a, b, c) = do
+      sa <- untypedWriteChan ch a
+      ifE sa
+        (do sb <- untypedWriteChan ch b
+            ifE sb (untypedWriteChan ch c) (return false))
+        (return false)
+
+instance ( Transferable a, Transferable b, Transferable c, Transferable d
+         , SizeSpec a ~ SizeSpec b, SizeSpec b ~ SizeSpec c, SizeSpec c ~ SizeSpec d
+         ) => Transferable (a, b, c, d)
+  where
+    type SizeSpec (a, b, c, d) = SizeSpec a
+    calcChanSize _ sz =
+      let asz = calcChanSize (Proxy :: Proxy a) sz
+          bsz = calcChanSize (Proxy :: Proxy b) sz
+          csz = calcChanSize (Proxy :: Proxy c) sz
+          dsz = calcChanSize (Proxy :: Proxy d) sz
+      in  asz `Imp.plusSize` bsz `Imp.plusSize` csz `Imp.plusSize` dsz
+    untypedReadChan ch = (,,,)
+                     <$> untypedReadChan ch
+                     <*> untypedReadChan ch
+                     <*> untypedReadChan ch
+                     <*> untypedReadChan ch
+    untypedWriteChan ch (a, b, c, d) = do
+      sa <- untypedWriteChan ch a
+      ifE sa
+        (do sb <- untypedWriteChan ch b
+            ifE sb
+              (do sc <- untypedWriteChan ch c
+                  ifE sc
+                    (untypedWriteChan ch d)
+                    (return false))
+              (return false))
+        (return false)
