@@ -7,6 +7,7 @@ import Data.Proxy
 
 import Feldspar
 import Feldspar.Run.Concurrent
+import qualified Language.Embedded.Concurrent as Imp
 
 
 
@@ -57,26 +58,31 @@ instance Syntax a => Storable (Vector a)
         setRef dLenRef sLen
         copyArr dst src sLen
 
-instance (PrimType a, ChanType (Data a)) => ChanType (Vector (Data a))
-  where
-    type ChanRep (Vector (Data a)) = (ChanRep (Data Length), ChanRep (Arr a))
-    newChanRep _     sz = newChanRep (Proxy :: Proxy (Data Length, Arr a)) sz
-    lastChanReadOKRep _ = lastChanReadOKRep (Proxy :: Proxy (Data Length, Arr a))
-    closeChanRep _      = closeChanRep (Proxy :: Proxy (Data Length, Arr a))
+data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
-instance PrimType a => Transferable (Vector (Data a))
-  where
-    readChanRep (lenc,elemc) = do
-        len <- readChanRep lenc
-        arr <- readChanBulkRep elemc len
-        lenRef <- initRef (i2n len)
-        readStore (Store (lenRef,arr))
-    writeChanRep (lenc,elemc) v = do
-        Store (lenRef,arr) <- initStore v
-        len <- getRef lenRef
-        writeChanRep lenc len
-        writeChanBulkRep elemc (i2n len) arr
+ofLength :: Data Length -> lenSpec -> VecChanSizeSpec lenSpec
+ofLength = VecChanSizeSpec
 
+instance ( Syntax a, BulkTransferable a
+         , ContainerType a ~ Arr (Internal a)
+         ) => Transferable (Vector a)
+  where
+    type SizeSpec (Vector a) = VecChanSizeSpec (SizeSpec a)
+    calcChanSize _ (VecChanSizeSpec n m) =
+        let hsz = n `Imp.timesSizeOf` (Proxy :: Proxy Length)
+            bsz = calcChanSize (Proxy :: Proxy a) m
+        in  hsz `Imp.plusSize` (n `Imp.timesSize` bsz)
+    untypedReadChan c = do
+        len :: Data Length <- untypedReadChan c
+        arr <- newArr len
+        untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
+        lenRef <- initRef len
+        readStore $ Store (lenRef, arr)
+    untypedWriteChan c v = do
+        Store (lenRef, arr) <- initStore v
+        len :: Data Length <- getRef lenRef
+        untypedWriteChan c len
+        untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
 
 
 length :: Vector a -> Data Length
