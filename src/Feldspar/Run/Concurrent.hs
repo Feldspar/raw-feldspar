@@ -13,7 +13,7 @@ module Feldspar.Run.Concurrent
 
 
 
-import Prelude hiding ((||))
+import Prelude hiding ((&&))
 import Data.Proxy
 import Data.TypedStruct
 
@@ -172,10 +172,10 @@ instance PrimType' a => BulkTransferable (Data a)
     type ContainerType (Data a) = Arr a
     untypedReadChanBuf  _ c off len arr = do
       r <- sequence $ listStruct (Run . Imp.readChanBuf' c off len) (unArr arr)
-      return $ foldl1 (||) r
+      return $ foldl1 (&&) r
     untypedWriteChanBuf _ c off len arr = do
       r <- sequence $ listStruct (Run . Imp.writeChanBuf' c off len) (unArr arr)
-      return $ foldl1 (||) r
+      return $ foldl1 (&&) r
 
 instance ( Transferable a, Transferable b
          , SizeSpec a ~ SizeSpec b
