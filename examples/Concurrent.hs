@@ -68,7 +68,7 @@ pairChan = do
     waitThread reader
     waitThread writer
     closeChan c
-{-
+
 vecChan :: Run ()
 vecChan = do
     c :: Chan Closeable (Vector (Data Index)) <- newCloseableChan (3 `ofLength` 10)
@@ -85,11 +85,11 @@ vecChan = do
     waitThread reader
     waitThread writer
     closeChan c
--}
+
 
 runStorableChanTest = mapM_ (runCompiled' opts) prog
   where
-    prog = [ primChan, pairChan ]
+    prog = [ primChan, pairChan, vecChan ]
     opts = defaultExtCompilerOpts
          { externalFlagsPost = ["-lpthread"]
          , externalFlagsPre  = [ "-I../imperative-edsl/include"

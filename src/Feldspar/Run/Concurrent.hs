@@ -63,7 +63,7 @@ class Transferable a
     --   that is a map from primitive types to quantities. The byte size of the
     --   channel will be calculated as the sum of multiplying the byte size of
     --   each type with its quantity.
-    calcChanSize :: proxy a -> SizeSpec a -> Imp.ChanSize Data PrimType'
+    calcChanSize :: proxy a -> SizeSpec a -> Imp.ChanSize Data PrimType' Length
 
     -- | Create a new channel. Writing a reference type to a channel will copy
     --   contents into the channel, so modifying it post-write is completely
@@ -163,7 +163,7 @@ closeChan = Run . Imp.closeChan
 instance PrimType' a => Transferable (Data a)
   where
     type SizeSpec (Data a) = Data Length
-    calcChanSize _ sz = Imp.ChanSize [(Imp.ChanElemType (Proxy :: Proxy a), sz)]
+    calcChanSize _ sz = sz `Imp.timesSizeOf` (Proxy :: Proxy a)
     untypedReadChan    = Run . Imp.readChan'
     untypedWriteChan c = Run . Imp.writeChan' c
 
@@ -185,7 +185,7 @@ instance ( Transferable a, Transferable b
     calcChanSize _ sz =
       let asz = calcChanSize (Proxy :: Proxy a) sz
           bsz = calcChanSize (Proxy :: Proxy b) sz
-      in error "TODO: merge sizes: asz + bsz"
+      in  asz `Imp.plusSize` bsz
     untypedReadChan c = (,) <$> untypedReadChan c <*> untypedReadChan c
     untypedWriteChan c (a, b) = do
       sa <- untypedWriteChan c a

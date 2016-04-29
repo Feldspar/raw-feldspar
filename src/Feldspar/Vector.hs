@@ -2,7 +2,7 @@ module Feldspar.Vector where
 
 
 
-import Prelude (error)
+import Prelude ()
 import Data.Proxy
 
 import Feldspar
@@ -69,10 +69,9 @@ instance ( Syntax a, BulkTransferable a
   where
     type SizeSpec (Vector a) = VecChanSizeSpec (SizeSpec a)
     calcChanSize _ (VecChanSizeSpec n m) =
-        let hsz = error "TODO: header size"
-            -- Imp.ChanSize [ (Imp.ChanElemType (Proxy :: Proxy Length), n) ]
+        let hsz = n `Imp.timesSizeOf` (Proxy :: Proxy Length)
             bsz = calcChanSize (Proxy :: Proxy a) m
-        in error "TODO: merge sizes: hsz + n * bsz"
+        in  hsz `Imp.plusSize` (n `Imp.timesSize` bsz)
     untypedReadChan c = do
         len :: Data Length <- untypedReadChan c
         arr <- newArr len
