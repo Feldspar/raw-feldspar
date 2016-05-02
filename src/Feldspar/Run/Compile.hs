@@ -310,7 +310,7 @@ captureIO = Imp.captureIO . translate . liftRun
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
 --
--- > gcc -std=c99 YOURPROGRAM.c
+-- > cc -std=c99 YOURPROGRAM.c
 --
 -- This function returns only the first (main) module. To get all C translation
 -- unit, use 'compileAll'.
@@ -322,30 +322,30 @@ compile = Imp.compile . translate . liftRun
 --
 -- To compile the resulting C code, use something like
 --
--- > gcc -std=c99 YOURPROGRAM.c
+-- > cc -std=c99 YOURPROGRAM.c
 compileAll :: MonadRun m => m a -> [(String, String)]
 compileAll = Imp.compileAll . translate . liftRun
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
--- > gcc -std=c99 YOURPROGRAM.c
+-- > cc -std=c99 YOURPROGRAM.c
 icompile :: MonadRun m => m a -> IO ()
 icompile = Imp.icompile . translate . liftRun
 
--- | Generate C code and use GCC to check that it compiles (no linking)
+-- | Generate C code and use CC to check that it compiles (no linking)
 compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
 compileAndCheck' opts = Imp.compileAndCheck' opts . translate . liftRun
 
--- | Generate C code and use GCC to check that it compiles (no linking)
+-- | Generate C code and use CC to check that it compiles (no linking)
 compileAndCheck :: MonadRun m => m a -> IO ()
 compileAndCheck = compileAndCheck' mempty
 
--- | Generate C code, use GCC to compile it, and run the resulting executable
+-- | Generate C code, use CC to compile it, and run the resulting executable
 runCompiled' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
 runCompiled' opts = Imp.runCompiled' opts . translate . liftRun
 
--- | Generate C code, use GCC to compile it, and run the resulting executable
+-- | Generate C code, use CC to compile it, and run the resulting executable
 runCompiled :: MonadRun m => m a -> IO ()
 runCompiled = runCompiled' mempty
 
