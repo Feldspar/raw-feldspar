@@ -163,17 +163,19 @@ primTypeOf _ = primTypeRep
 
 -- | Check whether two type representations are equal
 primTypeEq :: PrimTypeRep a -> PrimTypeRep b -> Maybe (Dict (a ~ b))
-primTypeEq BoolT   BoolT   = Just Dict
-primTypeEq Int8T   Int8T   = Just Dict
-primTypeEq Int16T  Int16T  = Just Dict
-primTypeEq Int32T  Int32T  = Just Dict
-primTypeEq Int64T  Int64T  = Just Dict
-primTypeEq Word8T  Word8T  = Just Dict
-primTypeEq Word16T Word16T = Just Dict
-primTypeEq Word32T Word32T = Just Dict
-primTypeEq Word64T Word64T = Just Dict
-primTypeEq FloatT  FloatT  = Just Dict
-primTypeEq DoubleT DoubleT = Just Dict
+primTypeEq BoolT          BoolT          = Just Dict
+primTypeEq Int8T          Int8T          = Just Dict
+primTypeEq Int16T         Int16T         = Just Dict
+primTypeEq Int32T         Int32T         = Just Dict
+primTypeEq Int64T         Int64T         = Just Dict
+primTypeEq Word8T         Word8T         = Just Dict
+primTypeEq Word16T        Word16T        = Just Dict
+primTypeEq Word32T        Word32T        = Just Dict
+primTypeEq Word64T        Word64T        = Just Dict
+primTypeEq FloatT         FloatT         = Just Dict
+primTypeEq DoubleT        DoubleT        = Just Dict
+primTypeEq ComplexFloatT  ComplexFloatT  = Just Dict
+primTypeEq ComplexDoubleT ComplexDoubleT = Just Dict
 primTypeEq _ _ = Nothing
 
 -- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint
