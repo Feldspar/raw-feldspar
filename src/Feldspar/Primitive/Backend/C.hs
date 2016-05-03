@@ -176,13 +176,19 @@ compCast t a
         return [cexp|($ty:t') $a'|]
 
 -- | Compile a call to 'round'
-compRound :: (Integral a, RealFrac b, MonadC m) =>
+--   A cast is added to the resulting expression as `round` returns a floating
+--   point value in C instead of an integral. This avoids a C compilation error
+--   when the given expression is used as an array index.
+compRound :: (PrimType' a, Integral a, RealFrac b, MonadC m) =>
     PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
 compRound t a = do
     addInclude "<tgmath.h>"
     case primTypeIntWidth t of
-        Just w | w < 64 -> compFun "round" (a :* Nil)
-        Just w          -> compFun "lround" (a :* Nil)
+        Just w | w < 64 -> do
+            t' <- compType (Proxy :: Proxy PrimType') t
+            rounded <- compFun "round" (a :* Nil)
+            return [cexp|($ty:t') $rounded|]
+        Just w -> compFun "lround" (a :* Nil)
         _ -> error $ "compRound: type " ++ show t ++ " not supported"
 
 -- Note: There's no problem with including both `tgmath.h` and `math.h`. As long
