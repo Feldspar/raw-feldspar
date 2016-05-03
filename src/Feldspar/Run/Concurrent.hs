@@ -22,7 +22,6 @@ import Language.Embedded.Concurrent (ThreadId, Chan, Closeable, Uncloseable)
 
 import Feldspar
 import Feldspar.Representation
-import Feldspar.Primitive.Representation
 import Feldspar.Run.Representation
 
 
