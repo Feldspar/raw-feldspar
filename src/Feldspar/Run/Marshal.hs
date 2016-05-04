@@ -11,8 +11,6 @@ import Feldspar.Run.Representation
 import Feldspar.Run.Compile
 import Feldspar.Run.Frontend
 
-import Test.QuickCheck
-
 
 
 data Parser a = Parser {runParser :: String -> (a, String)}
@@ -89,17 +87,6 @@ instance MarshalHaskell a => MarshalHaskell [a]
     toHaskell = do
         len <- toHaskell
         replicateM len toHaskell
-
-prop_marshalHaskell a = parse toHaskell (fromHaskell a) Prelude.== a
-
-main = do
-    quickCheck $ \a -> prop_marshalHaskell (a :: Int8)
-    quickCheck $ \a -> prop_marshalHaskell (a :: Word8)
-    quickCheck $ \a -> prop_marshalHaskell (a :: Double)
-    quickCheck $ \a -> prop_marshalHaskell (a :: Complex Float)
-    quickCheck $ \a -> prop_marshalHaskell (a :: [Double])
-    quickCheck $ \a -> prop_marshalHaskell (a :: (Word8,Word8))
-    quickCheck $ \a -> prop_marshalHaskell (a :: ([Double],(Int8,[Complex Float])))
 
 -- | Serialization/deserialization of Feldspar values
 class (MarshalHaskell (HaskellRep a)) => MarshalFeld a

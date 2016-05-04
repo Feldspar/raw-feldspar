@@ -4,6 +4,7 @@ module Feldspar.Run
   ( -- * Front end
     module Feldspar
   , module Feldspar.Run.Frontend
+  , module Feldspar.Run.Marshal
     -- * Back ends
   , runIO
   , compile
@@ -31,4 +32,5 @@ import Feldspar
 import Feldspar.Run.Representation
 import Feldspar.Run.Compile
 import Feldspar.Run.Frontend
+import Feldspar.Run.Marshal
 
