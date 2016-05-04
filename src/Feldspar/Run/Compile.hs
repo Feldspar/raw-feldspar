@@ -349,8 +349,33 @@ runCompiled' opts = Imp.runCompiled' opts . translate . liftRun
 runCompiled :: MonadRun m => m a -> IO ()
 runCompiled = runCompiled' mempty
 
+-- | Compile a program and make it available as an 'IO' function from 'String'
+-- to 'String' (connected to @stdin@/@stdout@. respectively). Note that
+-- compilation only happens once, even if the 'IO' function is used many times
+-- in the body.
+withCompiled' :: MonadRun m
+    => ExternalCompilerOpts
+    -> m a  -- ^ Program to compile
+    -> ((String -> IO String) -> IO b)
+         -- ^ Function that has access to the compiled executable as a function
+    -> IO b
+withCompiled' opts = Imp.withCompiled' opts . translate . liftRun
+
+-- | Compile a program and make it available as an 'IO' function from 'String'
+-- to 'String' (connected to @stdin@/@stdout@. respectively). Note that
+-- compilation only happens once, even if the 'IO' function is used many times
+-- in the body.
+withCompiled :: MonadRun m
+    => m a  -- ^ Program to compile
+    -> ((String -> IO String) -> IO b)
+         -- ^ Function that has access to the compiled executable as a function
+    -> IO b
+withCompiled = withCompiled' mempty {externalSilent = True}
+
 -- | Like 'runCompiled'' but with explicit input/output connected to
--- @stdin@/@stdout@
+-- @stdin@/@stdout@. Note that the program will be compiled every time the
+-- function is applied to a string. In order to compile once and run many times,
+-- use the function 'withCompiled''.
 captureCompiled' :: MonadRun m
     => ExternalCompilerOpts
     -> m a        -- ^ Program to run
@@ -359,7 +384,9 @@ captureCompiled' :: MonadRun m
 captureCompiled' opts = Imp.captureCompiled' opts . translate . liftRun
 
 -- | Like 'runCompiled' but with explicit input/output connected to
--- @stdin@/@stdout@
+-- @stdin@/@stdout@. Note that the program will be compiled every time the
+-- function is applied to a string. In order to compile once and run many times,
+-- use the function 'withCompiled'.
 captureCompiled :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@

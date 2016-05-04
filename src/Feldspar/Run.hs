@@ -15,6 +15,8 @@ module Feldspar.Run
   , compileAndCheck
   , runCompiled'
   , runCompiled
+  , withCompiled'
+  , withCompiled
   , captureCompiled'
   , captureCompiled
   , compareCompiled'
