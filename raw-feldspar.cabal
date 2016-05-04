@@ -54,6 +54,7 @@ library
 
   default-extensions:
     ConstraintKinds
+    DefaultSignatures
     DeriveFunctor
     FlexibleContexts
     FlexibleInstances
