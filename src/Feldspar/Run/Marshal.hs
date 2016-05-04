@@ -77,7 +77,6 @@ instance MarshalHaskell (Complex Double)
 instance (MarshalHaskell a, MarshalHaskell b) => MarshalHaskell (a,b)
   where
     fromHaskell (a,b) = unwords [fromHaskell a, fromHaskell b]
-
     toHaskell = (,) <$> toHaskell <*> toHaskell
 
 instance MarshalHaskell a => MarshalHaskell [a]
@@ -142,14 +141,14 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
 
     fromFeld (OfLength len arr) = do
         fput stdout "" len " "
-        for (0, 1, Excl len) $ \i -> do
+        for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
             fromFeld (a :: Data a)
 
     toFeld = do
         len <- fget stdin
         arr <- newArr len
-        for (0, 1, Excl len) $ \i -> do
+        for (0,1,Excl len) $ \i -> do
             a <- toFeld
             setArr i (a :: Data a) arr
         return $ OfLength len arr
@@ -161,21 +160,19 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
 
     fromFeld (OfLength len arr) = do
         fput stdout "" len " "
-        for (0, 1, Excl len) $ \i -> fromFeld (arrIx arr i :: Data a)
+        for (0,1,Excl len) $ \i -> fromFeld (arrIx arr i :: Data a)
 
     toFeld = do
         len <- fget stdin
         arr <- newArr len
-        for (0, 1, Excl len) $ \i -> do
+        for (0,1,Excl len) $ \i -> do
             a <- toFeld
             setArr i (a :: Data a) arr
         iarr <- unsafeFreezeArr arr
         return $ OfLength len iarr
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@
-connectStdIO :: (MarshalFeld a, MarshalFeld b)
-    => (a -> Run b)
-    -> Run ()
+connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
 connectStdIO f = (toFeld >>= f) >>= fromFeld
 
 -- | Compile a function and make it available as an 'IO' function. Note that
