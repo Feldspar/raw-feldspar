@@ -77,7 +77,7 @@ instance ( Syntax a, BulkTransferable a
         arr <- newArr len
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
         lenRef <- initRef len
-        readStore $ Store (lenRef, arr)
+        unsafeFreezeStore $ Store (lenRef, arr)
     untypedWriteChan c v = do
         Store (lenRef, arr) <- initStore v
         len :: Data Length <- getRef lenRef
