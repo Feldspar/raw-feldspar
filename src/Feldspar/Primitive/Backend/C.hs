@@ -167,23 +167,29 @@ compSign t a = case viewPrimTypeRep t of
   -- wrong. They should return -0.0. I don't know whether it's correct for other
   -- strange values.
 
--- | Compile a function call
+-- | Compile a type casted primitive expression
 compCast :: MonadC m => PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
-compCast t a
+compCast t a = compPrim (Prim a) >>= compCastExp t
+
+-- | Applies type cast on a compiled expression
+compCastExp :: MonadC m => PrimTypeRep a -> C.Exp -> m C.Exp
+compCastExp t a
     | Dict <- witPrimType t = do
         t' <- compType (Proxy :: Proxy PrimType') t
-        a' <- compPrim $ Prim a
-        return [cexp|($ty:t') $a'|]
+        return [cexp|($ty:t') $a|]
 
 -- | Compile a call to 'round'
-compRound :: (Integral a, RealFrac b, MonadC m) =>
+--   A cast is added to the resulting expression to allow compatibility
+--   between different integral and floating return types.
+compRound :: (PrimType' a, Num a, RealFrac b, MonadC m) =>
     PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
 compRound t a = do
     addInclude "<tgmath.h>"
-    case primTypeIntWidth t of
-        Just w | w < 64 -> compFun "round" (a :* Nil)
-        Just w          -> compFun "lround" (a :* Nil)
+    rounded <- case viewPrimTypeRep t of
+        PrimTypeFloating _ -> compFun "round"  (a :* Nil)
+        PrimTypeIntWord  _ -> compFun "lround" (a :* Nil)
         _ -> error $ "compRound: type " ++ show t ++ " not supported"
+    compCastExp t rounded
 
 -- Note: There's no problem with including both `tgmath.h` and `math.h`. As long
 -- as the former is included, including the latter (before or after) doesn't

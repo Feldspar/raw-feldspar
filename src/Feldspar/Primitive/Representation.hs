@@ -248,7 +248,7 @@ data Primitive sig
     I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
     I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
     B2I   :: (Integral a, PrimType' a)                          => Primitive (Bool :-> Full a)
-    Round :: (RealFrac a, Integral b, PrimType' a, PrimType' b) => Primitive (a :-> Full b)
+    Round :: (RealFrac a, Num b, PrimType' a, PrimType' b) => Primitive (a :-> Full b)
 
     Not :: Primitive (Bool :-> Full Bool)
     And :: Primitive (Bool :-> Bool :-> Full Bool)
@@ -340,7 +340,7 @@ instance Eval Primitive
     evalSym I2N         = fromInteger . toInteger
     evalSym I2B         = (/=0)
     evalSym B2I         = \a -> if a then 1 else 0
-    evalSym Round       = round
+    evalSym Round       = fromInteger . round
     evalSym Not         = not
     evalSym And         = (&&)
     evalSym Or          = (||)
