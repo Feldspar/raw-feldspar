@@ -248,7 +248,7 @@ b2i :: (Integral a, PrimType a) => Data Bool -> Data a
 b2i = sugarSymFeld B2I
 
 -- | Round a floating-point number to an integer
-round :: (RealFrac n, Integral i, PrimType i, PrimType n) => Data n -> Data i
+round :: (RealFrac a, Num b, PrimType a, PrimType b) => Data a -> Data b
 round = sugarSymFeld Round
 
 -- | Boolean negation
