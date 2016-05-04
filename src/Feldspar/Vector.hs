@@ -111,6 +111,15 @@ drop l (Indexed m f) = Indexed (b2i (l<=m) * (m-l)) (f . (+l))
 splitAt :: Data Index -> Vector a -> (Vector a, Vector a)
 splitAt l vec = (take l vec, drop l vec)
 
+tails :: Vector a -> Vector (Vector a)
+tails vec = Indexed (length vec + 1) (`drop` vec)
+
+inits :: Vector a -> Vector (Vector a)
+inits vec = Indexed (length vec + 1) (`take` vec)
+
+inits1 :: Vector a -> Vector (Vector a)
+inits1 = tail . inits
+
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
 
@@ -205,7 +214,7 @@ chunked :: (Syntax b, MonadComp m)
         -> Vector a
         -> m (Manifest b)
 chunked c f vec = do
-  let c' = value $ fromInteger $ toInteger c
+  let c' = fromInteger $ toInteger c
       len = length vec
       (noc,l2) = len `quotRem` c'
       l1  = c' * noc
