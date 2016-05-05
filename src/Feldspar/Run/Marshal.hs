@@ -40,6 +40,10 @@ parse :: Parser a -> String -> a
 parse = (fst .) . runParser
 
 -- | Serialization/deserialization of Haskell values
+--
+-- The following property must hold for all @a@:
+--
+-- > a = parse toHaskell (fromHaskell a) Prelude.== a
 class MarshalHaskell a
   where
     -- | Serialize a Haskell value
