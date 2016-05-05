@@ -186,8 +186,9 @@ compRound :: (PrimType' a, Num a, RealFrac b, MonadC m) =>
 compRound t a = do
     addInclude "<tgmath.h>"
     rounded <- case viewPrimTypeRep t of
+        PrimTypeIntWord _  -> compFun "lround" (a :* Nil)
         PrimTypeFloating _ -> compFun "round"  (a :* Nil)
-        PrimTypeIntWord  _ -> compFun "lround" (a :* Nil)
+        PrimTypeComplex _  -> compFun "round"  (a :* Nil)
         _ -> error $ "compRound: type " ++ show t ++ " not supported"
     compCastExp t rounded
 
