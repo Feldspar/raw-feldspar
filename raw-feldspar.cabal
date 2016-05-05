@@ -129,6 +129,7 @@ test-suite Semantics
 
   build-depends:
     base,
+    QuickCheck,
     raw-feldspar,
     tasty-quickcheck,
     tasty-th
