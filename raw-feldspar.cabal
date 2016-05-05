@@ -4,13 +4,15 @@ synopsis:            Resource-Aware Feldspar
 description:         See README.md
 license:             BSD3
 license-file:        LICENSE
--- author:              Emil Axelsson
+author:              Emil Axelsson
 maintainer:          emax@chalmers.se
-copyright:           Copyright (c) 2015, Emil Axelsson
+copyright:           Copyright (c) 2016 Anders Persson, Anton Ekblad, Emil Axelsson,
+                                        Koen Claessen, Markus Aronsson, Máté Karácsony
+                     Copyright (c) 2015 Emil Axelsson
 category:            Language
 build-type:          Simple
 cabal-version:       >=1.10
-tested-with: GHC == 7.10.3, GHC == 7.11.*
+tested-with:         GHC == 7.10.3
 
 extra-source-files:
     README.md
