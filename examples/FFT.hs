@@ -72,11 +72,11 @@ bitRev n = stages (1...n) riffle
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
-fftCore :: MonadComp m
+fftCore :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
     => Bool  -- ^ Inverse?
     -> Data Index
-    -> Vector (Data (Complex Double))
-    -> m (Vector (Data (Complex Double)))
+    -> Vector (Data (Complex a))
+    -> m (Vector (Data (Complex a)))
 fftCore inv n = stages (reverse (0...n)) step
   where
     step k vec = Indexed (length vec) ixf
@@ -89,10 +89,10 @@ fftCore inv n = stages (reverse (0...n)) step
             twid = polar 1 ((if inv then π else -π) * i2n (lsbs k' i) / i2n k2)
             k2   = 1 .<<. k'
 
-fft' :: MonadComp m
+fft' :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
      => Bool  -- ^ Inverse?
-     -> Vector (Data (Complex Double))
-     -> m (Vector (Data (Complex Double)))
+     -> Vector (Data (Complex a))
+     -> m (Vector (Data (Complex a)))
 fft' inv v = do
     n' <- force n
     fftCore inv n' v >>= bitRev n'
@@ -103,8 +103,8 @@ fft' inv v = do
 -- | Radix-2 Decimation-In-Frequeny Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
-fft :: MonadComp m =>
-    Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
+fft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
+    Vector (Data (Complex a)) -> m (Vector (Data (Complex a)))
 fft = fft' False
 
 
@@ -112,8 +112,8 @@ fft = fft' False
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving 'ifft . fft == id'.
-ifft :: MonadComp m =>
-    Vector (Data (Complex Double)) -> m (Vector (Data (Complex Double)))
+ifft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
+    Vector (Data (Complex a)) -> m (Vector (Data (Complex a)))
 ifft v = normalize <$> fft' True v
   where
     normalize = map (/ (i2n $ length v))
@@ -127,7 +127,7 @@ prog = do
 --     let n = 31
     v  <- force $ map i2n (0...n)
     v' <- fft v
-    printf "%.10f\n" $ sum $ map abs $ map realPart v'
+    printf "%.10f\n" (sum $ map abs $ map realPart v' :: Data Double)
 
 
 ---
