@@ -1,6 +1,9 @@
 -- | Discrete Fourier Transform
 
-module DFT where
+module DFT
+  ( dft
+  , idft
+  ) where
 
 
 
