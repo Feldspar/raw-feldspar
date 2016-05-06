@@ -196,13 +196,13 @@ spanVec vec = hi-lo
   -- it wasn't for sharing.
 
 -- | Scalar product
-scProd :: Vector (Data Float) -> Vector (Data Float) -> Data Float
+scProd :: (Num a, Syntax a) => Vector a -> Vector a -> a
 scProd a b = sum (zipWith (*) a b)
 
 forEach = flip map
 
 -- | Matrix multiplication
-matMul :: Matrix Float -> Matrix Float -> Matrix Float
+matMul :: (Num a, PrimType a) => Matrix a -> Matrix a -> Matrix a
 matMul a b = forEach a $ \a' ->
                forEach (transpose b) $ \b' ->
                  scProd a' b'
