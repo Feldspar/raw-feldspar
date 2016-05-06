@@ -6,6 +6,7 @@ import Prelude ()
 import Data.Proxy
 
 import Feldspar
+import Feldspar.Run
 import Feldspar.Run.Concurrent
 import qualified Language.Embedded.Concurrent as Imp
 
@@ -57,6 +58,19 @@ instance Syntax a => Storable (Vector a)
         sLen <- unsafeFreezeRef sLenRef
         setRef dLenRef sLen
         copyArr dst src sLen
+
+instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
+    MarshalFeld (Vector (Data a))
+  where
+    type HaskellRep (Vector (Data a)) = [a]
+
+    fromFeld vec = do
+        Manifest l arr <- fromPull vec
+        fromFeld $ OfLength l arr
+
+    toFeld = do
+        OfLength l arr <- toFeld
+        return $ toPull $ Manifest l arr
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
