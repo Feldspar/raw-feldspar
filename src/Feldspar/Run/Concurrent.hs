@@ -7,6 +7,7 @@ module Feldspar.Run.Concurrent
   , asyncKillThread
   , killThread
   , waitThread
+  , delayThread
   , closeChan
   , lastChanReadOK
   ) where
