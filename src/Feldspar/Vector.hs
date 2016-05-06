@@ -120,6 +120,9 @@ inits vec = Indexed (length vec + 1) (`take` vec)
 inits1 :: Vector a -> Vector (Vector a)
 inits1 = tail . inits
 
+replicate :: Data Length -> a -> Vector a
+replicate l = Indexed l . const
+
 zip :: Vector a -> Vector b -> Vector (a,b)
 zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
 
@@ -157,6 +160,14 @@ sum :: (Num a, Syntax a) => Vector a -> a
 sum = fold (+) 0
 
 type Matrix a = Vector (Vector (Data a))
+
+indexedMat
+    :: Data Length  -- ^ # rows
+    -> Data Length  -- ^ # columns
+    -> (Data Index -> Data Index -> Data a)
+         -- ^ @row index -> column index -> element@
+    -> Matrix a
+indexedMat r c ixf = Indexed r $ \k -> Indexed c $ \l -> ixf k l
 
 -- | Transpose of a matrix. Assumes that the number of rows is > 0.
 transpose :: Type a => Matrix a -> Matrix a
