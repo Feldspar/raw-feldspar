@@ -46,6 +46,10 @@ killThread = Run . Imp.killThread
 waitThread :: ThreadId -> Run ()
 waitThread = Run . Imp.waitThread
 
+-- | Sleep for a given amount of microseconds.
+delayThread :: Integral i => Data i -> Run ()
+delayThread = Run . Imp.delayThread
+
 
 --------------------------------------------------------------------------------
 -- * 'Transferable' classes
