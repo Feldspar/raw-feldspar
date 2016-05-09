@@ -47,7 +47,10 @@ killThread = Run . Imp.killThread
 waitThread :: ThreadId -> Run ()
 waitThread = Run . Imp.waitThread
 
--- | Sleep for a given amount of microseconds.
+-- | Sleep for a given amount of microseconds. Implemented with `usleep`.
+--   A C compiler might require a feature test macro to be defined,
+--   otherwise it emits a warning about an implicitly declared function.
+--   For more details, see: http://man7.org/linux/man-pages/man3/usleep.3.html
 delayThread :: Integral i => Data i -> Run ()
 delayThread = Run . Imp.delayThread
 
