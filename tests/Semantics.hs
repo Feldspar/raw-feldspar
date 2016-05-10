@@ -51,8 +51,8 @@ check_marshalFeld_Nested = marshalled (return :: (WithLength (IArr Int32), (Data
 main = do
     check_marshalFeld_Int32
     check_marshalFeld_Word32
---     check_marshalFeld_Double
---     check_marshalFeld_CompFloat
+    check_marshalFeld_Double
+    check_marshalFeld_CompFloat
     check_marshalFeld_Arr
     check_marshalFeld_IArr
     check_marshalFeld_Pair
