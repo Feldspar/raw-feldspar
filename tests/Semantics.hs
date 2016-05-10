@@ -24,38 +24,25 @@ generic_prop_marshalFeld f a = QC.monadicIO $ do
     b <- QC.run $ f a
     QC.assert (a Prelude.== b)
 
-check_marshalFeld_Int32 = marshalled (return :: Data Int32 -> Run (Data Int32)) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_Word32 = marshalled (return :: Data Word32 -> Run (Data Word32)) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_Double = marshalled (return :: Data Double -> Run (Data Double)) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_CompFloat = marshalled (return :: Data (Complex Float) -> Run (Data (Complex Float))) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_Arr = marshalled (return :: WithLength (Arr Int32) -> Run (WithLength (Arr Int32))) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_IArr = marshalled (return :: WithLength (IArr Int32) -> Run (WithLength (IArr Int32))) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_Pair = marshalled (return :: (Data Int32, Data Int32) -> Run (Data Int32, Data Int32)) $
-    QC.quickCheck . generic_prop_marshalFeld
-
-check_marshalFeld_Nested = marshalled (return :: (WithLength (IArr Int32), (Data Int32, WithLength (Arr Int32))) -> Run (WithLength (IArr Int32), (Data Int32, WithLength (Arr Int32)))) $
+check_marshalFeld :: forall proxy a
+    .  ( MarshalFeld a
+       , Eq (HaskellRep a)
+       , Show (HaskellRep a)
+       , Arbitrary (HaskellRep a)
+       )
+    => proxy a  -- Dummy argument, just to force the type
+    -> IO ()
+check_marshalFeld a = marshalled (return :: a -> Run a) $
     QC.quickCheck . generic_prop_marshalFeld
 
 main = do
-    check_marshalFeld_Int32
-    check_marshalFeld_Word32
-    check_marshalFeld_Double
-    check_marshalFeld_CompFloat
-    check_marshalFeld_Arr
-    check_marshalFeld_IArr
-    check_marshalFeld_Pair
-    check_marshalFeld_Nested
+    check_marshalFeld (Nothing :: Maybe (Data Int32))
+    check_marshalFeld (Nothing :: Maybe (Data Word32))
+    check_marshalFeld (Nothing :: Maybe (Data Double))
+    check_marshalFeld (Nothing :: Maybe (Data (Complex Float)))
+    check_marshalFeld (Nothing :: Maybe (WithLength (Arr Int32)))
+    check_marshalFeld (Nothing :: Maybe (WithLength (IArr Int32)))
+    check_marshalFeld (Nothing :: Maybe ((Data Int32, Data Int32)))
+    check_marshalFeld (Nothing :: Maybe ((WithLength (IArr Int32), (Data Int32, WithLength (Arr Int32)))))
     $defaultMainGenerator
 
