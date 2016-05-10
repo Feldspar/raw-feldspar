@@ -7,6 +7,10 @@ import Feldspar.Run
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Monadic as QC
 
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
+
 import qualified Demo
 -- import qualified CoDesign
 import qualified Concurrent
@@ -37,20 +41,21 @@ prop_inverse f fi = QC.monadicIO $ do
     out2 <- QC.run $ fi out1
     QC.assert (inp ~= out2)
 
-testFFT =
-    marshalledM (return . dft) $ \dft' ->
-      marshalledM (return . idft) $ \idft' ->
-        marshalledM fft $ \fft' -> do
-          marshalledM ifft $ \ifft' -> do
-              QC.quickCheck $ prop_fft_dft dft' fft'
-              QC.quickCheck $ prop_inverse dft' idft'
-              QC.quickCheck $ prop_inverse fft' ifft'
+main =
+    marshalledM (return . dft)  $ \dft'  ->
+    marshalledM (return . idft) $ \idft' ->
+    marshalledM fft             $ \fft'  ->
+    marshalledM ifft            $ \ifft' ->
+
+      defaultMain $ testGroup "tests"
+        [ testCase "Demo"       Demo.testAll
+        , testCase "Concurrent" Concurrent.testAll
+        -- , testCase "CoDesign"   CoDesign.testAll
+        , testProperty "fft_dft"  $ prop_fft_dft dft' fft'
+        , testProperty "dft_idft" $ prop_inverse dft' idft'
+        , testProperty "fft_ifft" $ prop_inverse fft' ifft'
+        ]
+
   where
     marshalledM = marshalled' defaultExtCompilerOpts {externalFlagsPost = ["-lm"]}
-
-main = do
-    Demo.testAll
---     CoDesign.testAll
-    Concurrent.testAll
-    testFFT
 

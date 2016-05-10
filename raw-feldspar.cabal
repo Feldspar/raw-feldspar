@@ -135,6 +135,7 @@ test-suite Semantics
     base,
     QuickCheck,
     raw-feldspar,
+    tasty,
     tasty-quickcheck,
     tasty-th
 
@@ -154,5 +155,8 @@ test-suite Examples
   build-depends:
     base,
     QuickCheck,
-    raw-feldspar
+    raw-feldspar,
+    tasty,
+    tasty-hunit,
+    tasty-quickcheck
 
