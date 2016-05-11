@@ -10,7 +10,7 @@ module DFT
 import Prelude ()
 
 import Feldspar
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 
 

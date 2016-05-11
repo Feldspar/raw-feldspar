@@ -7,7 +7,7 @@ module Demo where
 import qualified Prelude
 
 import Feldspar.Run
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 
 

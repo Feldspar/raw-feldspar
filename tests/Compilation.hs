@@ -4,8 +4,8 @@ import qualified Prelude
 import Control.Monad.Trans
 
 import Feldspar.Run
-import Feldspar.Vector
-import Feldspar.Option
+import Feldspar.Data.Vector
+import Feldspar.Data.Option
 
 
 

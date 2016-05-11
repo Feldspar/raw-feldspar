@@ -7,7 +7,7 @@ import qualified Prelude
 
 import Feldspar.Run
 import Feldspar.Run.Concurrent
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 
 -- | Waiting for thread completion.

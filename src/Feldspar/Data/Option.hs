@@ -2,7 +2,7 @@
 
 -- | Optional values
 
-module Feldspar.Option
+module Feldspar.Data.Option
   ( OptionT
   , Option
   , none

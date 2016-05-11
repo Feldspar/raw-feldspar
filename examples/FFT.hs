@@ -43,7 +43,7 @@ module FFT
 import Prelude ()
 
 import Feldspar.Run
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 
 

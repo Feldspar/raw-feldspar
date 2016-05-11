@@ -1,4 +1,4 @@
-module Feldspar.Vector where
+module Feldspar.Data.Vector where
 
 
 
