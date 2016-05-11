@@ -111,19 +111,19 @@ viewPrimTypeRep ComplexFloatT  = PrimTypeComplex ComplexFloatType
 viewPrimTypeRep ComplexDoubleT = PrimTypeComplex ComplexDoubleType
 
 unviewPrimTypeRep :: PrimTypeView a -> PrimTypeRep a
-unviewPrimTypeRep PrimTypeBool                              = BoolT
-unviewPrimTypeRep (PrimTypeIntWord (IntType (Int8Type)))    = Int8T
-unviewPrimTypeRep (PrimTypeIntWord (IntType (Int16Type)))   = Int16T
-unviewPrimTypeRep (PrimTypeIntWord (IntType (Int32Type)))   = Int32T
-unviewPrimTypeRep (PrimTypeIntWord (IntType (Int64Type)))   = Int64T
-unviewPrimTypeRep (PrimTypeIntWord (WordType (Word8Type)))  = Word8T
-unviewPrimTypeRep (PrimTypeIntWord (WordType (Word16Type))) = Word16T
-unviewPrimTypeRep (PrimTypeIntWord (WordType (Word32Type))) = Word32T
-unviewPrimTypeRep (PrimTypeIntWord (WordType (Word64Type))) = Word64T
-unviewPrimTypeRep (PrimTypeFloating FloatType)              = FloatT
-unviewPrimTypeRep (PrimTypeFloating DoubleType)             = DoubleT
-unviewPrimTypeRep (PrimTypeComplex ComplexFloatType)        = ComplexFloatT
-unviewPrimTypeRep (PrimTypeComplex ComplexDoubleType)       = ComplexDoubleT
+unviewPrimTypeRep PrimTypeBool                            = BoolT
+unviewPrimTypeRep (PrimTypeIntWord (IntType Int8Type))    = Int8T
+unviewPrimTypeRep (PrimTypeIntWord (IntType Int16Type))   = Int16T
+unviewPrimTypeRep (PrimTypeIntWord (IntType Int32Type))   = Int32T
+unviewPrimTypeRep (PrimTypeIntWord (IntType Int64Type))   = Int64T
+unviewPrimTypeRep (PrimTypeIntWord (WordType Word8Type))  = Word8T
+unviewPrimTypeRep (PrimTypeIntWord (WordType Word16Type)) = Word16T
+unviewPrimTypeRep (PrimTypeIntWord (WordType Word32Type)) = Word32T
+unviewPrimTypeRep (PrimTypeIntWord (WordType Word64Type)) = Word64T
+unviewPrimTypeRep (PrimTypeFloating FloatType)            = FloatT
+unviewPrimTypeRep (PrimTypeFloating DoubleType)           = DoubleT
+unviewPrimTypeRep (PrimTypeComplex ComplexFloatType)      = ComplexFloatT
+unviewPrimTypeRep (PrimTypeComplex ComplexDoubleType)     = ComplexDoubleT
 
 primTypeIntWidth :: PrimTypeRep a -> Maybe Int
 primTypeIntWidth Int8T   = Just 8
