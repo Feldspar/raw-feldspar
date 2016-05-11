@@ -237,24 +237,26 @@ long int feld_lmod(long int x, long int y) {
 
 compDiv :: MonadC m =>
     PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
-compDiv t a b = case primTypeIntWidth t of
-    Just w | w < 64 -> do
-        addGlobal div_def
-        compFun "feld_div" (a :* b :* Nil)
-    Just w -> do
+compDiv t a b = case viewPrimTypeRep t of
+    PrimTypeIntWord (WordType _) -> compBinOp C.Div a b
+    PrimTypeIntWord (IntType Int64Type) -> do
         addGlobal ldiv_def
         compFun "feld_ldiv" (a :* b :* Nil)
+    PrimTypeIntWord _ -> do
+        addGlobal div_def
+        compFun "feld_div" (a :* b :* Nil)
     _ -> error $ "compDiv: type " ++ show t ++ " not supported"
 
 compMod :: MonadC m =>
     PrimTypeRep a -> ASTF PrimDomain a -> ASTF PrimDomain b -> m C.Exp
-compMod t a b = case primTypeIntWidth t of
-    Just w | w < 64 -> do
-        addGlobal mod_def
-        compFun "feld_mod" (a :* b :* Nil)
-    Just w -> do
+compMod t a b = case viewPrimTypeRep t of
+    PrimTypeIntWord (WordType _) -> compBinOp C.Mod a b
+    PrimTypeIntWord (IntType Int64Type) -> do
         addGlobal lmod_def
         compFun "feld_lmod" (a :* b :* Nil)
+    PrimTypeIntWord _ -> do
+        addGlobal mod_def
+        compFun "feld_mod" (a :* b :* Nil)
     _ -> error $ "compMod: type " ++ show t ++ " not supported"
 
 -- | Compile an expression
