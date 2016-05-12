@@ -30,7 +30,7 @@ data Vector a
 
 instance Syntax a => Forcible (Vector a)
   where
-    type ValueRep (Vector a) = Manifest a
+    type ValueRep (Vector a) = Dim (IArr (Internal a))
     toValue   = fromPull
     fromValue = toPull
 
@@ -64,13 +64,8 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
   where
     type HaskellRep (Vector (Data a)) = [a]
 
-    fromFeld vec = do
-        Manifest l arr <- fromPull vec
-        fromFeld $ Dim l arr
-
-    toFeld = do
-        Dim l arr <- toFeld
-        return $ toPull $ Manifest l arr
+    fromFeld = fromPull >=> fromFeld
+    toFeld   = toPull <$> toFeld
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -187,21 +182,15 @@ transpose a = Indexed (length (a!0)) $ \k -> Indexed (length a) $ \l -> a ! l ! 
 
 
 
---------------------------------------------------------------------------------
--- * Manifest vectors
---------------------------------------------------------------------------------
+toPull :: Syntax a => Dim (IArr (Internal a)) -> Vector a
+toPull (Dim len arr) = Indexed len (arrIx arr)
 
-data Manifest a = Manifest (Data Length) (IArr (Internal a))
-
-toPull :: Syntax a => Manifest a -> Vector a
-toPull (Manifest len arr) = Indexed len (arrIx arr)
-
-fromPull :: (Syntax a, MonadComp m) => Vector a -> m (Manifest a)
+fromPull :: (Syntax a, MonadComp m) => Vector a -> m (Dim (IArr (Internal a)))
 fromPull (Indexed len ixf) = do
     arr <- newArr len
     for (0,1,Excl len) $ \i -> setArr i (ixf i) arr
     iarr <- unsafeFreezeArr arr
-    return $ Manifest len iarr
+    return $ Dim len iarr
 
 
 
@@ -235,7 +224,7 @@ chunked :: (Syntax b, MonadComp m)
         => Int                         -- ^ Size of the chunks
         -> (Vector a -> Vector b)      -- ^ Applied to every chunk
         -> Vector a
-        -> m (Manifest b)
+        -> m (Dim (IArr (Internal b)))
 chunked c f vec = do
   let c' = fromInteger $ toInteger c
       len = length vec
@@ -255,4 +244,5 @@ chunked c f vec = do
     setArr x (v!i) arr
     setRef off (x+1)
   iarr <- unsafeFreezeArr arr
-  return $ Manifest len iarr
+  return $ Dim len iarr
+

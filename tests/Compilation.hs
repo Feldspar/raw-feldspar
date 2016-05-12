@@ -14,11 +14,12 @@ import Feldspar.Data.Option
 --------------------------------------------------------------------------------
 
 -- | Safe indexing in a 'Manifest' vector
-indexO :: (Syntax a, Monad m) => Manifest a -> Data Index -> OptionT m a
-indexO (Manifest len arr) i =
+indexO :: (Syntax a, Monad m) =>
+    Dim (IArr (Internal a)) -> Data Index -> OptionT m a
+indexO (Dim len arr) i =
     guarded "indexO: out of bounds" (i<len) (arrIx arr i)
 
-funO :: Monad m => Manifest (Data Int32) -> Data Index -> OptionT m (Data Int32)
+funO :: Monad m => Dim (IArr Int32) -> Data Index -> OptionT m (Data Int32)
 funO vec i = do
     a <- indexO vec i
     b <- indexO vec (i+1)
