@@ -66,10 +66,10 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
 
     fromFeld vec = do
         Manifest l arr <- fromPull vec
-        fromFeld $ OfLength l arr
+        fromFeld $ Dim l arr
 
     toFeld = do
-        OfLength l arr <- toFeld
+        Dim l arr <- toFeld
         return $ toPull $ Manifest l arr
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
@@ -99,16 +99,14 @@ instance ( Syntax a, BulkTransferable a
         untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
 
 
-length :: Vector a -> Data Length
-length (Indexed len _) = len
+instance Indexed (Vector a)
+  where
+    type IndexedElem (Vector a) = a
+    (!) (Indexed _ ixf) = ixf
 
-index :: Vector a -> Data Index -> a
-index (Indexed _ ixf) = ixf
-
-(!) :: Vector a -> Data Index -> a
-Indexed _ ixf ! i = ixf i
-
-infixl 9 !
+instance Dimensional (Vector a)
+  where
+    length (Indexed l _) = l
 
 head :: Vector a -> a
 head = (!0)
@@ -138,15 +136,15 @@ replicate :: Data Length -> a -> Vector a
 replicate l = Indexed l . const
 
 zip :: Vector a -> Vector b -> Vector (a,b)
-zip a b = Indexed (length a `min` length b) (\i -> (index a i, index b i))
+zip a b = Indexed (length a `min` length b) (\i -> (a!i, b!i))
 
 unzip :: Vector (a,b) -> (Vector a, Vector b)
-unzip ab = (Indexed len (fst . index ab), Indexed len (snd . index ab))
+unzip ab = (Indexed len (fst . (ab!)), Indexed len (snd . (ab!)))
   where
     len = length ab
 
 permute :: (Data Length -> Data Index -> Data Index) -> (Vector a -> Vector a)
-permute perm vec = Indexed len (index vec . perm len)
+permute perm vec = Indexed len ((vec!) . perm len)
   where
     len = length vec
 

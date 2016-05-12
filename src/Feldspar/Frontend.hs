@@ -10,7 +10,9 @@ import Control.Monad.Identity
 import Data.Bits (Bits, FiniteBits)
 import qualified Data.Bits as Bits
 import Data.Complex (Complex)
+import Data.Foldable (Foldable)
 import Data.Int
+import Data.Traversable (Traversable)
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -414,6 +416,42 @@ arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
     ix :: PrimType' b => Imp.IArr Index b -> Data b
     ix arr = sugarSymFeldPrim (ArrIx arr) i
+
+class Indexed a
+  where
+    type IndexedElem a
+    (!) :: a -> Data Index -> IndexedElem a
+
+infixl 9 !
+
+instance Type a => Indexed (IArr a)
+  where
+    type IndexedElem (IArr a) = Data a
+    (!) = arrIx
+
+-- | Make a value dimensional by pairing it with a length
+--
+-- A typical use of 'Dim' is @`Dim` (`IArr` a)@.
+data Dim a = Dim
+    { dimLength :: Data Length
+    , dimInner  :: a
+    }
+  deriving (Functor, Foldable, Traversable)
+
+instance Indexed a => Indexed (Dim a)
+  where
+    type IndexedElem (Dim a) = IndexedElem a
+    Dim _ a ! i = a!i
+
+-- | Dimensional types are types of values that have a length
+class Dimensional a
+  where
+    -- | The length of a dimensional value
+    length :: a -> Data Length
+
+instance Dimensional (Dim a)
+  where
+    length = dimLength
 
 
 

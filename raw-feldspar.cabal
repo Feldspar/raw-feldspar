@@ -58,6 +58,8 @@ library
     ConstraintKinds
     DefaultSignatures
     DeriveFunctor
+    DeriveFoldable
+    DeriveTraversable
     FlexibleContexts
     FlexibleInstances
     GADTs
