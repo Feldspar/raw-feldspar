@@ -24,6 +24,8 @@ import qualified Control.Monad.Operational.Higher as Operational
 import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
+import qualified Language.Embedded.Hardware.Interface as Hard
+
 import Data.Inhabited
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
@@ -262,7 +264,15 @@ instance Imp.EvalExp Data
   where
     evalExp = eval
 
+instance Hard.FreeExp Data
+  where
+    type PredicateExp Data = PrimType'
+    litE = sugarSymFeldPrim . Lit
+    varE = sugarSymFeldPrim . FreeVar
 
+instance Hard.EvaluateExp Data
+  where
+    evalE = eval
 
 --------------------------------------------------------------------------------
 -- * Monadic computations

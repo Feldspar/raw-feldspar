@@ -18,6 +18,8 @@ import Data.Constraint (Dict (..))
 import Language.Embedded.Expression
 import Language.Embedded.Imperative.CMD (IArr (..))
 
+import qualified Language.Embedded.Hardware as Hard
+
 import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
@@ -297,11 +299,19 @@ instance FreeExp Prim
     constExp = sugarSymPrim . Lit
     varExp   = sugarSymPrim . FreeVar
 
+instance Hard.FreeExp Prim
+  where
+    type PredicateExp Prim = PrimType'
+    litE = sugarSymPrim . Lit
+    varE = sugarSymPrim . FreeVar
+
 instance EvalExp Prim
   where
     evalExp = evalPrim
 
-
+instance Hard.EvaluateExp Prim
+  where
+    evalE = evalPrim
 
 --------------------------------------------------------------------------------
 -- * Interface

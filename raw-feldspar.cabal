@@ -1,5 +1,5 @@
 name:                raw-feldspar
-version:             0.1
+version:             0.1.1
 synopsis:            Resource-Aware Feldspar
 description:         See README.md
 license:             BSD3
@@ -72,11 +72,11 @@ library
     constraints,
     containers,
     imperative-edsl >= 0.5,
-    -- hardware-edsl >= 0.1.0.2,
+    hardware-edsl >= 0.1.1.1,
     language-c-quote,
     mtl,
-    open-typerep >= 0.5,
-    operational-alacarte,
+    open-typerep >= 0.6,
+    operational-alacarte >= 0.2.1,
     prelude-edsl,
     syntactic >= 3.6,
     template-haskell

@@ -4,14 +4,14 @@ module Feldspar.Hardware.Representation where
 
 
 
-{-
-
 import Control.Monad.Trans
 
 import Control.Monad.Operational.Higher
 
-import Language.Embedded.Hardware as Hard
+import Language.Embedded.Hardware as Hard hiding (Comp(..))
+import Language.Embedded.Imperative.CMD (IxRange(..), Border(..))
 
+import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 
@@ -21,21 +21,30 @@ import Feldspar.Frontend
 
 -- | Commands used in hardware programs.
 type HardwareCMD =
-      ConditionalCMD Data
-  :+: LoopCMD        Data
-  :+: SignalCMD      Data
-  :+: StructuralCMD  Data
+      ConditionalCMD
+  :+: LoopCMD
+  :+: SignalCMD
+  :+: StructuralCMD
 
--- | Monad for computations in hardware.
-newtype Hardware a = Hardware { unHardware :: ProgramT HardwareCMD (Program CompCMD) a }
+
+-- | ...
+newtype Hardware a = Hardware
+    { unHardware ::
+        ProgramT
+          HardwareCMD
+          (Param2 Data PrimType')
+          (Program CompCMD (Param2 Data PrimType'))
+          a
+    }
   deriving (Functor, Applicative, Monad)
 
 instance MonadComp Hardware
   where
-    liftComp           = Hardware . lift . unComp
-    iff c t f          = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    for (i, _, _) body = Hardware $ Hard.for i (unHardware . body)
-    while cont body    = Hardware $ Hard.while (unHardware cont) (unHardware body)
+    liftComp        = Hardware . lift . unComp
+    iff c t f       = Hardware $ Hard.iff c (unHardware t) (unHardware f)
+    for  (_, _, Excl n) body = Hardware $ Hard.for n       (unHardware . body)
+    for  (_, _, Incl n) body = Hardware $ Hard.for (n - 1) (unHardware . body)
+    while cont body = undefined
 
 class Monad m => MonadHardware m
   where
@@ -45,5 +54,3 @@ instance MonadHardware Comp     where liftHardware = liftComp
 instance MonadHardware Hardware where liftHardware = id
 
 --------------------------------------------------------------------------------
-
--}
