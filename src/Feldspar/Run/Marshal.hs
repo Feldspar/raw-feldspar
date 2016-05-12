@@ -15,7 +15,7 @@ import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 
 
 
-data Parser a = Parser {runParser :: String -> (a, String)}
+newtype Parser a = Parser {runParser :: String -> (a, String)}
   deriving (Functor)
 
 instance Applicative Parser
@@ -102,7 +102,7 @@ class (MarshalHaskell (HaskellRep a)) => MarshalFeld a
     -- | Serialize a Feldspar value to @stdout@
     fromFeld :: a -> Run ()
     default fromFeld :: (PrimType b, Formattable b, a ~ Data b) => a -> Run ()
-    fromFeld i = fput stdout "" i " "
+    fromFeld i = fput stdout "" i ""
 
     -- | Deserialize a Feldspar value from @stdin@
     toFeld :: Run a
@@ -150,6 +150,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
         for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
             fromFeld (a :: Data a)
+            printf " "
 
     toFeld = do
         len <- fget stdin
@@ -166,7 +167,9 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
 
     fromFeld (OfLength len arr) = do
         fput stdout "" len " "
-        for (0,1,Excl len) $ \i -> fromFeld (arrIx arr i :: Data a)
+        for (0,1,Excl len) $ \i -> do
+            fromFeld (arrIx arr i :: Data a)
+            printf " "
 
     toFeld = do
         len <- fget stdin
