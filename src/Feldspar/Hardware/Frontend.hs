@@ -1,18 +1,14 @@
 module Feldspar.Hardware.Frontend where
 
-{-
-
-module Feldspar.Hardware.Frontend
-  ( Hardware
-  , MonadHardware (..)
-  , module Feldspar.Hardware.Frontend
-  ) where
-
+import Language.Embedded.Hardware (Signal)
 import qualified Language.Embedded.Hardware as Hard
 
-import Data.VirtualContainer
+import qualified Control.Monad.Operational.Higher as Oper
+
+import Data.TypedStruct
+import Feldspar.Primitive.Representation
+import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
-import Feldspar.Frontend as Feld
 import Feldspar.Hardware.Representation
 
 --------------------------------------------------------------------------------
@@ -22,40 +18,36 @@ import Feldspar.Hardware.Representation
 --------------------------------------------------------------------------------
 -- ** Signals.
 
-newtype Sig a = Sig { unSig :: Virtual SmallType Hard.Signal a }
-
 -- | Create an uninitialized signal.
-newSig :: Type a => Hardware (Sig a)
+newSig :: PrimType a => Hardware (Signal a)
 newSig = newNamedSig "s"
 
 -- | Create an uninitialized named signal.
-newNamedSig :: Type a => String -> Hardware (Sig a)
-newNamedSig name = fmap Sig $ mapVirtualA (const $ Hardware $ Hard.newNamedSignal name) virtRep
+newNamedSig :: PrimType a => String -> Hardware (Signal a)
+newNamedSig name = Hardware $ Hard.newNamedSignal name
 
 -- | Create an initialized signal.
-initSig :: Type a => Data a -> Hardware (Sig a)
+initSig :: PrimType a => Data a -> Hardware (Signal a)
 initSig = initNamedSig "s"
 
 -- | Create an initialized named signal.
-initNamedSig :: Type a => String -> Data a -> Hardware (Sig a)
-initNamedSig name = fmap Sig . mapVirtualA (Hardware . Hard.initNamedSignal name) . sugar
+initNamedSig :: PrimType a => String -> Data a -> Hardware (Signal a)
+initNamedSig name e = Hardware $ Hard.initNamedSignal name e
 
 -- | Get the contents of a signal.
-getSig :: Type a => Sig a -> Hardware (Data a)
-getSig = fmap desugar . mapVirtualA (Hardware . Hard.getSignal) . unSig
+getSig :: PrimType a => Signal a -> Hardware (Data a)
+getSig = Hardware . Hard.getSignal
 
 -- | Set the contents of a signal.
-setSig :: Type a => Sig a -> Data a -> Hardware ()
-setSig s = sequence_ . zipListVirtual (\s' a' -> Hardware $ Hard.setSignal s' a') (unSig s) . sugar
+setSig :: PrimType a => Signal a -> Data a -> Hardware ()
+setSig s = Hardware . Hard.setSignal s
 
 -- | Modify the contents of a signal.
-modifySig :: Type a => Sig a -> (Data a -> Data a) -> Hardware ()
+modifySig :: PrimType a => Signal a -> (Data a -> Data a) -> Hardware ()
 modifySig s f = setSig s . f =<< unsafeFreezeSig s
 
 -- | Freeze the contents of a signal.
-unsafeFreezeSig :: Type a => Sig a -> Hardware (Data a)
-unsafeFreezeSig = fmap desugar . mapVirtualA (Hardware . Hard.unsafeFreezeSignal) . unSig
+unsafeFreezeSig :: PrimType a => Signal a -> Hardware (Data a)
+unsafeFreezeSig = Hardware . Hard.unsafeFreezeSignal
 
 --------------------------------------------------------------------------------
-
--}
