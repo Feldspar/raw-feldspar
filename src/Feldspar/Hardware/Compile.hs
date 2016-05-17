@@ -350,11 +350,11 @@ hardenRef (Soft.RefRun v)  = Hard.VariableE v
 
 softenArr :: Hard.VArray i a -> Soft.Arr i a
 softenArr (Hard.VArrayC i) = Soft.ArrComp i
-softenArr (Hard.VArrayE v) = Soft.ArrRun (error "IO?!") -- (newIORef v)
+softenArr (Hard.VArrayE v) = Soft.ArrRun v
 
 hardenArr :: Soft.Arr i a -> Hard.VArray i a
 hardenArr (Soft.ArrComp i) = Hard.VArrayC i
-hardenArr (Soft.ArrRun v)  = Hard.VArrayE (error "IO?!") -- (readIORef v)
+hardenArr (Soft.ArrRun v)  = Hard.VArrayE v
 
 softenIArr :: Hard.IArray i a -> Soft.IArr i a
 softenIArr (Hard.IArrayC i) = Soft.IArrComp i

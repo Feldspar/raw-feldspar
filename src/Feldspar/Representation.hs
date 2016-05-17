@@ -11,7 +11,7 @@ import Data.Int
 import Data.List (genericTake)
 import Data.Typeable (Typeable)
 import Data.Word
-
+import Data.Proxy
 import Data.Constraint (Dict (..))
 
 import Language.Syntactic
@@ -19,7 +19,7 @@ import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
 
-import qualified Control.Monad.Operational.Higher as Operational
+import qualified Control.Monad.Operational.Higher as Oper
 
 import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
@@ -29,8 +29,6 @@ import qualified Language.Embedded.Hardware.Interface as Hard
 import Data.Inhabited
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
-
-
 
 --------------------------------------------------------------------------------
 -- * Object-language types
@@ -127,8 +125,6 @@ newtype Arr a = Arr { unArr :: Struct PrimType' (Imp.Arr Index) a }
 -- | Immutable array
 newtype IArr a = IArr { unIArr :: Struct PrimType' (Imp.IArr Index) a }
 
-
-
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
@@ -139,43 +135,13 @@ data ForLoop sig
     ForLoop :: Type st =>
         ForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
 
-instance Eval ForLoop
-  where
-    evalSym ForLoop = \len init body ->
-        foldl (flip body) init $ genericTake len [0..]
-
-instance EvalEnv ForLoop env
-
-instance StringTree ForLoop
-
 -- | Interaction with the IO layer
 data IOSym sig
   where
     -- Turn a program into a pure value
-    UnsafePerform :: Comp (Data a) -> IOSym (Full a)
+    UnsafePerform :: Syntax exp a => Comp exp (exp a) -> IOSym (Full a)
     -- Identity function with a side effect
-    UnsafePerformWith :: Comp () -> IOSym (a :-> Full a)
-  -- The reason for having `UnsafeArrIx` instead of doing the same thing using
-  -- `UnsafePerform` is that `UnsafeArrIx` can be compared for equality, which
-  -- may help some optimizations.
-
-instance Render IOSym
-  where
-    renderSym (UnsafePerform _)     = "UnsafePerform ..."
-    renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
-
-instance StringTree IOSym
-
-instance Eval IOSym
-  where
-    evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
-
-instance EvalEnv IOSym env
-
--- | 'equal' always returns 'False'
-instance Equality IOSym
-  where
-    equal _ _ = False
+    UnsafePerformWith :: Comp exp () -> IOSym (a :-> Full a)
 
 type FeldConstructs
     =   BindingT
@@ -219,46 +185,148 @@ instance Syntactic (Struct PrimType' Data a)
         ValT (Two ta tb) ->
             Two (sugarSymDecor (ValT ta) Fst a) (sugarSymDecor (ValT tb) Snd a)
 
+--------------------------------------------------------------------------------
+
+-- | ...
+data Test sig
+  where
+    Testing :: (Num a, PrimType' a) => Test (a :-> a :-> Full a)
+
+type HFeldConstructs
+    =   BindingT
+    :+: Let
+    :+: Tuple
+    :+: Primitive
+    :+: ForLoop
+    :+: IOSym
+    :+: Test
+
+type HFeldDomain = HFeldConstructs :&: TypeRepFun
+
+newtype HData a = HData { unHData :: ASTF HFeldDomain a }
+
+-- | Declaring 'HData' as syntactic sugar
+instance Syntactic (HData a)
+  where
+    type Domain (HData a)   = HFeldDomain
+    type Internal (HData a) = a
+    desugar = unHData
+    sugar   = HData
+
+instance Syntactic (Struct PrimType' HData a)
+    -- Note that this instance places no constraints on `a`. This is crucial in
+    -- the way it is used in the rest of the code. It would be possible to
+    -- define `desugar` and `sugar` in terms of the instance for pairs; however,
+    -- that would require constraining `a`.
+  where
+    type Domain   (Struct PrimType' HData a) = HFeldDomain
+    type Internal (Struct PrimType' HData a) = a
+
+    desugar (Single a) = unHData a
+    desugar (Two a b)  = sugarSymDecor (ValT $ Two ta tb) Pair a' b'
+      where
+        a' = desugar a
+        b' = desugar b
+        ValT ta = getDecor a'
+        ValT tb = getDecor b'
+
+    sugar a = case getDecor a of
+        ValT (Single _)  -> Single $ HData a
+        ValT (Two ta tb) ->
+            Two (sugarSymDecor (ValT ta) Fst a) (sugarSymDecor (ValT tb) Snd a)
+
+--------------------------------------------------------------------------------
+
+type family DomainOf (exp :: * -> *) :: (* -> *)
+type instance DomainOf Data      = FeldDomain
+type instance DomainOf HData     = HFeldDomain
+
+type family ExprOf (dat :: * -> *) :: (* -> *)
+type instance ExprOf FeldDomain  = Data
+type instance ExprOf HFeldDomain = HData
+
 -- | Specialization of the 'Syntactic' class for the Feldspar domain
-class    (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
-instance (Syntactic a, Domain a ~ FeldDomain, Type (Internal a)) => Syntax a
+class    ( Syntactic a
+         , Domain a          ~ DomainOf exp
+         , ExprOf (Domain a) ~ exp
+         , Type (Internal a)
+         )
+         => Syntax exp a
+         
+instance ( Syntactic a
+         , Domain a          ~ DomainOf exp
+         , ExprOf (Domain a) ~ exp
+         , Type (Internal a)
+         )
+         => Syntax exp a
 
--- | Make a smart constructor for a symbol
-sugarSymFeld
-    :: ( Signature sig
-       , fi         ~ SmartFun FeldDomain sig
-       , sig        ~ SmartSig fi
-       , FeldDomain ~ SmartSym fi
-       , SyntacticN f fi
-       , sub :<: FeldConstructs
-       , Type (DenResult sig)
-       )
-    => sub sig -> f
-sugarSymFeld = sugarSymDecor $ ValT typeRep
+--------------------------------------------------------------------------------
 
--- | Make a smart constructor for a symbol
-sugarSymFeldPrim
-    :: ( Signature sig
-       , fi         ~ SmartFun FeldDomain sig
-       , sig        ~ SmartSig fi
-       , FeldDomain ~ SmartSym fi
-       , SyntacticN f fi
-       , sub :<: FeldConstructs
-       , PrimType' (DenResult sig)
-       )
-    => sub sig -> f
-sugarSymFeldPrim = sugarSymDecor $ ValT $ Single primTypeRep
+sugarSymExp
+  :: ( Signature sig
+     , fi     ~ SmartFun domain sig
+     , sig    ~ SmartSig fi
+     , domain ~ SmartSym fi
+     , domain ~ (sup :&: TypeRepFun)
+     , sub :<: sup
+     , SyntacticN f fi
+     , Type (DenResult sig)
+     )
+  => proxy domain -> sub sig -> f
+sugarSymExp _ = sugarSymDecor $ ValT typeRep
+
+sugarSymExpPrim
+  :: ( Signature sig
+     , fi     ~ SmartFun domain sig
+     , sig    ~ SmartSig fi
+     , domain ~ SmartSym fi
+     , domain ~ (sup :&: TypeRepFun)
+     , sub :<: sup
+     , SyntacticN f fi
+     , PrimType' (DenResult sig)
+     )
+  => proxy domain -> sub sig -> f
+sugarSymExpPrim _ = sugarSymDecor $ ValT $ Single primTypeRep
 
 -- | Evaluate a closed expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
 eval = evalClosed . desugar
   -- Note that a `Syntax` constraint would rule out evaluating functions
 
+--------------------------------------------------------------------------------
+
+sugarSymFeld
+  :: ( Signature sig
+     , fi         ~ SmartFun FeldDomain sig
+     , sig        ~ SmartSig fi
+     , FeldDomain ~ SmartSym fi
+     , sub :<: FeldConstructs
+     , SyntacticN f fi
+     , Type (DenResult sig)
+     )
+  => sub sig -> f
+sugarSymFeld = sugarSymExp (Proxy :: Proxy FeldDomain)
+
+sugarSymHFeld
+  :: ( Signature sig
+     , fi          ~ SmartFun HFeldDomain sig
+     , sig         ~ SmartSig fi
+     , HFeldDomain ~ SmartSym fi
+     , sub :<: HFeldConstructs
+     , SyntacticN f fi
+     , Type (DenResult sig)
+     )
+  => sub sig -> f
+sugarSymHFeld = sugarSymExp (Proxy :: Proxy HFeldDomain)
+
+
+--------------------------------------------------------------------------------
+
 instance Imp.FreeExp Data
   where
     type FreePred Data = PrimType'
-    constExp = sugarSymFeldPrim . Lit
-    varExp   = sugarSymFeldPrim . FreeVar
+    constExp = sugarSymExpPrim (Proxy::Proxy FeldDomain) . Lit
+    varExp   = sugarSymExpPrim (Proxy::Proxy FeldDomain) . FreeVar
 
 instance Imp.EvalExp Data
   where
@@ -267,34 +335,65 @@ instance Imp.EvalExp Data
 instance Hard.FreeExp Data
   where
     type PredicateExp Data = PrimType'
-    litE = sugarSymFeldPrim . Lit
-    varE = sugarSymFeldPrim . FreeVar
+    litE = sugarSymExpPrim (Proxy::Proxy FeldDomain) . Lit
+    varE = sugarSymExpPrim (Proxy::Proxy FeldDomain) . FreeVar
 
 instance Hard.EvaluateExp Data
   where
     evalE = eval
 
+instance Hard.FreeExp HData
+  where
+    type PredicateExp HData = PrimType'
+    litE = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . Lit
+    varE = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . FreeVar
+
+instance Hard.EvaluateExp HData
+  where
+    evalE = undefined --eval
+
 --------------------------------------------------------------------------------
 -- * Monadic computations
 --------------------------------------------------------------------------------
 
-type CompCMD
-  =               Imp.RefCMD
-  Operational.:+: Imp.ArrCMD
-  Operational.:+: Imp.ControlCMD
+type CompCMD = Imp.RefCMD
+      Oper.:+: Imp.ArrCMD
+      Oper.:+: Imp.ControlCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
-newtype Comp a = Comp
-    { unComp ::
-        Operational.Program CompCMD (Operational.Param2 Data PrimType') a
-    }
+newtype Comp (exp :: * -> *) (a :: *) = Comp {
+    unComp :: Oper.Program CompCMD (Oper.Param2 exp PrimType') a
+  }
   deriving (Functor, Applicative, Monad)
-
-
 
 --------------------------------------------------------------------------------
 -- Template Haskell instances
 --------------------------------------------------------------------------------
+
+instance Eval ForLoop
+  where
+    evalSym ForLoop = \len init body ->
+        foldl (flip body) init $ genericTake len [0..]
+
+instance Eval IOSym
+  where
+    evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
+
+instance EvalEnv IOSym env
+instance EvalEnv ForLoop env
+
+instance StringTree IOSym
+instance StringTree ForLoop
+
+instance Render IOSym
+  where
+    renderSym (UnsafePerform _)     = "UnsafePerform ..."
+    renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
+
+-- | 'equal' always returns 'False'
+instance Equality IOSym
+  where
+    equal _ _ = False
 
 deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop
@@ -302,3 +401,4 @@ deriveEquality  ''ForLoop
 
 deriveSymbol ''IOSym
 
+--------------------------------------------------------------------------------

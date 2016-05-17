@@ -1,15 +1,12 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Feldspar.Frontend where
-
-
-
-import Prelude (Integral, Floating (..), RealFrac, error)
-import qualified Prelude
-import Prelude.EDSL
 
 import Control.Monad.Identity
 import Data.Int
+import Data.Proxy
 
-import Language.Syntactic (Internal)
+import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
@@ -22,43 +19,65 @@ import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Sugar ()
 
-
+import Prelude (Integral, Floating(..), RealFrac, error)
+import Prelude.EDSL
+import qualified Prelude
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
-
-----------------------------------------
--- ** General constructs
-----------------------------------------
-
+{-
 -- | Explicit sharing
-share :: (Syntax a, Syntax b)
-    => a         -- ^ Value to share
-    -> (a -> b)  -- ^ Body in which to share the value
-    -> b
+share :: (Syntax exp a, Syntax exp b)
+    => exp a             -- ^ Value to share
+    -> (exp a -> exp b)  -- ^ Body in which to share the value
+    -> exp b
 share = shareTag ""
-
+-}
 -- | Explicit tagged sharing
-shareTag :: (Syntax a, Syntax b)
-    => String    -- ^ A tag (that may be empty). May be used by a back end to
-                 --   generate a sensible variable name.
-    -> a         -- ^ Value to share
-    -> (a -> b)  -- ^ Body in which to share the value
-    -> b
-shareTag tag = sugarSymFeld (Let tag)
+shareTag
+  :: forall sup   exp a b.
+     ( Syntax exp a
+     , Syntax exp b
+     , Domain b       ~ (sup :&: TypeRepFun)
+     , Domain (exp a) ~ (sup :&: TypeRepFun)
+     , Domain (exp b) ~ (sup :&: TypeRepFun)
+     , BindingT :<: sup
+     , Let :<: sup
+     , Syntactic (exp a)
+     , Syntactic (exp b)       
+     , Type (Internal (exp a))
+     , Type (Internal (exp b))
+     )
+  => String            -- ^ A tag (that may be empty). May be used by a back
+                       --   end to generate a sensible variable name.
+  -> exp a             -- ^ Value to share
+  -> (exp a -> exp b)  -- ^ Body in which to share the value
+  -> exp b
+shareTag tag = sugarSymExp (Proxy::Proxy (DomainOf exp)) (Let tag)
 
--- | For loop
-forLoop :: Syntax st => Data Length -> st -> (Data Index -> st -> st) -> st
-forLoop = sugarSymFeld ForLoop
+--------------------------------------------------------------------------------
+-- ** General constructs
 
--- | Conditional expression
-cond :: Syntax a
-    => Data Bool  -- ^ Condition
-    -> a          -- ^ True branch
-    -> a          -- ^ False branch
-    -> a
-cond = sugarSymFeld Cond
+class For exp st where
+  for :: exp Length -> st -> (exp Index -> st -> st) -> st
+
+instance (Syntax Data st) => For Data st where
+  for = sugarSymFeld ForLoop
+
+instance (Syntax HData st) => For HData st where
+  for = sugarSymHFeld ForLoop
+
+--------------------------------------------------------------------------------
+
+class Cond exp a where
+  cond :: exp Bool -> a -> a -> a
+
+instance (Syntax Data a) => Cond Data a where
+  cond = sugarSymFeld Cond
+
+instance (Syntax HData a) => Cond HData a where
+  cond = sugarSymHFeld Cond
 
 -- | Condition operator; use as follows:
 --
@@ -66,164 +85,178 @@ cond = sugarSymFeld Cond
 -- > cond2 ? b $
 -- > cond3 ? c $
 -- >         default
-(?) :: Syntax a
-    => Data Bool  -- ^ Condition
-    -> a          -- ^ True branch
-    -> a          -- ^ False branch
+(?) :: Cond exp a
+    => exp Bool  -- ^ Condition
+    -> a         -- ^ True branch
+    -> a         -- ^ False branch
     -> a
 (?) = cond
 
 infixl 1 ?
 
-switch :: (Syntax a, Syntax b, PrimType (Internal a)) =>
-    b -> [(Internal a, b)] -> a -> b
-switch def [] _ = def
-switch def cs s = Prelude.foldr
-    (\(c,a) b -> value c == desugar s ? a $ b)
-    def
-    cs
-
-
-
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** Literals
-----------------------------------------
 
--- | Literal
-value :: Syntax a => Internal a -> a
-value = sugarSymFeld . Lit
+class Val (exp :: * -> *) a where
+  value :: Internal (exp a) -> exp a
 
-false :: Data Bool
-false = value False
+instance (Syntax Data a, Type a) => Val Data a where
+  value = sugarSymFeld . Lit
 
-true :: Data Bool
+instance (Syntax HData a, Type a) => Val HData a where
+  value = sugarSymHFeld . Lit
+
+true :: (Val exp Bool, Internal (exp Bool) ~ Bool) => exp Bool
 true = value True
 
-instance Syntactic.Syntactic ()
-  where
-    type Domain ()   = FeldDomain
-    type Internal () = Int32
-    desugar () = unData 0
-    sugar   _  = ()
+false :: (Val exp Bool, Internal (exp Bool) ~ Bool) => exp Bool
+false = value False
 
--- | Example value
---
--- 'example' can be used similarly to 'undefined' in normal Haskell, i.e. to
--- create an expression whose value is irrelevant.
---
--- Note that it is generally not possible to use 'undefined' in Feldspar
--- expressions, as this will crash the compiler.
-example :: Syntax a => a
-example = value Inhabited.example
-
-
-
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** Primitive functions
-----------------------------------------
 
-instance (Num a, PrimType a) => Num (Data a)
-  where
-    fromInteger = value . fromInteger
-    (+)         = sugarSymFeld Add
-    (-)         = sugarSymFeld Sub
-    (*)         = sugarSymFeld Mul
-    negate      = sugarSymFeld Neg
-    abs    = error "abs not yet defined for Data"
-    signum = error "signum not yet defined for Data"
+class NUM (exp :: * -> *) a where
+  integer :: Prelude.Integer -> exp a
+  plus    :: exp a -> exp a -> exp a
+  minus   :: exp a -> exp a -> exp a
+  times   :: exp a -> exp a -> exp a
+  negate  :: exp a -> exp a
 
-instance (Fractional a, PrimType a) => Fractional (Data a)
-  where
-    (/) = sugarSymFeld FDiv
-    fromRational = value . fromRational
-    recip = error "recip not defined for (Data a)"
+instance (Syntax Data a, PrimType a, Prelude.Num a) => NUM Data a where
+  integer = value . fromInteger
+  plus    = sugarSymFeld Add
+  minus   = sugarSymFeld Sub
+  times   = sugarSymFeld Mul
+  negate  = sugarSymFeld Neg
 
-instance (Floating a, PrimType a) => Floating (Data a)
-  where
-    pi   = sugarSymFeld Pi
-    (**) = sugarSymFeld Pow
-    sin  = sugarSymFeld Sin
-    cos  = sugarSymFeld Cos
+instance (Syntax HData a, PrimType a, Prelude.Num a) => NUM HData a where
+  integer = value . fromInteger
+  plus    = sugarSymHFeld Add
+  minus   = sugarSymHFeld Sub
+  times   = sugarSymHFeld Mul
+  negate  = sugarSymHFeld Neg
 
--- | Integer division truncated toward zero
-quot :: (Integral a, PrimType a) => Data a -> Data a -> Data a
-quot = sugarSymFeld Quot
+--------------------------------------------------------------------------------
 
--- | Integer remainder satisfying
---
--- > (x `quot` y)*y + (x `rem` y) == x
-rem :: (Integral a, PrimType a) => Data a -> Data a -> Data a
-rem = sugarSymFeld Rem
+class FRAC (exp :: * -> *) a where
+  fractional :: Prelude.Rational -> exp a
+  divide     :: exp a -> exp a -> exp a
+
+instance (Syntax Data a, PrimType a, Prelude.Fractional a) => FRAC Data a where
+  fractional = value . fromRational
+  divide     = sugarSymFeld FDiv
+
+instance (Syntax HData a, PrimType a, Prelude.Fractional a) => FRAC HData a where
+  fractional = value . fromRational
+  divide     = sugarSymHFeld FDiv
+
+--------------------------------------------------------------------------------
+
+class FLOAT (exp :: * -> *) a where
+  pi      :: exp a
+  power   :: exp a -> exp a -> exp a
+  sinus   :: exp a -> exp a
+  cosinus :: exp a -> exp a
+
+instance (Syntax Data a, PrimType a, Prelude.Floating a) => FLOAT Data a where
+  pi      = sugarSymFeld Pi
+  power   = sugarSymFeld Pow
+  sinus   = sugarSymFeld Sin
+  cosinus = sugarSymFeld Cos
+
+instance (Syntax HData a, PrimType a, Prelude.Floating a) => FLOAT HData a where
+  pi      = sugarSymHFeld Pi
+  power   = sugarSymHFeld Pow
+  sinus   = sugarSymHFeld Sin
+  cosinus = sugarSymHFeld Cos
+
+--------------------------------------------------------------------------------
+
+class INTEG (exp :: * -> *) a where
+  quotient :: exp a -> exp a -> exp a
+  reminder :: exp a -> exp a -> exp a
+  round    :: (PrimType n, RealFrac n) => exp n -> exp a
+  i2n      :: (PrimType n, Num n)      => exp a -> exp n
+  i2b      :: exp a -> exp Bool
+  b2i      :: exp Bool -> exp a
+
+instance (Syntax Data a, PrimType a, Prelude.Integral a) => INTEG Data a where
+  quotient = sugarSymFeld Quot
+  reminder = sugarSymFeld Rem
+  round    = sugarSymFeld Round
+  i2n      = sugarSymFeld I2N
+  i2b      = sugarSymFeld I2B
+  b2i      = sugarSymFeld B2I
+
+instance (Syntax HData a, PrimType a, Prelude.Integral a) => INTEG HData a where
+  quotient = sugarSymHFeld Quot
+  reminder = sugarSymHFeld Rem
+  round    = sugarSymHFeld Round
+  i2n      = sugarSymHFeld I2N
+  i2b      = sugarSymHFeld I2B
+  b2i      = sugarSymHFeld B2I
 
 -- | Simultaneous @quot@ and @rem@
-quotRem :: (Integral a, PrimType a) => Data a -> Data a -> (Data a, Data a)
-quotRem a b = (q,r)
+quotRem :: (NUM exp a, INTEG exp a, PrimType a) => exp a -> exp a -> (exp a, exp a)
+quotRem a b = (q, r)
   where
-    q = quot a b
-    r = a - b * q
+    q = quotient a b
+    r = a `minus` (b `times` q)
 
--- | Integral type casting
-i2n :: (Integral i, Num n, PrimType i, PrimType n) => Data i -> Data n
-i2n = sugarSymFeld I2N
+--------------------------------------------------------------------------------
 
--- | Cast integer to 'Bool'
-i2b :: (Integral a, PrimType a) => Data a -> Data Bool
-i2b = sugarSymFeld I2B
+class BOOL (exp :: * -> *) where
+  not :: exp Bool -> exp Bool
+  and :: exp Bool -> exp Bool -> exp Bool
+  or  :: exp Bool -> exp Bool -> exp Bool
 
--- | Cast 'Bool' to integer
-b2i :: (Integral a, PrimType a) => Data Bool -> Data a
-b2i = sugarSymFeld B2I
+instance Syntax Data Bool => BOOL Data where
+  not = sugarSymFeld Not
+  and = sugarSymFeld And
+  or  = sugarSymFeld Or
 
--- | Round a floating-point number to an integer
-round :: (RealFrac n, Integral i, PrimType i, PrimType n) => Data n -> Data i
-round = sugarSymFeld Round
+instance Syntax HData Bool => BOOL HData where
+  not = sugarSymHFeld Not
+  and = sugarSymHFeld And
+  or  = sugarSymHFeld Or
 
--- | Boolean negation
-not :: Data Bool -> Data Bool
-not = sugarSymFeld Not
+--------------------------------------------------------------------------------
 
--- | Boolean conjunction
-(&&) :: Data Bool -> Data Bool -> Data Bool
-(&&) = sugarSymFeld And
+class EQ (exp :: * -> *) a where
+  eq  :: exp a -> exp a -> exp Bool
+  neq :: exp a -> exp a -> exp Bool
 
-infixr 3 &&
+instance (Syntax Data a, PrimType a, Prelude.Eq a) => EQ Data a where
+  eq  = sugarSymFeld Eq
+  neq = sugarSymFeld NEq
 
--- | Boolean disjunction
-(||) :: Data Bool -> Data Bool -> Data Bool
-(||) = sugarSymFeld Or
+instance (Syntax HData a, PrimType a, Prelude.Eq a) => EQ HData a where
+  eq  = sugarSymHFeld Eq
+  neq = sugarSymHFeld NEq
 
-infixr 2 ||
+--------------------------------------------------------------------------------
 
+class ORD (exp :: * -> *) a where
+  lt  :: exp a -> exp a -> exp Bool
+  lte :: exp a -> exp a -> exp Bool
+  gt  :: exp a -> exp a -> exp Bool
+  gte :: exp a -> exp a -> exp Bool
 
--- | Equality
-(==) :: PrimType a => Data a -> Data a -> Data Bool
-(==) = sugarSymFeld Eq
+instance (Syntax Data a, PrimType a, Prelude.Ord a) => ORD Data a where
+  lt  = sugarSymFeld Lt
+  lte = sugarSymFeld Le
+  gt  = sugarSymFeld Gt
+  gte = sugarSymFeld Ge
 
--- | Inequality
-(/=) :: PrimType a => Data a -> Data a -> Data Bool
-a /= b = not (a==b)
-
--- | Less than
-(<) :: PrimType a => Data a -> Data a -> Data Bool
-(<) = sugarSymFeld Lt
-
--- | Greater than
-(>) :: PrimType a => Data a -> Data a -> Data Bool
-(>) = sugarSymFeld Gt
-
--- | Less than or equal
-(<=) :: PrimType a => Data a -> Data a -> Data Bool
-(<=) = sugarSymFeld Le
-
--- | Greater than or equal
-(>=) :: PrimType a => Data a -> Data a -> Data Bool
-(>=) = sugarSymFeld Ge
-
-infix 4 ==, /=, <, >, <=, >=
+instance (Syntax HData a, PrimType a, Prelude.Ord a) => ORD HData a where
+  lt  = sugarSymHFeld Lt
+  lte = sugarSymHFeld Le
+  gt  = sugarSymHFeld Gt
+  gte = sugarSymHFeld Ge
 
 -- | Return the smallest of two values
-min :: PrimType a => Data a -> Data a -> Data a
-min a b = a<=b ? a $ b
+min :: (Cond exp (exp a), ORD exp a) => exp a -> exp a -> exp a
+min a b = (a `lte` b) ? a $ b
   -- There's no standard definition of min/max in C:
   -- <http://stackoverflow.com/questions/3437404/min-and-max-in-c>
   --
@@ -233,28 +266,24 @@ min a b = a<=b ? a $ b
   -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>
 
 -- | Return the greatest of two values
-max :: PrimType a => Data a -> Data a -> Data a
-max a b = a>=b ? a $ b
+max :: (Cond exp (exp a), ORD exp a) => exp a -> exp a -> exp a
+max a b = (a `gte` b) ? a $ b
 
-
-
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** Arrays
-----------------------------------------
-
+{-
 -- | Index into an array
 arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
     ix :: PrimType' b => Imp.IArr Index b -> Data b
     ix arr = sugarSymFeldPrim (ArrIx arr) i
+-}
 
 
-
-----------------------------------------
+--------------------------------------------------------------------------------
 -- ** Syntactic conversion
-----------------------------------------
-
+{-
 desugar :: Syntax a => a -> Data (Internal a)
 desugar = Data . Syntactic.desugar
 
@@ -264,26 +293,23 @@ sugar = Syntactic.sugar . unData
 -- | Cast between two values that have the same syntactic representation
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * Programs with computational effects
 --------------------------------------------------------------------------------
-
+{-
 -- | Monads that support computational effects: mutable data structures and
 -- control flow
-class Monad m => MonadComp m
+class Monad m => MonadComp exp m
   where
     -- | Lift a 'Comp' computation
-    liftComp :: Comp a -> m a
+    liftComp :: Comp exp a -> m a
     -- | Conditional statement
-    iff :: Data Bool -> m () -> m () -> m ()
+    iff :: exp Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: (Integral n, PrimType n) =>
-        IxRange (Data n) -> (Data n -> m ()) -> m ()
+    for :: (Integral n, PrimType n) => IxRange (exp n) -> (exp n -> m ()) -> m ()
     -- | While loop
-    while :: m (Data Bool) -> m () -> m ()
+    while :: m (exp Bool) -> m () -> m ()
 
 instance MonadComp Comp
   where
@@ -291,13 +317,10 @@ instance MonadComp Comp
     iff c t f       = Comp $ Imp.iff c (unComp t) (unComp f)
     for range body  = Comp $ Imp.for range (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** References
-----------------------------------------
-
+{-
 -- | Create an uninitialized reference
 newRef :: (Type a, MonadComp m) => m (Ref a)
 newRef = newNamedRef "r"
@@ -355,13 +378,10 @@ unsafeFreezeRef
     . fmap resugar
     . mapStructA (Comp . Imp.unsafeFreezeRef)
     . unRef
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Arrays
-----------------------------------------
-
+{-
 -- | Create an uninitialized array
 newArr :: (Type a, MonadComp m) => Data Length -> m (Arr a)
 newArr = newNamedArr "a"
@@ -472,13 +492,10 @@ unsafeThawArr
 -- | Create and initialize an immutable array
 initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
 initIArr = liftComp . fmap (IArr . Single) . Comp . Imp.initIArr
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** Control-flow
-----------------------------------------
-
+{-
 -- | Conditional statement that returns an expression
 ifE :: (Syntax a, MonadComp m)
     => Data Bool  -- ^ Condition
@@ -500,4 +517,5 @@ assert :: MonadComp m
     -> String     -- ^ Message in case of failure
     -> m ()
 assert cond msg = liftComp $ Comp $ Imp.assert cond msg
-
+-}
+--------------------------------------------------------------------------------

@@ -15,16 +15,14 @@ import Data.Word
 
 import Data.Constraint (Dict (..))
 
-import Language.Embedded.Expression
 import Language.Embedded.Imperative.CMD (IArr (..))
+import qualified Language.Embedded.Expression as Imp
 
 import qualified Language.Embedded.Hardware as Hard
 
 import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
-
-
 
 --------------------------------------------------------------------------------
 -- * Types
@@ -84,7 +82,7 @@ primTypeEq Word32T Word32T = Just Dict
 primTypeEq Word64T Word64T = Just Dict
 primTypeEq FloatT  FloatT  = Just Dict
 primTypeEq DoubleT DoubleT = Just Dict
-primTypeEq _ _ = Nothing
+primTypeEq _       _       = Nothing
 
 -- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint
 witPrimType :: PrimTypeRep a -> Dict (PrimType' a)
@@ -99,8 +97,6 @@ witPrimType Word32T = Dict
 witPrimType Word64T = Dict
 witPrimType FloatT  = Dict
 witPrimType DoubleT = Dict
-
-
 
 --------------------------------------------------------------------------------
 -- * Expressions
@@ -144,6 +140,81 @@ data Primitive sig
     ArrIx :: IArr Index a -> Primitive (Index :-> Full a)
 
     Cond :: Primitive (Bool :-> a :-> a :-> Full a)
+
+--------------------------------------------------------------------------------
+-- ** ...
+
+type PrimDomain = Primitive :&: PrimTypeRep
+
+-- | Primitive expressions
+newtype Prim a = Prim { unPrim :: ASTF PrimDomain a }
+
+instance Syntactic (Prim a)
+  where
+    type Domain (Prim a)   = PrimDomain
+    type Internal (Prim a) = a
+    desugar = unPrim
+    sugar   = Prim
+
+-- | Evaluate a closed expression
+evalPrim :: Prim a -> a
+evalPrim = go . unPrim
+  where
+    go :: AST PrimDomain sig -> Denotation sig
+    go (Sym (s :&: _)) = evalSym s
+    go (f :$ a) = go f $ go a
+
+sugarSymPrim
+    :: ( Signature sig
+       , fi  ~ SmartFun dom sig
+       , sig ~ SmartSig fi
+       , dom ~ SmartSym fi
+       , dom ~ PrimDomain
+       , SyntacticN f fi
+       , sub :<: Primitive
+       , PrimType' (DenResult sig)
+       )
+    => sub sig -> f
+sugarSymPrim = sugarSymDecor primTypeRep
+
+--------------------------------------------------------------------------------
+
+instance Imp.FreeExp Prim
+  where
+    type FreePred Prim = PrimType'
+    constExp = sugarSymPrim . Lit
+    varExp   = sugarSymPrim . FreeVar
+
+instance Hard.FreeExp Prim
+  where
+    type PredicateExp Prim = PrimType'
+    litE = sugarSymPrim . Lit
+    varE = sugarSymPrim . FreeVar
+
+instance Imp.EvalExp Prim
+  where
+    evalExp = evalPrim
+
+instance Hard.EvaluateExp Prim
+  where
+    evalE = evalPrim
+
+--------------------------------------------------------------------------------
+-- * Interface.
+--------------------------------------------------------------------------------
+
+instance (Num a, PrimType' a) => Num (Prim a)
+  where
+    fromInteger = Imp.constExp . fromInteger
+    (+)         = sugarSymPrim Add
+    (-)         = sugarSymPrim Sub
+    (*)         = sugarSymPrim Mul
+    negate      = sugarSymPrim Neg
+
+--------------------------------------------------------------------------------
+-- Instances.
+--------------------------------------------------------------------------------
+
 
 deriveSymbol ''Primitive
 
@@ -260,68 +331,4 @@ instance Equality Primitive
     equal (ArrIx _) (ArrIx _) = False
     equal _ _ = False
 
-type PrimDomain = Primitive :&: PrimTypeRep
-
--- | Primitive expressions
-newtype Prim a = Prim { unPrim :: ASTF PrimDomain a }
-
-instance Syntactic (Prim a)
-  where
-    type Domain (Prim a)   = PrimDomain
-    type Internal (Prim a) = a
-    desugar = unPrim
-    sugar   = Prim
-
--- | Evaluate a closed expression
-evalPrim :: Prim a -> a
-evalPrim = go . unPrim
-  where
-    go :: AST PrimDomain sig -> Denotation sig
-    go (Sym (s :&: _)) = evalSym s
-    go (f :$ a) = go f $ go a
-
-sugarSymPrim
-    :: ( Signature sig
-       , fi  ~ SmartFun dom sig
-       , sig ~ SmartSig fi
-       , dom ~ SmartSym fi
-       , dom ~ PrimDomain
-       , SyntacticN f fi
-       , sub :<: Primitive
-       , PrimType' (DenResult sig)
-       )
-    => sub sig -> f
-sugarSymPrim = sugarSymDecor primTypeRep
-
-instance FreeExp Prim
-  where
-    type FreePred Prim = PrimType'
-    constExp = sugarSymPrim . Lit
-    varExp   = sugarSymPrim . FreeVar
-
-instance Hard.FreeExp Prim
-  where
-    type PredicateExp Prim = PrimType'
-    litE = sugarSymPrim . Lit
-    varE = sugarSymPrim . FreeVar
-
-instance EvalExp Prim
-  where
-    evalExp = evalPrim
-
-instance Hard.EvaluateExp Prim
-  where
-    evalE = evalPrim
-
 --------------------------------------------------------------------------------
--- * Interface
---------------------------------------------------------------------------------
-
-instance (Num a, PrimType' a) => Num (Prim a)
-  where
-    fromInteger = constExp . fromInteger
-    (+)         = sugarSymPrim Add
-    (-)         = sugarSymPrim Sub
-    (*)         = sugarSymPrim Mul
-    negate      = sugarSymPrim Neg
-
