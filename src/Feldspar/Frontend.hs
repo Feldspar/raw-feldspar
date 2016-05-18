@@ -471,6 +471,24 @@ resugar = Syntactic.resugar
 
 
 
+----------------------------------------
+-- ** Unsafe operations
+----------------------------------------
+
+-- | Turn a 'Comp' computation into a pure value. For this to be safe, the
+-- computation should be free of side effects and independent of its
+-- environment.
+unsafePerform :: Syntax a => Comp a -> a
+unsafePerform = sugarSymFeld . UnsafePerform . fmap desugar
+
+-- | Attach a 'Comp' action to an expression. Evaluation of the expression will
+-- cause the action to run. For this to be safe, the action should be free of
+-- side effects and independent of its environment.
+unsafePerformWith :: Syntax a => Comp () -> a -> a
+unsafePerformWith = sugarSymFeld . UnsafePerformWith
+
+
+
 --------------------------------------------------------------------------------
 -- * Programs with computational effects
 --------------------------------------------------------------------------------
