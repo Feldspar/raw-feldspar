@@ -10,7 +10,9 @@ import Control.Monad.Identity
 import Data.Bits (Bits, FiniteBits)
 import qualified Data.Bits as Bits
 import Data.Complex (Complex)
+import Data.Foldable (Foldable)
 import Data.Int
+import Data.Traversable (Traversable)
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -415,6 +417,68 @@ arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     ix :: PrimType' b => Imp.IArr Index b -> Data b
     ix arr = sugarSymFeldPrim (ArrIx arr) i
 
+class Indexed a
+  where
+    type IndexedElem a
+
+    -- | Indexing operator. If @a@ is 'Finite', it is assumed that
+    -- @i < `length` a@ in any expression @a `!` i@.
+    (!) :: a -> Data Index -> IndexedElem a
+
+infixl 9 !
+
+-- | Linear structures with a length. If the type is also 'Indexed', the length
+-- is the successor of the maximal allowed index.
+class Finite a
+  where
+    -- | The length of a finite structure
+    length :: a -> Data Length
+
+instance Type a => Indexed (IArr a)
+  where
+    type IndexedElem (IArr a) = Data a
+    (!) = arrIx
+
+-- | Make a dimension-less value 1-dimensional by pairing it with a length
+--
+-- A typical use of 'Dim1' is @`Dim1` (`IArr` a)@.
+data Dim1 a = Dim1
+    { dimLength  :: Data Length
+    , dim1_inner :: a
+    }
+  deriving (Functor, Foldable, Traversable)
+
+instance Indexed a => Indexed (Dim1 a)
+  where
+    type IndexedElem (Dim1 a) = IndexedElem a
+    Dim1 _ a ! i = a!i
+
+instance Indexed a => Finite (Dim1 a)
+  where
+    length = dimLength
+
+-- | Make a dimension-less value 2-dimensional by pairing it with a pair of
+-- lengths
+--
+-- A typical use of 'Dim2' is @`Dim2` (`IArr` a)@.
+data Dim2 a = Dim2
+    { dimRows    :: Data Length
+    , dimCols    :: Data Length
+    , dim2_inner :: a
+    }
+  deriving (Functor, Foldable, Traversable)
+
+-- | Linear row-major indexing
+instance Indexed a => Indexed (Dim2 a)
+  where
+    type IndexedElem (Dim2 a) = IndexedElem a
+    Dim2 _ _ a ! i = a!i
+
+-- | Length is `#rows * #columns`
+instance Indexed a => Finite (Dim2 a)
+  where
+    length (Dim2 r c _) = r*c
+
 
 
 ----------------------------------------
@@ -430,6 +494,24 @@ sugar = Syntactic.sugar . unData
 -- | Cast between two values that have the same syntactic representation
 resugar :: (Syntax a, Syntax b, Internal a ~ Internal b) => a -> b
 resugar = Syntactic.resugar
+
+
+
+----------------------------------------
+-- ** Unsafe operations
+----------------------------------------
+
+-- | Turn a 'Comp' computation into a pure value. For this to be safe, the
+-- computation should be free of side effects and independent of its
+-- environment.
+unsafePerform :: Syntax a => Comp a -> a
+unsafePerform = sugarSymFeld . UnsafePerform . fmap desugar
+
+-- | Attach a 'Comp' action to an expression. Evaluation of the expression will
+-- cause the action to run. For this to be safe, the action should be free of
+-- side effects and independent of its environment.
+unsafePerformWith :: Syntax a => Comp () -> a -> a
+unsafePerformWith = sugarSymFeld . UnsafePerformWith
 
 
 

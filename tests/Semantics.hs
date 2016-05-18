@@ -36,22 +36,22 @@ property_marshalFeld f a = QC.monadicIO $ do
 type Pass a = a -> Run a
 
 main =
-    marshalled (return :: Pass (Data Int8))               $ \f_Int8 ->
-    marshalled (return :: Pass (Data Int16))              $ \f_Int16 ->
-    marshalled (return :: Pass (Data Int32))              $ \f_Int32 ->
-    marshalled (return :: Pass (Data Int64))              $ \f_Int64 ->
-    marshalled (return :: Pass (Data Word8))              $ \f_Word8 ->
-    marshalled (return :: Pass (Data Word16))             $ \f_Word16 ->
-    marshalled (return :: Pass (Data Word32))             $ \f_Word32 ->
-    marshalled (return :: Pass (Data Word64))             $ \f_Word64 ->
-    marshalled (return :: Pass (Data Float))              $ \f_Float  ->
-    marshalled (return :: Pass (Data Double))             $ \f_Double ->
-    marshalled (return :: Pass (Data (Complex Float)))    $ \f_CompFloat ->
-    marshalled (return :: Pass (Data (Complex Double)))   $ \f_CompDouble ->
-    marshalled (return :: Pass (WithLength (Arr Double))) $ \f_Arr ->
-    marshalled (return :: Pass (WithLength (IArr Int32))) $ \f_IArr ->
+    marshalled (return :: Pass (Data Int8))             $ \f_Int8 ->
+    marshalled (return :: Pass (Data Int16))            $ \f_Int16 ->
+    marshalled (return :: Pass (Data Int32))            $ \f_Int32 ->
+    marshalled (return :: Pass (Data Int64))            $ \f_Int64 ->
+    marshalled (return :: Pass (Data Word8))            $ \f_Word8 ->
+    marshalled (return :: Pass (Data Word16))           $ \f_Word16 ->
+    marshalled (return :: Pass (Data Word32))           $ \f_Word32 ->
+    marshalled (return :: Pass (Data Word64))           $ \f_Word64 ->
+    marshalled (return :: Pass (Data Float))            $ \f_Float  ->
+    marshalled (return :: Pass (Data Double))           $ \f_Double ->
+    marshalled (return :: Pass (Data (Complex Float)))  $ \f_CompFloat ->
+    marshalled (return :: Pass (Data (Complex Double))) $ \f_CompDouble ->
+    marshalled (return :: Pass (Dim1 (Arr Double)))     $ \f_Arr ->
+    marshalled (return :: Pass (Dim1 (IArr Int32)))     $ \f_IArr ->
     marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
-    marshalled (return :: Pass (WithLength (IArr Double), (Data Int8, WithLength (Arr (Complex Float))))) $ \f_Nested ->
+    marshalled (return :: Pass (Dim1 (IArr Double), (Data Int8, Dim1 (Arr (Complex Float))))) $ \f_Nested ->
 
       defaultMain $ testGroup "tests"
         [ $testGroupGenerator

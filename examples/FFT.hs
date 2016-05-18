@@ -43,7 +43,7 @@ module FFT
 import Prelude ()
 
 import Feldspar.Run
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 
 
@@ -55,10 +55,10 @@ rotBit k i = lefts .|. rights
     rights = ir .&. oneBits k'
     lefts  = (((ir .>>. k') .<<. 1) .|. (i .&. 1)) .<<. k'
 
-riffle :: Syntax a => Data Index -> Vector a -> Vector a
+riffle :: Syntax a => Data Index -> Pull a -> Pull a
 riffle = permute . const . rotBit
 
-stages :: (Storable s, MonadComp m) => Vector a -> (a -> s -> s) -> s -> m s
+stages :: (Storable s, MonadComp m) => Pull a -> (a -> s -> s) -> s -> m s
 stages as body init = do
     s <- initStore init
     for (0, 1, Excl (length as)) $ \i ->
@@ -66,7 +66,7 @@ stages as body init = do
     unsafeFreezeStore s
 
 bitRev :: (Type a, MonadComp m) =>
-    Data Index -> Vector (Data a) -> m (Vector (Data a))
+    Data Index -> Pull (Data a) -> m (Pull (Data a))
 bitRev n = stages (1...n) riffle
 
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
@@ -75,11 +75,11 @@ testBit a i = a .&. (1 .<<. i2n i) /= 0
 fftCore :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
     => Bool  -- ^ Inverse?
     -> Data Index
-    -> Vector (Data (Complex a))
-    -> m (Vector (Data (Complex a)))
+    -> DPull (Complex a)
+    -> m (DPull (Complex a))
 fftCore inv n = stages (reverse (0...n)) step
   where
-    step k vec = Indexed (length vec) ixf
+    step k vec = Pull (length vec) ixf
       where
         ixf i = testBit i k ? (twid * (b - a)) $ (a+b)
           where
@@ -91,8 +91,8 @@ fftCore inv n = stages (reverse (0...n)) step
 
 fft' :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
      => Bool  -- ^ Inverse?
-     -> Vector (Data (Complex a))
-     -> m (Vector (Data (Complex a)))
+     -> DPull (Complex a)
+     -> m (DPull (Complex a))
 fft' inv v = do
     n' <- force n
     fftCore inv n' v >>= bitRev n'
@@ -104,7 +104,7 @@ fft' inv v = do
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
 fft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
-    Vector (Data (Complex a)) -> m (Vector (Data (Complex a)))
+    DPull (Complex a) -> m (DPull (Complex a))
 fft = fft' False
 
 
@@ -113,8 +113,8 @@ fft = fft' False
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving 'ifft . fft == id'.
 ifft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
-    Vector (Data (Complex a)) -> m (Vector (Data (Complex a)))
+    DPull (Complex a) -> m (DPull (Complex a))
 ifft v = normalize <$> fft' True v
   where
-    normalize = map (/ (i2n $ length v))
+    normalize = fmap (/ (i2n $ length v))
 

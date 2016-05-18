@@ -45,9 +45,9 @@ library
     Feldspar.Hardware.Frontend
     Feldspar.Hardware.Compile
     Feldspar.Hardware
-    Feldspar.Vector
-    Feldspar.Option
-    Feldspar.Validated
+    Feldspar.Data.Vector
+    Feldspar.Data.Option
+    Feldspar.Data.Validated
 
   other-modules:
     Data.Inhabited.TH
@@ -58,6 +58,8 @@ library
     ConstraintKinds
     DefaultSignatures
     DeriveFunctor
+    DeriveFoldable
+    DeriveTraversable
     FlexibleContexts
     FlexibleInstances
     GADTs

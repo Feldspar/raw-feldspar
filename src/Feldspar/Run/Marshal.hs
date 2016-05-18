@@ -87,7 +87,7 @@ instance (MarshalHaskell a, MarshalHaskell b) => MarshalHaskell (a,b)
 
 instance MarshalHaskell a => MarshalHaskell [a]
   where
-    fromHaskell as = unwords $ show (length as) : map fromHaskell as
+    fromHaskell as = unwords $ show (Prelude.length as) : map fromHaskell as
 
     toHaskell = do
         len <- toHaskell
@@ -138,14 +138,12 @@ instance (MarshalFeld a, MarshalFeld b) => MarshalFeld (a,b)
     fromFeld (a,b) = fromFeld a >> printf " " >> fromFeld b
     toFeld         = (,) <$> toFeld <*> toFeld
 
-data WithLength a = OfLength (Data Length) a
-
 instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (WithLength (Arr a))
+    MarshalFeld (Dim1 (Arr a))
   where
-    type HaskellRep (WithLength (Arr a)) = [a]
+    type HaskellRep (Dim1 (Arr a)) = [a]
 
-    fromFeld (OfLength len arr) = do
+    fromFeld (Dim1 len arr) = do
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
@@ -158,14 +156,14 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
         for (0,1,Excl len) $ \i -> do
             a <- toFeld
             setArr i (a :: Data a) arr
-        return $ OfLength len arr
+        return $ Dim1 len arr
 
 instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (WithLength (IArr a))
+    MarshalFeld (Dim1 (IArr a))
   where
-    type HaskellRep (WithLength (IArr a)) = [a]
+    type HaskellRep (Dim1 (IArr a)) = [a]
 
-    fromFeld (OfLength len arr) = do
+    fromFeld (Dim1 len arr) = do
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             fromFeld (arrIx arr i :: Data a)
@@ -178,7 +176,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
             a <- toFeld
             setArr i (a :: Data a) arr
         iarr <- unsafeFreezeArr arr
-        return $ OfLength len iarr
+        return $ Dim1 len iarr
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@
 connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
@@ -201,8 +199,8 @@ marshalled' opts f body = withCompiled' opts (connectStdIO f) $ \g ->
 --
 -- For example, given the following Feldspar function:
 --
--- > sumArr :: WithLength (IArr Int32) -> Run (Data Int32)
--- > sumArr (OfLength l arr) = do
+-- > sumArr :: Dim1 (IArr Int32) -> Run (Data Int32)
+-- > sumArr (Dim1 l arr) = do
 -- >     r <- initRef (0 :: Data Int32)
 -- >     for (0,1,Excl l) $ \i -> modifyRefD r (+ arrIx arr i)
 -- >     unsafeFreezeRef r

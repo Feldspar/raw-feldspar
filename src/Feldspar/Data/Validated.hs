@@ -8,7 +8,7 @@
 -- Still, the operations try to defer evaluation of invalid values as much as
 -- possible.
 
-module Feldspar.Validated where
+module Feldspar.Data.Validated where
 
 
 
