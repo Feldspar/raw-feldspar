@@ -41,7 +41,7 @@ import qualified Language.Embedded.Concurrent as Imp
 --
 --     replicate 5 $ listPush [1,2,3,4 :: Data Double] :: Pull (Push (Data Double))
 --
--- is a matrix whose rows are `Pull` and whose columns are `Push`.
+-- is a `Pull` matrix whose rows are `Push`.
 --
 -- There are also some disadvantages to nesting:
 --
