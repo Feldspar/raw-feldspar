@@ -15,11 +15,11 @@ import Feldspar.Data.Option
 
 -- | Safe indexing in a 'Manifest' vector
 indexO :: (Syntax a, Monad m) =>
-    Dim (IArr (Internal a)) -> Data Index -> OptionT m a
-indexO (Dim len arr) i =
+    Dim1 (IArr (Internal a)) -> Data Index -> OptionT m a
+indexO (Dim1 len arr) i =
     guarded "indexO: out of bounds" (i<len) (arrIx arr i)
 
-funO :: Monad m => Dim (IArr Int32) -> Data Index -> OptionT m (Data Int32)
+funO :: Monad m => Dim1 (IArr Int32) -> Data Index -> OptionT m (Data Int32)
 funO vec i = do
     a <- indexO vec i
     b <- indexO vec (i+1)
@@ -29,14 +29,14 @@ funO vec i = do
 
 test_option :: Run ()
 test_option = do
-    vec <- fromPull $ map i2n (1...10)
+    vec <- fromPull $ fmap i2n (1...10)
     i   <- fget stdin
     printf "%d\n" $ fromSome $ funO vec i
 
 test_optionM :: Run ()
 test_optionM = do
-    vec <- fromPull $ map i2n (1...10)
-    i <- fget stdin
+    vec <- fromPull $ fmap i2n (1...10)
+    i   <- fget stdin
     caseOptionM (funO vec i)
         printf
         (printf "%d\n")
@@ -47,7 +47,7 @@ readPositive = do
     guarded "negative" (i>=0) (i :: Data Int32)
 
 test_optionT = optionT printf (\_ -> return ()) $ do
-    vec <- fromPull $ map i2n (1...10)
+    vec  <- fromPull $ fmap i2n (1...10)
     len  <- readPositive
     sumr <- initRef (0 :: Data Int32)
     for (0, 1, Excl len) $ \i -> do

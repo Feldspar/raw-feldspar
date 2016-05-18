@@ -139,11 +139,11 @@ instance (MarshalFeld a, MarshalFeld b) => MarshalFeld (a,b)
     toFeld         = (,) <$> toFeld <*> toFeld
 
 instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (Dim (Arr a))
+    MarshalFeld (Dim1 (Arr a))
   where
-    type HaskellRep (Dim (Arr a)) = [a]
+    type HaskellRep (Dim1 (Arr a)) = [a]
 
-    fromFeld (Dim len arr) = do
+    fromFeld (Dim1 len arr) = do
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
@@ -156,14 +156,14 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
         for (0,1,Excl len) $ \i -> do
             a <- toFeld
             setArr i (a :: Data a) arr
-        return $ Dim len arr
+        return $ Dim1 len arr
 
 instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (Dim (IArr a))
+    MarshalFeld (Dim1 (IArr a))
   where
-    type HaskellRep (Dim (IArr a)) = [a]
+    type HaskellRep (Dim1 (IArr a)) = [a]
 
-    fromFeld (Dim len arr) = do
+    fromFeld (Dim1 len arr) = do
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             fromFeld (arrIx arr i :: Data a)
@@ -176,7 +176,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
             a <- toFeld
             setArr i (a :: Data a) arr
         iarr <- unsafeFreezeArr arr
-        return $ Dim len iarr
+        return $ Dim1 len iarr
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@
 connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
@@ -199,8 +199,8 @@ marshalled' opts f body = withCompiled' opts (connectStdIO f) $ \g ->
 --
 -- For example, given the following Feldspar function:
 --
--- > sumArr :: Dim (IArr Int32) -> Run (Data Int32)
--- > sumArr (Dim l arr) = do
+-- > sumArr :: Dim1 (IArr Int32) -> Run (Data Int32)
+-- > sumArr (Dim1 l arr) = do
 -- >     r <- initRef (0 :: Data Int32)
 -- >     for (0,1,Excl l) $ \i -> modifyRefD r (+ arrIx arr i)
 -- >     unsafeFreezeRef r

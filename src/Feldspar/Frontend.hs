@@ -420,38 +420,64 @@ arrIx arr i = resugar $ mapStruct ix $ unIArr arr
 class Indexed a
   where
     type IndexedElem a
+
+    -- | Indexing operator. If @a@ is 'Finite', it is assumed that
+    -- @i < `length` a@ in any expression @a `!` i@.
     (!) :: a -> Data Index -> IndexedElem a
 
 infixl 9 !
+
+-- | Linear structures with a length. If the type is also 'Indexed', the length
+-- is the successor of the maximal allowed index.
+class Finite a
+  where
+    -- | The length of a finite structure
+    length :: a -> Data Length
 
 instance Type a => Indexed (IArr a)
   where
     type IndexedElem (IArr a) = Data a
     (!) = arrIx
 
--- | Make a value dimensional by pairing it with a length
+-- | Make a dimension-less value 1-dimensional by pairing it with a length
 --
--- A typical use of 'Dim' is @`Dim` (`IArr` a)@.
-data Dim a = Dim
-    { dimLength :: Data Length
-    , dimInner  :: a
+-- A typical use of 'Dim1' is @`Dim1` (`IArr` a)@.
+data Dim1 a = Dim1
+    { dimLength  :: Data Length
+    , dim1_inner :: a
     }
   deriving (Functor, Foldable, Traversable)
 
-instance Indexed a => Indexed (Dim a)
+instance Indexed a => Indexed (Dim1 a)
   where
-    type IndexedElem (Dim a) = IndexedElem a
-    Dim _ a ! i = a!i
+    type IndexedElem (Dim1 a) = IndexedElem a
+    Dim1 _ a ! i = a!i
 
--- | Dimensional types are types of values that have a length
-class Dimensional a
-  where
-    -- | The length of a dimensional value
-    length :: a -> Data Length
-
-instance Dimensional (Dim a)
+instance Indexed a => Finite (Dim1 a)
   where
     length = dimLength
+
+-- | Make a dimension-less value 2-dimensional by pairing it with a pair of
+-- lengths
+--
+-- A typical use of 'Dim2' is @`Dim2` (`IArr` a)@.
+data Dim2 a = Dim2
+    { dimRows    :: Data Length
+    , dimCols    :: Data Length
+    , dim2_inner :: a
+    }
+  deriving (Functor, Foldable, Traversable)
+
+-- | Linear row-major indexing
+instance Indexed a => Indexed (Dim2 a)
+  where
+    type IndexedElem (Dim2 a) = IndexedElem a
+    Dim2 _ _ a ! i = a!i
+
+-- | Length is `#rows * #columns`
+instance Indexed a => Finite (Dim2 a)
+  where
+    length (Dim2 r c _) = r*c
 
 
 

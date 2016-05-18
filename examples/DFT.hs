@@ -14,24 +14,24 @@ import Feldspar.Data.Vector
 
 
 
-toColVec :: Vector (Data a) -> Matrix a
-toColVec = map (replicate 1)
+toColVec :: Pull a -> Pull (Pull a)
+toColVec = fmap (replicate 1)
 
-fromColVec :: Matrix a -> Vector (Data a)
-fromColVec = map head
+fromColVec :: Pull (Pull a) -> Pull a
+fromColVec = fmap head
 
 -- | Discrete Fourier Transform
 dft :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
-    Vector (Data (Complex a)) -> Vector (Data (Complex a))
+    DPull (Complex a) -> DPull (Complex a)
 dft vec = fromColVec $ matMul (mat (length vec)) (toColVec vec)
   where
-    mat n = indexedMat n n $ \k l ->
+    mat n = pullMatrix n n $ \k l ->
         polar 1 (-(2*π * i2n k * i2n l) / i2n n)
 
 -- | Inverse Discrete Fourier Transform
 idft :: (RealFloat a, PrimType a, PrimType (Complex a)) =>
-    Vector (Data (Complex a)) -> Vector (Data (Complex a))
-idft = divLen . map conjugate . dft . map conjugate
+    DPull (Complex a) -> DPull (Complex a)
+idft = divLen . fmap conjugate . dft . fmap conjugate
   where
-    divLen v = map (/ i2n (length v)) v
+    divLen v = fmap (/ i2n (length v)) v
 

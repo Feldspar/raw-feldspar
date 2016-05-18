@@ -67,18 +67,18 @@ printFib = do
 test_scProd1 = do
     n <- fget stdin
     printf "result: %.3f\n" $
-      (scProd (map i2n (0 ... n-1)) (map i2n (2 ... n+1)) :: Data Double)
+      (scProd (fmap i2n (0 ... n-1)) (fmap i2n (2 ... n+1)) :: Data Double)
 
 test_scProd2 = do
     n <- fget stdin
-    v1 <- force $ map i2n (0 ... n-1)
-    v2 <- force $ map i2n (2 ... n+1)
+    v1 <- force $ fmap i2n (0 ... n-1)
+    v2 <- force $ fmap i2n (2 ... n+1)
     printf "result: %.3f\n" (scProd v1 v2 :: Data Double)
 
 map_inplace :: Run ()
 map_inplace = do
     svec <- initStore (0...19)
-    inplace svec $ map (*33)
+    inplace svec $ fmap (*33)
     vec <- readStore svec
     printf "result: %d\n" $ sum vec
 

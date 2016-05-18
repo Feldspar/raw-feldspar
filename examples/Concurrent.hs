@@ -71,10 +71,10 @@ pairChan = do
 
 vecChan :: Run ()
 vecChan = do
-    c :: Chan Closeable (Vector (Data Index)) <- newCloseableChan (3 `ofLength` 10)
+    c :: Chan Closeable (Pull (Data Index)) <- newCloseableChan (3 `ofLength` 10)
     writer <- fork $ do
         printf "Writer started\n"
-        let v = map (+1) (0 ... 9)
+        let v = fmap (+1) (0 ... 9)
         writeChan c v
         printf "Writer ended\n"
     reader <- fork $ do
