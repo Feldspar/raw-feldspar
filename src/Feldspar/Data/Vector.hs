@@ -183,12 +183,7 @@ instance Folding Pull
 -- ** Conversion
 ----------------------------------------
 
--- Note the absence of this class:
---
---     class Pully vec where toPull :: vec a -> Pull a
---
--- The reason is that the only structures that can be converted to `Pull` are
-
+-- | Vectors that are 'Pull'-like
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 
