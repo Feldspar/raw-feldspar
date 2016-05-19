@@ -48,10 +48,10 @@ import qualified Language.Embedded.Concurrent as Imp
 --   * We can't have nested manifest vectors, so conversion to/from memory
 --     arrays becomes a bit ad hoc (see the various `toPull*` functions).
 --   * There is no guarantee that the inner vectors have the same length, so
---     functions operating on matrices have to assume squareness.
+--     functions operating on matrices have to assume this property.
 --   * Similarly, it is generally not possible to get the length of the inner
---     vectors (squareness holding or not), so it sometimes has to be provided
---     from the outside (see e.g. `concatPush`).
+--     vectors, so it sometimes has to be provided from the outside (see e.g.
+--     `concatPush`).
 --
 -- The `PushSeq` type and the `Linearizable` class attempt to overcome some of
 -- the limitations by allowing arbitrary nested structures to be flattened
@@ -323,8 +323,8 @@ pullMatrix r c ixf = Pull r $ \k -> Pull c $ \l -> ixf k l
 -- structures that can be converted to `Pull (Pull a)` without going through
 -- memory.
 
--- | Transpose of a matrix. Assumes that the number of rows is > 0 and that the
--- matrix is square.
+-- | Transpose of a matrix. Assumes that the number of rows is > 0 and that all
+-- rows have the same length.
 transpose :: Pull (Pull a) -> Pull (Pull a)
 transpose a = Pull (length (a!0)) $ \k -> Pull (length a) $ \l -> a!l!k
 
