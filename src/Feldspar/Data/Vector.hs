@@ -634,18 +634,12 @@ linearFold step init lin = do
     unsafeFreezeRef r
 
 -- | Write the content of a 'Linearizable' data structure to an array
-linearArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
+linearWriteArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
     => Arr (LinearElem a)  -- ^ Where to put the result
     -> a                   -- ^ Value to linearize
     -> m (Data Length)     -- ^ Number of elements written
-linearArr arr a = do
-    r <- initRef (0 :: Data Index)
-    let put b = do
-          i <- unsafeFreezeRef r
-          setArr i b arr
-          setRef r (i+1)
-    linearPush a put
-    unsafeFreezeRef r
+linearWriteArr arr a = do
+    linearFold (\i b -> setArr i b arr >> return (i+1)) 0 a
 
 
 
