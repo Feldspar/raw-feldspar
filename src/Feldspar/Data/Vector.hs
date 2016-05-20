@@ -385,7 +385,7 @@ listPush as = Push 2 $ \write ->
     let Push len1 dump1 = toPush v1
         Push len2 dump2 = toPush v2
     in  Push (len1+len2) $ \write ->
-          dump1 write >> dump2 write
+          dump1 write >> dump2 (write . (+len1))
 
 -- Concatenate nested vectors to a 'Push' vector
 concatPush :: (Pushy vec1, Pushy vec2, Functor vec1)
