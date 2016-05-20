@@ -614,9 +614,7 @@ instance (Type a, MonadComp m) => Linearizable m (Dim1 (Arr a))
 instance (Linearizable m a, MonadComp m) => Linearizable m (Pull a)
   where
     type LinearElem (Pull a) = LinearElem a
-    linearPush (Pull len ixf) put =
-        for (0,1,Excl len) $ \i ->
-          linearPush (ixf i) put
+    linearPush = linearPush . toPushSeq
 
 instance (Linearizable m a, MonadComp m) => Linearizable m (PushSeq a)
   where
@@ -624,19 +622,9 @@ instance (Linearizable m a, MonadComp m) => Linearizable m (PushSeq a)
     linearPush (PushSeq dump) = dump . flip linearPush
 
 -- | Fold the content of a 'Linearizable' data structure
-linearFold :: (Linearizable Comp lin, Syntax a) =>
-    (a -> Data (LinearElem lin) -> a) -> a -> lin -> a
-linearFold step init lin = unsafePerform $ do
-    let dump = linearPush lin
-    r <- initRef init
-    let put = modifyRef r . flip step
-    dump put
-    unsafeFreezeRef r
-
--- | Fold the content of a 'Linearizable' data structure
-linearFoldM :: (Linearizable m lin, Syntax a, MonadComp m) =>
+linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
     (a -> Data (LinearElem lin) -> m a) -> a -> lin -> m a
-linearFoldM step init lin = do
+linearFold step init lin = do
     let dump = linearPush lin
     r <- initRef init
     let put a = do
