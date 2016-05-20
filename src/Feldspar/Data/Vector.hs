@@ -633,6 +633,11 @@ linearFold step init lin = do
     dump put
     unsafeFreezeRef r
 
+-- | Map a monadic function over the content of a 'Linearizable' data structure
+linearMapM :: (Linearizable m lin, MonadComp m) =>
+    (Data (LinearElem lin) -> m ()) -> lin -> m ()
+linearMapM f = linearFold (\_ -> f) ()
+
 -- | Write the content of a 'Linearizable' data structure to an array
 linearWriteArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
     => Arr (LinearElem a)  -- ^ Where to put the result
