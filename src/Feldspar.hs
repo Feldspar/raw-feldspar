@@ -41,7 +41,7 @@ module Feldspar
 
 import Prelude.EDSL
 
-import Control.Monad
+import Control.Monad hiding (foldM)
 
 import Data.Bits (Bits, FiniteBits)
 import Data.Complex (Complex (..))

@@ -71,6 +71,9 @@ class Folding vec
     -- | Left fold of a vector
     fold :: Syntax a => (a -> b -> a) -> a -> vec b -> a
 
+    -- | Monadic left fold of a vector
+    foldM :: (Syntax a, MonadComp m) => (a -> b -> m a) -> a -> vec b -> m a
+
 -- | Sum the elements of a vector
 sum :: (Num a, Syntax a, Folding vec) => vec a -> a
 sum = fold (+) 0
@@ -79,6 +82,16 @@ sum = fold (+) 0
 -- requires traversing the vector.
 lengthByFold :: (Functor vec, Folding vec) => vec a -> Data Length
 lengthByFold = fold (+) 0 . fmap (const 1)
+
+-- | Perform all actions in a vector in sequence
+sequenceVec :: (Folding vec, MonadComp m) => vec (m ()) -> m ()
+sequenceVec = foldM (const id) ()
+  -- It might seem useful to also have the function:
+  --
+  --     sequenceVec2 :: MonadComp m => vec (m a) -> Push a
+  --
+  -- However, that would lead to a `Push` vector with embedded effects, which is
+  -- not allowed.
 
 
 
@@ -176,6 +189,11 @@ instance ( Syntax a, BulkTransferable a
 instance Folding Pull
   where
     fold f x vec = forLoop (length vec) x $ \i s -> f s (vec!i)
+      -- It would be possible to also express `fold` by converting to `PushSeq`
+      -- (in which case the `Folding` class could probably be replaced by
+      -- `PushySeq`), but the current implementation has the advantage of using
+      -- a pure `forLoop` which potentially can be better optimized.
+    foldM f x vec = foldM f x $ toPushSeq vec
 
 
 
@@ -465,10 +483,13 @@ instance PushySeq Pull
 
 instance Folding PushSeq
   where
-    fold step init (PushSeq dump) = unsafePerform $ do
+    fold step init = unsafePerform . foldM (\s -> return . step s) init
+    foldM step init vec = do
         r <- initRef init
-        let put = modifyRef r . flip step
-        dump put
+        let put a = do
+              s <- unsafeFreezeRef r
+              setRef r =<< step s a
+        dumpSeq vec put
         unsafeFreezeRef r
 
 
@@ -508,16 +529,6 @@ filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
 filter pred v = PushSeq $ \put -> do
     let put' a = iff (pred a) (put a) (return ())
     dumpSeq (toPushSeq v) put'
-
-foldM :: (Syntax a, PushySeq vec, MonadComp m) =>
-    (a -> b -> m a) -> a -> vec b -> m a
-foldM step init v = do
-    r <- initRef init
-    let put a = do
-          s <- unsafeFreezeRef r
-          setRef r =<< step s a
-    dumpSeq (toPushSeq v) put
-    unsafeFreezeRef r
 
 unfoldPushSeq :: Syntax a => (a -> (b,a)) -> a -> PushSeq b
 unfoldPushSeq step init = PushSeq $ \put -> do
