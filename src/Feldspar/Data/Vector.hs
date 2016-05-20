@@ -338,19 +338,31 @@ matMul a b = forEach a $ \a' ->
 --------------------------------------------------------------------------------
 
 -- | Push vector
+--
+-- The function that dumps the content of the vector is not allowed to perform
+-- any side effects except through the \"write\" method
+-- (@`Data` `Index` -> a -> m ()@) that is passed to it.
 data Push a
   where
     Push
         :: Data Length
         -> (forall m . MonadComp m => (Data Index -> a -> m ()) -> m ())
         -> Push a
+  -- The no-side-effects condition ensures that `Push` behaves as pure data with
+  -- the denotation of a finite list.
+  --
+  -- TODO If there was an appropriate `store` function, it should be possible to
+  -- formulate a law that `v :: Push a` should be equivalent to `store v`. If
+  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
+  -- `store v ++ store v`.
 
 -- | 'Push' vector specialized to 'Data' elements
 type DPush a = Push (Data a)
 
 instance Functor Push
   where
-    fmap f (Push len dump) = Push len $ \write -> dump $ \i -> write i . f
+    fmap f (Push len dump) = Push len $ \write ->
+        dump $ \i -> write i . f
 
 instance Finite (Push a)
   where
@@ -415,11 +427,23 @@ flattenPush n f = concatPush n . fmap (listPush . f) . toPush
 --------------------------------------------------------------------------------
 
 -- | Sequential push vector
+--
+-- The function that dumps the content of the vector is not allowed to perform
+-- any side effects except through the \"put\" method (@a -> m ()@) that is
+-- passed to it.
 data PushSeq a
   where
     PushSeq
-        :: (forall m . MonadComp m => (a -> m ()) -> m ())
+        :: { dumpSeq :: forall m . MonadComp m => (a -> m ()) -> m () }
         -> PushSeq a
+  -- The no-side-effects condition ensures that `PushSeq` behaves as pure data
+  -- with the denotation of a (possibly infinite) list. It also ensures that the
+  -- `Folding` instance is sound.
+  --
+  -- TODO If there was an appropriate `store` function, it should be possible to
+  -- formulate a law that `v :: PushSeq a` should be equivalent to `store v`. If
+  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
+  -- `store v ++ store v`.
 
 -- | 'PushSeq' vector specialized to 'Data' elements
 type DPushSeq a = PushSeq (Data a)
@@ -459,11 +483,8 @@ listPushSeq as = PushSeq $ \put -> mapM_ put as
 
 -- | Append two vectors to a 'PushSeq' vector
 (++) :: (PushySeq vec1, PushySeq vec2) => vec1 a -> vec2 a -> PushSeq a
-(++) v1 v2 =
-    let PushSeq dump1 = toPushSeq v1
-        PushSeq dump2 = toPushSeq v2
-    in  PushSeq $ \put ->
-          dump1 put >> dump2 put
+(++) v1 v2 = PushSeq $ \put ->
+    dumpSeq (toPushSeq v1) put >> dumpSeq (toPushSeq v2) put
 
 -- Concatenate nested vectors to a 'PushSeq' vector
 concat :: (PushySeq vec1, PushySeq vec2, Functor vec1) =>
@@ -484,21 +505,18 @@ flatten
 flatten f = concat . fmap (listPushSeq . f) . toPushSeq
 
 filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
-filter pred v =
-    let PushSeq dump = toPushSeq v
-    in  PushSeq $ \put -> do
-          let put' a = iff (pred a) (put a) (return ())
-          dump put'
+filter pred v = PushSeq $ \put -> do
+    let put' a = iff (pred a) (put a) (return ())
+    dumpSeq (toPushSeq v) put'
 
 foldM :: (Syntax a, PushySeq vec, MonadComp m) =>
     (a -> b -> m a) -> a -> vec b -> m a
 foldM step init v = do
-    let PushSeq dump = toPushSeq v
     r <- initRef init
     let put a = do
           s <- unsafeFreezeRef r
           setRef r =<< step s a
-    dump put
+    dumpSeq (toPushSeq v) put
     unsafeFreezeRef r
 
 unfoldPushSeq :: Syntax a => (a -> (b,a)) -> a -> PushSeq b
@@ -528,8 +546,14 @@ class Linearizable m a
         :: a                              -- ^ Structure to linearize
         -> (Data (LinearElem a) -> m ())  -- ^ Method for pushing a single element
         -> m ()
-             -- Note: This is `PushSeq` with `m` exposed. It needs to be exposed
-             -- for the instances for monads to work.
+             -- Note:
+             --
+             -- 1. This is `PushSeq` with `m` exposed. It needs to be exposed
+             --    for the instances for monads to work.
+             -- 2. We don't want to use `PushSeq` here (even if `m` was
+             --    exposed), because linearizing structures with embedded
+             --    effects would lead to a `PushSeq` with embedded effects,
+             --    which is not a valid `PushSeq`.
 
 instance Linearizable m (Data a)
   where
