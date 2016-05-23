@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Feldspar.Frontend where
 
@@ -27,19 +28,20 @@ import qualified Prelude
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
-class LET exp a where
-  shareTag :: Type b => String -> exp a -> (exp a -> exp b) -> exp b
+class LET exp where
+  shareTag :: (Type a, Type b) => String -> exp a -> (exp a -> exp b) -> exp b
 
-instance (Syntax Data a, Type a) => LET Data a where
+instance LET Data where
   shareTag tag = sugarSymFeld (Let tag)
 
-instance (Syntax HData a, Type a) => LET HData a where
+instance LET HData where
   shareTag tag = sugarSymHFeld (Let tag)
 
 -- | Explicit sharing
 share
-  :: ( LET exp a
+  :: ( LET exp
      , Syntax exp a
+     , Type a
      , Type b)
   => exp a             -- ^ Value to share
   -> (exp a -> exp b)  -- ^ Body in which to share the value
@@ -49,24 +51,24 @@ share = shareTag ""
 --------------------------------------------------------------------------------
 -- ** General constructs
 
-class FOR exp st where
-  forLoop :: exp Length -> st -> (exp Index -> st -> st) -> st
+class FOR exp where
+  forLoop :: Syntax exp st => exp Length -> st -> (exp Index -> st -> st) -> st
 
-instance (Syntax Data st) => FOR Data st where
+instance FOR Data where
   forLoop = sugarSymFeld ForLoop
 
-instance (Syntax HData st) => FOR HData st where
+instance FOR HData where
   forLoop = sugarSymHFeld ForLoop
 
 --------------------------------------------------------------------------------
 
-class COND exp a where
-  cond :: exp Bool -> a -> a -> a
+class COND exp where
+  cond :: Syntax exp a => exp Bool -> a -> a -> a
 
-instance (Syntax Data a) => COND Data a where
+instance COND Data where
   cond = sugarSymFeld Cond
 
-instance (Syntax HData a) => COND HData a where
+instance COND HData where
   cond = sugarSymHFeld Cond
 
 -- | Condition operator; use as follows:
@@ -75,7 +77,7 @@ instance (Syntax HData a) => COND HData a where
 -- > cond2 ? b $
 -- > cond3 ? c $
 -- >         default
-(?) :: COND exp a
+(?) :: (COND exp, Syntax exp a)
     => exp Bool  -- ^ Condition
     -> a         -- ^ True branch
     -> a         -- ^ False branch
@@ -87,39 +89,39 @@ infixl 1 ?
 --------------------------------------------------------------------------------
 -- ** Literals
 
-class Val (exp :: * -> *) a where
-  value :: Internal (exp a) -> exp a
+class Val (exp :: * -> *) where
+  value :: Type a => Internal (exp a) -> exp a
 
-instance (Syntax Data a, Type a) => Val Data a where
+instance Val Data where
   value = sugarSymFeld . Lit
 
-instance (Syntax HData a, Type a) => Val HData a where
+instance Val HData where
   value = sugarSymHFeld . Lit
 
-true :: (Val exp Bool, Internal (exp Bool) ~ Bool) => exp Bool
+true :: (Val exp, Internal (exp Bool) ~ Bool) => exp Bool
 true = value True
 
-false :: (Val exp Bool, Internal (exp Bool) ~ Bool) => exp Bool
+false :: (Val exp, Internal (exp Bool) ~ Bool) => exp Bool
 false = value False
 
 --------------------------------------------------------------------------------
 -- ** Primitive functions
 
-class NUM (exp :: * -> *) a where
-  integer :: Prelude.Integer -> exp a
-  plus    :: exp a -> exp a -> exp a
-  minus   :: exp a -> exp a -> exp a
-  times   :: exp a -> exp a -> exp a
-  negate  :: exp a -> exp a
+class NUM (exp :: * -> *) where
+  integer :: (PrimType a, Prelude.Num a) => Prelude.Integer -> exp a
+  plus    :: (PrimType a, Prelude.Num a) => exp a -> exp a -> exp a
+  minus   :: (PrimType a, Prelude.Num a) => exp a -> exp a -> exp a
+  times   :: (PrimType a, Prelude.Num a) => exp a -> exp a -> exp a
+  negate  :: (PrimType a, Prelude.Num a) => exp a -> exp a
 
-instance (Syntax Data a, PrimType a, Prelude.Num a) => NUM Data a where
+instance NUM Data where
   integer = value . fromInteger
   plus    = sugarSymFeld Add
   minus   = sugarSymFeld Sub
   times   = sugarSymFeld Mul
   negate  = sugarSymFeld Neg
 
-instance (Syntax HData a, PrimType a, Prelude.Num a) => NUM HData a where
+instance NUM HData where
   integer = value . fromInteger
   plus    = sugarSymHFeld Add
   minus   = sugarSymHFeld Sub
@@ -128,33 +130,33 @@ instance (Syntax HData a, PrimType a, Prelude.Num a) => NUM HData a where
 
 --------------------------------------------------------------------------------
 
-class FRAC (exp :: * -> *) a where
-  fractional :: Prelude.Rational -> exp a
-  divide     :: exp a -> exp a -> exp a
+class FRAC (exp :: * -> *) where
+  fractional :: (PrimType a, Prelude.Fractional a) => Prelude.Rational -> exp a
+  divide     :: (PrimType a, Prelude.Fractional a) => exp a -> exp a -> exp a
 
-instance (Syntax Data a, PrimType a, Prelude.Fractional a) => FRAC Data a where
+instance FRAC Data where
   fractional = value . fromRational
   divide     = sugarSymFeld FDiv
 
-instance (Syntax HData a, PrimType a, Prelude.Fractional a) => FRAC HData a where
+instance FRAC HData where
   fractional = value . fromRational
   divide     = sugarSymHFeld FDiv
 
 --------------------------------------------------------------------------------
 
-class FLOAT (exp :: * -> *) a where
-  pi      :: exp a
-  power   :: exp a -> exp a -> exp a
-  sinus   :: exp a -> exp a
-  cosinus :: exp a -> exp a
+class FLOAT (exp :: * -> *) where
+  pi      :: (PrimType a, Prelude.Floating a) => exp a
+  power   :: (PrimType a, Prelude.Floating a) => exp a -> exp a -> exp a
+  sinus   :: (PrimType a, Prelude.Floating a) => exp a -> exp a
+  cosinus :: (PrimType a, Prelude.Floating a) => exp a -> exp a
 
-instance (Syntax Data a, PrimType a, Prelude.Floating a) => FLOAT Data a where
+instance FLOAT Data where
   pi      = sugarSymFeld Pi
   power   = sugarSymFeld Pow
   sinus   = sugarSymFeld Sin
   cosinus = sugarSymFeld Cos
 
-instance (Syntax HData a, PrimType a, Prelude.Floating a) => FLOAT HData a where
+instance FLOAT HData where
   pi      = sugarSymHFeld Pi
   power   = sugarSymHFeld Pow
   sinus   = sugarSymHFeld Sin
@@ -162,15 +164,15 @@ instance (Syntax HData a, PrimType a, Prelude.Floating a) => FLOAT HData a where
 
 --------------------------------------------------------------------------------
 
-class INTEG (exp :: * -> *) a where
-  quotient :: exp a -> exp a -> exp a
-  reminder :: exp a -> exp a -> exp a
-  round    :: (PrimType n, RealFrac n) => exp n -> exp a
-  i2n      :: (PrimType n, Num n)      => exp a -> exp n
-  i2b      :: exp a -> exp Bool
-  b2i      :: exp Bool -> exp a
+class INTEG (exp :: * -> *) where
+  quotient :: (PrimType a, Prelude.Integral a) => exp a -> exp a -> exp a
+  reminder :: (PrimType a, Prelude.Integral a) => exp a -> exp a -> exp a
+  round    :: (PrimType a, Prelude.Integral a, PrimType n, Prelude.RealFrac n) => exp n -> exp a
+  i2n      :: (PrimType a, Prelude.Integral a, PrimType n, Prelude.Num n)      => exp a -> exp n
+  i2b      :: (PrimType a, Prelude.Integral a) => exp a -> exp Bool
+  b2i      :: (PrimType a, Prelude.Integral a) => exp Bool -> exp a
 
-instance (Syntax Data a, PrimType a, Prelude.Integral a) => INTEG Data a where
+instance INTEG Data where
   quotient = sugarSymFeld Quot
   reminder = sugarSymFeld Rem
   round    = sugarSymFeld Round
@@ -178,7 +180,7 @@ instance (Syntax Data a, PrimType a, Prelude.Integral a) => INTEG Data a where
   i2b      = sugarSymFeld I2B
   b2i      = sugarSymFeld B2I
 
-instance (Syntax HData a, PrimType a, Prelude.Integral a) => INTEG HData a where
+instance INTEG HData where
   quotient = sugarSymHFeld Quot
   reminder = sugarSymHFeld Rem
   round    = sugarSymHFeld Round
@@ -187,7 +189,7 @@ instance (Syntax HData a, PrimType a, Prelude.Integral a) => INTEG HData a where
   b2i      = sugarSymHFeld B2I
 
 -- | Simultaneous @quot@ and @rem@
-quotRem :: (NUM exp a, INTEG exp a, PrimType a) => exp a -> exp a -> (exp a, exp a)
+quotRem :: (NUM exp, INTEG exp, PrimType a, Prelude.Integral a) => exp a -> exp a -> (exp a, exp a)
 quotRem a b = (q, r)
   where
     q = quotient a b
@@ -200,52 +202,53 @@ class BOOL (exp :: * -> *) where
   and :: exp Bool -> exp Bool -> exp Bool
   or  :: exp Bool -> exp Bool -> exp Bool
 
-instance Syntax Data Bool => BOOL Data where
+instance BOOL Data where
   not = sugarSymFeld Not
   and = sugarSymFeld And
   or  = sugarSymFeld Or
 
-instance Syntax HData Bool => BOOL HData where
+instance BOOL HData where
   not = sugarSymHFeld Not
   and = sugarSymHFeld And
   or  = sugarSymHFeld Or
 
 --------------------------------------------------------------------------------
 
-class EQ (exp :: * -> *) a where
-  eq  :: exp a -> exp a -> exp Bool
-  neq :: exp a -> exp a -> exp Bool
+class EQ (exp :: * -> *) where
+  eq  :: (PrimType a, Prelude.Eq a) => exp a -> exp a -> exp Bool
+  neq :: (PrimType a, Prelude.Eq a) => exp a -> exp a -> exp Bool
 
-instance (Syntax Data a, PrimType a, Prelude.Eq a) => EQ Data a where
+instance EQ Data where
   eq  = sugarSymFeld Eq
   neq = sugarSymFeld NEq
 
-instance (Syntax HData a, PrimType a, Prelude.Eq a) => EQ HData a where
+instance EQ HData where
   eq  = sugarSymHFeld Eq
   neq = sugarSymHFeld NEq
 
 --------------------------------------------------------------------------------
 
-class ORD (exp :: * -> *) a where
-  lt  :: exp a -> exp a -> exp Bool
-  lte :: exp a -> exp a -> exp Bool
-  gt  :: exp a -> exp a -> exp Bool
-  gte :: exp a -> exp a -> exp Bool
+class ORD (exp :: * -> *) where
+  lt  :: (PrimType a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  lte :: (PrimType a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  gt  :: (PrimType a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  gte :: (PrimType a, Prelude.Ord a) => exp a -> exp a -> exp Bool
 
-instance (Syntax Data a, PrimType a, Prelude.Ord a) => ORD Data a where
+instance ORD Data where
   lt  = sugarSymFeld Lt
   lte = sugarSymFeld Le
   gt  = sugarSymFeld Gt
   gte = sugarSymFeld Ge
 
-instance (Syntax HData a, PrimType a, Prelude.Ord a) => ORD HData a where
+instance ORD HData where
   lt  = sugarSymHFeld Lt
   lte = sugarSymHFeld Le
   gt  = sugarSymHFeld Gt
   gte = sugarSymHFeld Ge
 
 -- | Return the smallest of two values
-min :: (COND exp (exp a), ORD exp a) => exp a -> exp a -> exp a
+min :: (COND exp, ORD exp, Type a, PrimType' a, Syntax exp (exp a))
+    => exp a -> exp a -> exp a
 min a b = (a `lte` b) ? a $ b
   -- There's no standard definition of min/max in C:
   -- <http://stackoverflow.com/questions/3437404/min-and-max-in-c>
@@ -256,22 +259,23 @@ min a b = (a `lte` b) ? a $ b
   -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>)
 
 -- | Return the greatest of two values
-max :: (COND exp (exp a), ORD exp a) => exp a -> exp a -> exp a
+max :: (COND exp, ORD exp, Type a, PrimType' a, Syntax exp (exp a))
+    => exp a -> exp a -> exp a
 max a b = (a `gte` b) ? a $ b
 
 --------------------------------------------------------------------------------
 -- ** Arrays
 
-class ArrIx (exp :: * -> *) a where
-  arrIx :: IArr (Internal a) -> exp Index -> a
+class ArrIx (exp :: * -> *) where
+  arrIx :: Syntax exp a => IArr (Internal a) -> exp Index -> a
 
-instance Syntax Data a => ArrIx Data a where
+instance ArrIx Data where
   arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     where
       ix :: PrimType' b => Imp.IArr Index b -> Data b
       ix arr = sugarSymExpPrim (Proxy :: Proxy FeldDomain) (ArrIx arr) i
 
-instance Syntax HData a => ArrIx HData a where
+instance ArrIx HData where
   arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     where
       ix :: PrimType' b => Imp.IArr Index b -> HData b
@@ -283,7 +287,7 @@ instance Syntax HData a => ArrIx HData a where
 
 -- | Monads that support computational effects: mutable data structures and
 -- control flow
-class Monad m => MonadComp exp m
+class Monad m => MonadComp exp m | m -> exp
   where
     -- | Lift a 'Comp' computation
     liftComp :: Comp exp a -> m a
@@ -328,109 +332,57 @@ resugar = Syntactic.resugar
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedRef
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Type a
-     , ExprOf (Domain a) ~ exp
-       -- ? ... 
-     , Syntactic (Struct PrimType' exp a)
-     , Domain    (Struct PrimType' exp a) ~ Domain a
-     , Internal  (Struct PrimType' exp a) ~ Internal a)
+initNamedRef :: (MonadComp exp m, Syntax exp a)
   => String -- ^ Base name.
   -> a      -- ^ Initial value.
-  -> m (Ref a)
-initNamedRef base val = liftComp ref
-  where
-    ref :: Comp exp (Ref a)
-    ref = fmap Ref $ mapStructA (Comp . Imp.initNamedRef base) $ resugar val
-
+  -> m (Ref (Internal a))
+initNamedRef base =
+  liftComp . fmap Ref . mapStructA (Comp . Imp.initNamedRef base) . resugar
+ 
 -- | Create an initialized named reference.
-initRef
-  :: ( MonadComp exp m
-     , Syntax exp a
-     , Type a
-     , ExprOf (Domain a) ~ exp
-       -- ? ... 
-     , Syntactic (Struct PrimType' exp a)
-     , Domain    (Struct PrimType' exp a) ~ Domain a
-     , Internal  (Struct PrimType' exp a) ~ Internal a)
+initRef :: (MonadComp exp m, Syntax exp a)
   => a -- ^ Initial value.
-  -> m (Ref a)
+  -> m (Ref (Internal a))
 initRef = initNamedRef "r"
 
 -- | Create an uninitialized named reference
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedRef
-  :: forall exp m a. (MonadComp exp m, Type a, ExprOf (Domain a) ~ exp)
+newNamedRef :: (MonadComp exp m, Type a)
   => String    -- ^ Base name.
   -> m (Ref a)
-newNamedRef base = liftComp ref
-  where
-    ref :: Comp exp (Ref a)
-    ref = fmap Ref $ mapStructA (const $ Comp $ Imp.newNamedRef base) typeRep
+newNamedRef base =
+  liftComp $ fmap Ref $ mapStructA (const $ Comp $ Imp.newNamedRef base) typeRep
 
 -- | Create an uninitialized reference
-newRef :: (MonadComp exp m, Type a, ExprOf (Domain a) ~ exp) => m (Ref a)
+newRef :: (MonadComp exp m, Type a) => m (Ref a)
 newRef = newNamedRef "r"
 
 -- | Get the contents of a reference.
-getRef
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Syntax exp (Internal a)       
-     , Imp.FreeExp exp
-     , FreeDict exp
-       -- ? ...
-     , Syntactic (Struct PrimType' exp (Internal a))
-     , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-     , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+getRef :: forall exp m a. (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
   => Ref (Internal a) -> m a
 getRef = liftComp . fmap resugar . mapStructA getty . unRef
   where    
-    getty :: forall b. (FreeDict exp, Imp.FreeExp exp, PrimType' b) => Imp.Ref b -> Comp exp (exp b)
-    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.getRef)
+    getty :: forall b. PrimType' b => Imp.Ref b -> Comp exp (exp b)
+    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.getRef
 
 -- | Set the contents of a reference.
-setRef
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Syntax exp (Internal a)
-     , FreeDict exp
-       -- ? ...
-     , Syntactic (Struct PrimType' exp (Internal a))
-     , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-     , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+setRef :: forall exp m a. (MonadComp exp m, Syntax exp a, FreeDict exp)
   => Ref (Internal a) -> a -> m ()
 setRef r = liftComp . sequence_ . zipListStruct setty (unRef r) . resugar
-    -- (\r' a' -> Comp $ Imp.setRef r' a') (unRef r) . resugar
   where
-    setty :: forall b. (FreeDict exp, PrimType' b) => Imp.Ref b -> exp b -> Comp exp ()
+    setty :: forall b. PrimType' b => Imp.Ref b -> exp b -> Comp exp ()
     setty ref = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setRef ref)
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
 --   as long as the resulting value is alive).
-unsafeFreezeRef
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Syntax exp (Internal a)
-     , Imp.FreeExp exp
-     , FreeDict exp
-       -- ? ...
-     , Syntactic (Struct PrimType' exp (Internal a))
-     , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-     , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+unsafeFreezeRef :: forall exp m a. (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
   => Ref (Internal a) -> m a
 unsafeFreezeRef = liftComp . fmap resugar . mapStructA getty . unRef
   where
-    getty :: forall b. (FreeDict exp, Imp.FreeExp exp, PrimType' b) => Imp.Ref b -> Comp exp (exp b)
-    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.unsafeFreezeRef)
+    getty :: forall b. PrimType' b => Imp.Ref b -> Comp exp (exp b)
+    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeRef
 
 {-
 -- | Modify the contents of reference.
@@ -448,24 +400,14 @@ modifyRefD r f = setRef r . f =<< unsafeFreezeRef r
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , PrimType' a
-     , ExprOf (Domain a) ~ exp) -- to avoid ambiguous 'exp'
+initNamedArr :: (MonadComp exp m, PrimType' a)
   => String -- ^ Base name.
   -> [a]    -- ^ Initial contents.
   -> m (Arr a)
-initNamedArr base val = liftComp arr
-  where
-    arr :: Comp exp (Arr a)
-    arr = fmap (Arr . Single) $ Comp $ Imp.initNamedArr base val
+initNamedArr base val = liftComp $ fmap (Arr . Single) $ Comp $ Imp.initNamedArr base val
 
 -- | Create and initialize an array.
-initArr
-  :: ( MonadComp exp m
-     , PrimType' a
-     , ExprOf (Domain a) ~ exp)
+initArr :: (MonadComp exp m, PrimType' a)
   => [a] -- ^ Initial contents.
   -> m (Arr a)
 initArr = initNamedArr "a"
@@ -474,166 +416,102 @@ initArr = initNamedArr "a"
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Type a)
+newNamedArr :: forall exp m a. (MonadComp exp m, Type a)
   => String     -- ^ Base name.
   -> exp Length -- ^ Size.
   -> m (Arr a)
-newNamedArr base l = liftComp $ fmap Arr $ mapStructA (const arr) typeRep
-  where
-    arr :: PrimType' b => Comp exp (Imp.Arr Length b)
-    arr = Comp $ Imp.newNamedArr base l
+newNamedArr base l =
+  liftComp $ fmap Arr $ mapStructA (const $ Comp $ Imp.newNamedArr base l) typeRep
 
 -- | Create an uninitialized array.
-newArr
-  :: ( MonadComp exp m
-     , Type a)
+newArr :: (MonadComp exp m, Type a)
   => exp Length -- ^ Size.
   -> m (Arr a)
 newArr = newNamedArr "a"
 
 -- | Get an element of an array.
-getArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Syntax exp (Internal a)
-     , Imp.FreeExp exp
-     , FreeDict exp
-       -- ? ...
-     , Syntactic (Struct PrimType' exp (Internal a))
-     , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-     , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+getArr :: forall exp m a. (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
   => exp Index -> Arr (Internal a) -> m a
 getArr i = liftComp . fmap resugar . mapStructA getty . unArr
   where
-    getty :: forall b. (FreeDict exp, Imp.FreeExp exp, PrimType' b) => Imp.Arr Length b -> Comp exp (exp b)
+    getty :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (exp b)
     getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.getArr i)
 
 -- | Set an element of an array.
-setArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Syntax exp a
-     , Syntax exp (Internal a)
-     , FreeDict exp
-            -- ? ...
-     , Syntactic (Struct PrimType' exp (Internal a))
-     , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-     , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+setArr :: forall exp m a. (MonadComp exp m, Syntax exp a, FreeDict exp)
   => exp Index -> a -> Arr (Internal a) -> m ()
-setArr i a = liftComp . sequence_ . zipListStruct setty rep . unArr
+setArr i a = liftComp . sequence_ . zipListStruct setty (resugar a) . unArr
   where
-    rep :: Struct PrimType' exp (Internal a)
-    rep = resugar a
-
-    setty :: forall b. (FreeDict exp, PrimType' b) => exp b -> Imp.Arr Length b -> Comp exp ()
+    setty :: forall b. PrimType' b => exp b -> Imp.Arr Length b -> Comp exp ()
     setty a arr = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setArr i a arr)
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either array.
-copyArr
-  :: forall exp m a.
-     (MonadComp exp m)
+copyArr :: forall exp m a. MonadComp exp m
   => Arr a      -- ^ Destination.
   -> Arr a      -- ^ Source.
   -> exp Length -- ^ Number of elements.
   -> m ()
 copyArr arr1 arr2 len = liftComp $ sequence_ $ zipListStruct copy (unArr arr1) (unArr arr2)
   where
-    copy :: forall b. (PrimType' b) => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
+    copy :: forall b. PrimType' b => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
     copy a1 a2 = Comp $ Imp.copyArr a1 a2 len
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
-freezeArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Type a
-     , FreeDict exp)
+freezeArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
   => Arr a
   -> exp Length -- ^ Number of elements to copy.
   -> m (IArr a)
 freezeArr arr n = liftComp $ fmap IArr $ mapStructA freeze $ unArr arr
   where
-    freeze :: forall b. (FreeDict exp, PrimType' b) => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
     freeze a = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.freezeArr a n)
 
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeFreezeArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Type a
-     , FreeDict exp
-     , ExprOf (Domain a) ~ exp) -- to avoid ambiguous 'exp'
+unsafeFreezeArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
   => Arr a
   -> m (IArr a)
 unsafeFreezeArr = liftComp . fmap IArr . mapStructA freeze . unArr
   where
-    freeze :: forall b. (FreeDict exp, PrimType' b) => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
-    freeze a = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.unsafeFreezeArr a)
+    freeze :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeArr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
-thawArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Type a
-     , FreeDict exp)
+thawArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
   => IArr a
   -> exp Length -- ^ Number of elements to copy.
   -> m (Arr a)
 thawArr arr n = liftComp $ fmap Arr $ mapStructA thaw $ unIArr arr
   where
-    thaw :: forall b. (FreeDict exp, PrimType' b) => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw :: forall b. PrimType' b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
     thaw a = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.thawArr a n)
 
 -- | Thaw an immutable array to a mutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeThawArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , Type a
-     , FreeDict exp
-     , ExprOf (Domain a) ~ exp) -- to avoid ambiguous 'exp'
+unsafeThawArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
   => IArr a
   -> m (Arr a)
 unsafeThawArr = liftComp . fmap Arr . mapStructA thaw . unIArr
   where
-    thaw :: forall b. (FreeDict exp, PrimType' b) => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
-    thaw = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.unsafeThawArr)
+    thaw :: forall b. PrimType' b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeThawArr
 
 -- | Create and initialize an immutable array.
-initIArr
-  :: forall exp m a.
-     ( MonadComp exp m
-     , PrimType a
-     , ExprOf (Domain a) ~ exp)
+initIArr :: forall exp m a. (MonadComp exp m, PrimType a)
   => [a]
   -> m (IArr a)
-initIArr val = liftComp $ fmap (IArr . Single) $ init
-  where
-    init :: Comp exp (Imp.IArr Length a)
-    init = Comp $ Imp.initIArr val
+initIArr val = liftComp $ fmap (IArr . Single) $ Comp $ Imp.initIArr val
 
 --------------------------------------------------------------------------------
 -- ** Control-flow
 
 -- | Conditional statement that returns an expression.
-ifE :: ( MonadComp exp m
-       , Syntax exp a
-       , Syntax exp (Internal a)
-       , Imp.FreeExp exp
-       , FreeDict exp
-              -- ? ...
-       , Syntactic (Struct PrimType' exp (Internal a))
-       , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
-       , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a)
+ifE :: (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
     => exp Bool  -- ^ Condition.
     -> m a       -- ^ True branch.
     -> m a       -- ^ False branch.

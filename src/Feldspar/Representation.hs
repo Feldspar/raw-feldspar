@@ -252,8 +252,9 @@ class    ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
-
---         , Syntactic (Struct PrimType' exp a)
+         , Syntactic (Struct PrimType' exp (Internal a))
+         , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
+         , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
          
@@ -261,8 +262,9 @@ instance ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
-
---         , Syntactic (Struct PrimType' exp a)
+         , Syntactic (Struct PrimType' exp (Internal a))
+         , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
+         , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
 

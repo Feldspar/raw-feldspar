@@ -22,11 +22,14 @@ class Forcible a
     -- | Representation of a forced value
     type ValueRep a
 
+    -- | ...
+    type ValueExp a :: * -> *
+
     -- | Force an expression to a value. The resulting value can be used
     -- multiple times without risking re-computation.
     --
     -- 'toValue' will allocate memory to hold the value.
-    toValue :: MonadComp m => a -> m (ValueRep a)
+    toValue :: (MonadComp exp m, ValueExp a ~ exp) => a -> m (ValueRep a)
 
     -- | Convert a forced value back to an expression
     fromValue :: ValueRep a -> a
@@ -48,9 +51,10 @@ class Forcible a
 instance Type a => Forcible (Data a)
   where
     type ValueRep (Data a) = Data a
+    type ValueExp (Data a) = Data
     toValue   = unsafeFreezeRef <=< initRef
     fromValue = sugar
-
+{-
 instance (Forcible a, Forcible b) => Forcible (a,b)
   where
     type ValueRep (a,b) = (ValueRep a, ValueRep b)
@@ -74,7 +78,7 @@ instance Forcible a => Forcible [a]
     type ValueRep [a] = [ValueRep a]
     toValue   = mapM toValue
     fromValue = map fromValue
-
+-}{-
 -- | Cast between 'Forcible' types that have the same value representation
 forceCast :: (Forcible a, Forcible b, ValueRep a ~ ValueRep b, MonadComp m) =>
     a -> m b
@@ -84,13 +88,11 @@ forceCast = fmap fromValue . toValue
 -- multiple times without risking re-computation.
 force :: (Forcible a, MonadComp m) => a -> m a
 force = forceCast
-
-
-
+-}
 --------------------------------------------------------------------------------
 -- * 'Storable' class
 --------------------------------------------------------------------------------
-
+{-
 -- | Storable types
 class Storable a
   where
@@ -127,7 +129,7 @@ class Storable a
         -> StoreRep a  -- ^ Destination
         -> StoreRep a  -- ^ Source
         -> m ()
-
+-}{-
 instance Type a => Storable (Data a)
   where
     type StoreRep (Data a)  = Ref a
@@ -181,13 +183,10 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
         copyStoreRep (Proxy :: Proxy c) lc1 lc2
         copyStoreRep (Proxy :: Proxy d) ld1 ld2
-
-
-
-----------------------------------------
+-}
+--------------------------------------------------------------------------------
 -- ** User interface
-----------------------------------------
-
+{-
 -- | Memory for storing values
 newtype Store a = Store { unStore :: StoreRep a }
   -- The reason for this type and its associated interface is to improve type
@@ -226,4 +225,5 @@ copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 -- | Update a 'Store' in-place
 inplace :: (Storable a, MonadComp m) => Store a -> (a -> a) -> m ()
 inplace store f = writeStore store . f =<< unsafeFreezeStore store
-
+-}
+--------------------------------------------------------------------------------
