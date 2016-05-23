@@ -126,7 +126,7 @@ instance Syntax a => Forcible (Pull a)
   where
     type ValueRep (Pull a) = Dim1 (IArr (Internal a))
     toValue   = toValue . toPush
-    fromValue = toPullSyn
+    fromValue = toPull
 
 instance Syntax a => Storable (Pull a)
   where
@@ -236,14 +236,10 @@ instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 -- `Dim1` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
 -- `Dim2` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
 -- @
-toPull :: Pully vec a => vec -> Pull a
-toPull arr = Pull (length arr) (arr!)
-
--- | A version of 'toPull' for elements in the 'Syntax' class
-toPullSyn
-    :: (Indexed arr, Finite arr, Syntax a, IndexedElem arr ~ Data (Internal a))
-    => arr -> Pull a
-toPullSyn = fmap sugar . toPull
+toPull :: (Pully vec (Data (Internal a)), Syntax a) => vec -> Pull a
+toPull vec = fmap sugar $ Pull (length vec) (vec!)
+  -- This function is more general than `fromValue` since it also handles e.g.
+  -- `Dim2`.
 
 -- | Convert a 2-dimensional indexed array to a nested 'Pull' vector
 toPull2 :: (Indexed arr, Syntax a, IndexedElem arr ~ Data (Internal a)) =>
