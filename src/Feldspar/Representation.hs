@@ -103,6 +103,8 @@ typeEqFun (FunT ta tb) (FunT ua ub) = do
     return Dict
 typeEqFun _ _ = Nothing
 
+--------------------------------------------------------------------------------
+
 -- | Mutable variable
 newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- A reference to a tuple is a struct of smaller references. This means that
@@ -250,6 +252,8 @@ class    ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
+
+--         , Syntactic (Struct PrimType' exp a)
          )
          => Syntax exp a
          
@@ -257,6 +261,8 @@ instance ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
+
+--         , Syntactic (Struct PrimType' exp a)
          )
          => Syntax exp a
 
@@ -319,7 +325,6 @@ sugarSymHFeld
   => sub sig -> f
 sugarSymHFeld = sugarSymExp (Proxy :: Proxy HFeldDomain)
 
-
 --------------------------------------------------------------------------------
 
 instance Imp.FreeExp Data
@@ -331,6 +336,18 @@ instance Imp.FreeExp Data
 instance Imp.EvalExp Data
   where
     evalExp = eval
+
+instance Imp.FreeExp HData
+  where
+    type FreePred HData = PrimType'
+    constExp = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . Lit
+    varExp   = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . FreeVar
+
+instance Imp.EvalExp HData
+  where
+    evalExp = undefined -- eval
+
+--------------------------------------------------------------------------------
 
 instance Hard.FreeExp Data
   where
@@ -353,6 +370,49 @@ instance Hard.EvaluateExp HData
     evalE = undefined --eval
 
 --------------------------------------------------------------------------------
+
+withPrim :: forall proxy1 proxy2 exp a b. FreeDict exp
+  => proxy1 exp -> proxy2 a
+  -> (Imp.FreePred exp a => b)
+  -> (PrimType' a => b)
+withPrim p _ f = case freeDict p (primTypeRep :: PrimTypeRep a) of
+  Dict -> f
+
+class FreeDict exp
+  where
+    freeDict :: proxy exp -> PrimTypeRep a -> Dict (Imp.FreePred exp a)
+
+instance FreeDict Data
+  where
+    freeDict _ rep = case rep of
+      BoolT   -> Dict
+      Int8T   -> Dict
+      Int16T  -> Dict
+      Int32T  -> Dict
+      Int64T  -> Dict
+      Word8T  -> Dict
+      Word16T -> Dict
+      Word32T -> Dict
+      Word64T -> Dict
+      FloatT  -> Dict
+      DoubleT -> Dict
+
+instance FreeDict HData
+  where
+    freeDict _ rep = case rep of
+      BoolT   -> Dict
+      Int8T   -> Dict
+      Int16T  -> Dict
+      Int32T  -> Dict
+      Int64T  -> Dict
+      Word8T  -> Dict
+      Word16T -> Dict
+      Word32T -> Dict
+      Word64T -> Dict
+      FloatT  -> Dict
+      DoubleT -> Dict    
+
+--------------------------------------------------------------------------------
 -- * Monadic computations
 --------------------------------------------------------------------------------
 
@@ -367,7 +427,7 @@ newtype Comp (exp :: * -> *) (a :: *) = Comp {
   deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
--- Template Haskell instances
+-- 
 --------------------------------------------------------------------------------
 
 instance Eval ForLoop
