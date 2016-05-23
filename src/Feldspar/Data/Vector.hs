@@ -125,7 +125,7 @@ instance Finite (Pull a)
 instance Syntax a => Forcible (Pull a)
   where
     type ValueRep (Pull a) = Dim1 (IArr (Internal a))
-    toValue   = fromPull
+    toValue   = toValue . toPush
     fromValue = toPullSyn
 
 instance Syntax a => Storable (Pull a)
@@ -161,7 +161,7 @@ instance
       MarshalFeld (Pull a)
   where
     type HaskellRep (Pull a) = [Internal a]
-    fromFeld = fromFeld <=< fromPull . fmap desugar
+    fromFeld = fromFeld <=< toValue
     toFeld   = fmap sugar . toPull <$> (toFeld :: Run (Dim1 (IArr (Internal a))))
   -- Ideally, we would like the more general instance
   --
@@ -252,13 +252,6 @@ toPull2 (Dim2 r c arr) =
     Pull r $ \k ->
       Pull c $ \l ->
         sugar (arr ! (k*c+l))
-
-fromPull :: (Syntax a, MonadComp m) => Pull a -> m (Dim1 (IArr (Internal a)))
-fromPull (Pull len ixf) = do
-    arr <- newArr len
-    for (0,1,Excl len) $ \i -> setArr i (ixf i) arr
-    iarr <- unsafeFreezeArr arr
-    return $ Dim1 len iarr
 
 freezeVec :: (MonadComp m, Syntax a) =>
     Data Length -> Arr (Internal a) -> m (Pull a)
@@ -409,6 +402,16 @@ instance Finite (Push a)
   where
     length (Push len _) = len
 
+instance Syntax a => Forcible (Push a)
+  where
+    type ValueRep (Push a) = Dim1 (IArr (Internal a))
+    toValue (Push len dump) = do
+        arr <- newArr len
+        dump $ \i a -> setArr i a arr
+        iarr <- unsafeFreezeArr arr
+        return $ Dim1 len iarr
+    fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
+
 class Pushy vec
   where
     toPush :: vec a -> Push a
@@ -492,6 +495,9 @@ type DPushSeq a = PushSeq (Data a)
 instance Functor PushSeq
   where
     fmap f (PushSeq dump) = PushSeq $ \put -> dump (put . f)
+
+-- No instance `Syntax a => Forcible (PushSeq a)` because `PushSeq` doesn't have
+-- known length.
 
 class PushySeq vec
   where

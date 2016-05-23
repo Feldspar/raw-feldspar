@@ -29,13 +29,13 @@ funO vec i = do
 
 test_option :: Run ()
 test_option = do
-    vec <- fromPull $ fmap i2n (1...10)
+    vec <- toValue $ fmap i2n (1...10)
     i   <- fget stdin
     printf "%d\n" $ fromSome $ funO vec i
 
 test_optionM :: Run ()
 test_optionM = do
-    vec <- fromPull $ fmap i2n (1...10)
+    vec <- toValue $ fmap i2n (1...10)
     i   <- fget stdin
     caseOptionM (funO vec i)
         printf
@@ -47,7 +47,7 @@ readPositive = do
     guarded "negative" (i>=0) (i :: Data Int32)
 
 test_optionT = optionT printf (\_ -> return ()) $ do
-    vec  <- fromPull $ fmap i2n (1...10)
+    vec  <- toValue $ fmap i2n (1...10)
     len  <- readPositive
     sumr <- initRef (0 :: Data Int32)
     for (0, 1, Excl len) $ \i -> do
