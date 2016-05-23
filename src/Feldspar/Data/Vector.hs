@@ -153,12 +153,35 @@ instance Syntax a => Storable (Pull a)
         setRef dLenRef sLen
         copyArr dst src sLen
 
-instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (Pull (Data a))
+instance
+    ( MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    , Syntax a
+    ) =>
+      MarshalFeld (Pull a)
   where
-    type HaskellRep (Pull (Data a)) = [a]
-    fromFeld = fromPull >=> fromFeld
-    toFeld   = toPull <$> (toFeld :: Run (Dim1 (IArr a)))
+    type HaskellRep (Pull a) = [Internal a]
+    fromFeld = fromFeld <=< fromPull . fmap desugar
+    toFeld   = fmap sugar . toPull <$> (toFeld :: Run (Dim1 (IArr (Internal a))))
+  -- Ideally, we would like the more general instance
+  --
+  --     instance MarshalFeld a => MarshalFeld (Pull a)
+  --       where type HaskellRep (Pull a) = [HaskellRep a]
+  --       fromFeld (Pull len ixf) = do
+  --           fput stdout "" len " "
+  --           for (0,1,Excl len) (fromFeld . ixf)
+  --       toFeld = do
+  --           len <- fget stdin
+  --           return $ Pull len ...
+  --
+  -- However, `toFeld` needs to return a `Pull` with an index function
+  -- `Data Index -> a`. The only way to construct such a function is by storing
+  -- the elements in an array and index into that. This poses two problems: (1)
+  -- how big an array should `toFeld` allocate, and (2) the type `a` is not
+  -- necessarily an expression (e.g. it can be a `Pull`), so there has to be a
+  -- way to write `a` to memory, even if it has just been read from memory by
+  -- `toFeld`. Problem (1) could be solved if we could have nested mutable
+  -- arrays, but problem (2) would remain.
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -514,8 +537,7 @@ concat vec =
     let PushSeq dump1 = toPushSeq $ fmap toPushSeq vec
     in  PushSeq $ \put ->
           dump1 $ \(PushSeq dump2) ->
-            dump2 $ \a ->
-              put a
+            dump2 put
 
 -- | Flatten a vector of elements with a static structure
 flatten
