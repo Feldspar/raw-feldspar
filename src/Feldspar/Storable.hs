@@ -51,30 +51,33 @@ instance Type a => Forcible (Data a)
     toValue   = unsafeFreezeRef <=< initRef
     fromValue = sugar
 
-instance (ExprOf a ~ ExprOf b, Forcible a, Forcible b) => Forcible (a,b)
+instance ( Forcible a
+         , Forcible b
+         , ExprOf a ~ ExprOf b)
+    => Forcible (a,b)
   where
     type ValueRep (a,b) = (ValueRep a, ValueRep b)
     toValue (a,b)   = (,) <$> toValue a <*> toValue b
     fromValue (a,b) = (fromValue a, fromValue b)
 
-instance ( ExprOf a ~ ExprOf b
-         , ExprOf a ~ ExprOf c
-         , Forcible a
+instance ( Forcible a
          , Forcible b
-         , Forcible c)
+         , Forcible c
+         , ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c)
     => Forcible (a,b,c)
   where
     type ValueRep (a,b,c) = (ValueRep a, ValueRep b, ValueRep c)
     toValue (a,b,c)   = (,,) <$> toValue a <*> toValue b <*> toValue c
     fromValue (a,b,c) = (fromValue a, fromValue b, fromValue c)
 
-instance ( ExprOf a ~ ExprOf b
-         , ExprOf a ~ ExprOf c
-         , ExprOf a ~ ExprOf d
-         , Forcible a
+instance ( Forcible a
          , Forcible b
          , Forcible c
-         , Forcible d)
+         , Forcible d
+         , ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c
+         , ExprOf a ~ ExprOf d)
     => Forcible (a,b,c,d)
   where
     type ValueRep (a,b,c,d) = (ValueRep a, ValueRep b, ValueRep c, ValueRep d)
@@ -92,7 +95,7 @@ forceCast
   :: ( Forcible a
      , Forcible b
      , ValueRep a ~ ValueRep b
-     , ExprOf a   ~ ExprOf b
+     , ExprOf a ~ ExprOf b
      , MonadComp (ExprOf a) m)
   => a -> m b
 forceCast = fmap fromValue . toValue
@@ -100,14 +103,15 @@ forceCast = fmap fromValue . toValue
 -- | Force the computation of an expression. The resulting value can be used
 -- multiple times without risking re-computation.
 force
-  :: (Forcible a, MonadComp (ExprOf a) m)
+  :: ( Forcible a
+     , MonadComp (ExprOf a) m)
   => a -> m a
 force = forceCast
 
 --------------------------------------------------------------------------------
 -- * 'Storable' class
 --------------------------------------------------------------------------------
-{-
+
 -- | Storable types
 class Storable a
   where
@@ -118,33 +122,33 @@ class Storable a
 
     -- | Creat a fresh memory store. It is usually better to use 'newStore'
     -- instead of this function as it improves type inference.
-    newStoreRep :: MonadComp m => proxy a -> StoreSize a -> m (StoreRep a)
+    newStoreRep :: MonadComp (ExprOf a) m => proxy a -> StoreSize a -> m (StoreRep a)
 
     -- | Store a value to a fresh memory store. It is usually better to use
     -- 'initStore' instead of this function as it improves type inference.
-    initStoreRep :: MonadComp m => a -> m (StoreRep a)
+    initStoreRep :: MonadComp (ExprOf a) m => a -> m (StoreRep a)
 
     -- | Read from a memory store. It is usually better to use 'readStore'
     -- instead of this function as it improves type inference.
-    readStoreRep :: MonadComp m => StoreRep a -> m a
+    readStoreRep :: MonadComp (ExprOf a) m => StoreRep a -> m a
 
     -- | Unsafe freezing of a memory store. It is usually better to use
     -- 'unsafeFreezeStore' instead of this function as it improves type
     -- inference.
-    unsafeFreezeStoreRep :: MonadComp m => StoreRep a -> m a
+    unsafeFreezeStoreRep :: MonadComp (ExprOf a) m => StoreRep a -> m a
 
     -- | Write to a memory store. It is usually better to use 'writeStore'
     -- instead of this function as it improves type inference.
-    writeStoreRep :: MonadComp m => StoreRep a -> a -> m ()
+    writeStoreRep :: MonadComp (ExprOf a) m => StoreRep a -> a -> m ()
 
     -- | Copy the contents of a store to another store. It is usually better to
     -- use 'copyStore' instead of this function as it improves type inference.
-    copyStoreRep :: MonadComp m
+    copyStoreRep :: MonadComp (ExprOf a) m
         => proxy a
         -> StoreRep a  -- ^ Destination
         -> StoreRep a  -- ^ Source
         -> m ()
--}{-
+
 instance Type a => Storable (Data a)
   where
     type StoreRep (Data a)  = Ref a
@@ -157,7 +161,10 @@ instance Type a => Storable (Data a)
     copyStoreRep _ dst src =
         setRef src . (id :: Data a -> Data a) =<< unsafeFreezeRef dst
 
-instance (Storable a, Storable b) => Storable (a,b)
+instance ( Storable a
+         , Storable b
+         , ExprOf a ~ ExprOf b)
+    => Storable (a,b)
   where
     type StoreRep (a,b)  = (StoreRep a, StoreRep b)
     type StoreSize (a,b) = (StoreSize a, StoreSize b)
@@ -170,7 +177,12 @@ instance (Storable a, Storable b) => Storable (a,b)
         copyStoreRep (Proxy :: Proxy a) la1 la2
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
 
-instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
+instance ( Storable a
+         , Storable b
+         , Storable c
+         , ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c)
+    => Storable (a,b,c)
   where
     type StoreRep (a,b,c)  = (StoreRep a, StoreRep b, StoreRep c)
     type StoreSize (a,b,c) = (StoreSize a, StoreSize b, StoreSize c)
@@ -184,7 +196,14 @@ instance (Storable a, Storable b, Storable c) => Storable (a,b,c)
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
         copyStoreRep (Proxy :: Proxy c) lc1 lc2
 
-instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
+instance ( Storable a
+         , Storable b
+         , Storable c
+         , Storable d
+         , ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c
+         , ExprOf a ~ ExprOf d)
+    => Storable (a,b,c,d)
   where
     type StoreRep (a,b,c,d)  = (StoreRep a, StoreRep b, StoreRep c, StoreRep d)
     type StoreSize (a,b,c,d) = (StoreSize a, StoreSize b, StoreSize c, StoreSize d)
@@ -198,10 +217,10 @@ instance (Storable a, Storable b, Storable c, Storable d) => Storable (a,b,c,d)
         copyStoreRep (Proxy :: Proxy b) lb1 lb2
         copyStoreRep (Proxy :: Proxy c) lc1 lc2
         copyStoreRep (Proxy :: Proxy d) ld1 ld2
--}
+
 --------------------------------------------------------------------------------
 -- ** User interface
-{-
+
 -- | Memory for storing values
 newtype Store a = Store { unStore :: StoreRep a }
   -- The reason for this type and its associated interface is to improve type
@@ -209,36 +228,36 @@ newtype Store a = Store { unStore :: StoreRep a }
   -- methods is that they involve type families.
 
 -- | Create a fresh 'Store'
-newStore :: forall a m . (Storable a, MonadComp m) => StoreSize a -> m (Store a)
+newStore :: forall a m . (Storable a, MonadComp (ExprOf a) m) => StoreSize a -> m (Store a)
 newStore = fmap Store . newStoreRep (Proxy :: Proxy a)
 
 -- | Store a value to a fresh 'Store'
-initStore :: (Storable a, MonadComp m) => a -> m (Store a)
+initStore :: (Storable a, MonadComp (ExprOf a) m) => a -> m (Store a)
 initStore = fmap Store . initStoreRep
 
 -- | Read from a 'Store'
-readStore :: (Storable a, MonadComp m) => Store a -> m a
+readStore :: (Storable a, MonadComp (ExprOf a) m) => Store a -> m a
 readStore = readStoreRep . unStore
 
 -- | Unsafe freezeing of a 'Store'. This operation is only safe if the 'Store'
 -- is not updated as long as the resulting value is alive.
-unsafeFreezeStore :: (Storable a, MonadComp m) => Store a -> m a
+unsafeFreezeStore :: (Storable a, MonadComp (ExprOf a) m) => Store a -> m a
 unsafeFreezeStore = unsafeFreezeStoreRep . unStore
 
 -- | Write to a 'Store'
-writeStore :: (Storable a, MonadComp m) => Store a -> a -> m ()
+writeStore :: (Storable a, MonadComp (ExprOf a) m) => Store a -> a -> m ()
 writeStore = writeStoreRep . unStore
 
 -- | Copy the contents of a 'Store' to another 'Store'. The size of the data in
 -- the source must not exceed the allocated size of the destination store.
-copyStore :: (Storable a, MonadComp m)
+copyStore :: (Storable a, MonadComp (ExprOf a) m)
     => Store a  -- ^ Destination
     -> Store a  -- ^ Source
     -> m ()
 copyStore dst src = copyStoreRep dst (unStore dst) (unStore src)
 
 -- | Update a 'Store' in-place
-inplace :: (Storable a, MonadComp m) => Store a -> (a -> a) -> m ()
+inplace :: (Storable a, MonadComp (ExprOf a) m) => Store a -> (a -> a) -> m ()
 inplace store f = writeStore store . f =<< unsafeFreezeStore store
--}
+
 --------------------------------------------------------------------------------
