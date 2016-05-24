@@ -130,12 +130,18 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- dynamic typing.)
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Struct PrimType' (Imp.Arr Index) a }
+data Arr a = Arr
+    { arrOffset :: Data Index
+    , unArr     :: Struct PrimType' (Imp.Arr Index) a
+    }
   -- An array of tuples is represented as a struct of smaller arrays. See
   -- comment to `Ref`.
 
 -- | Immutable array
-newtype IArr a = IArr { unIArr :: Struct PrimType' (Imp.IArr Index) a }
+data IArr a = IArr
+    { iarrOffset :: Data Index
+    , unIArr     :: Struct PrimType' (Imp.IArr Index) a
+    }
 
 
 
