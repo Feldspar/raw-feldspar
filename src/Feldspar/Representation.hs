@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PolyKinds #-}
 
 -- | Internal representation of Feldspar programs
 
@@ -243,9 +244,21 @@ type family DomainOf (exp :: * -> *) :: (* -> *)
 type instance DomainOf Data      = FeldDomain
 type instance DomainOf HData     = HFeldDomain
 
-type family ExprOf (dat :: * -> *) :: (* -> *)
-type instance ExprOf FeldDomain  = Data
-type instance ExprOf HFeldDomain = HData
+type family ExprOf (dat :: k) :: (* -> *)
+type instance ExprOf FeldDomain   = Data
+type instance ExprOf (Data a)     = Data
+
+type instance ExprOf HFeldDomain  = HData
+type instance ExprOf (HData a)    = HData
+
+type instance ExprOf (a, b)       = ExprOf a
+type instance ExprOf (a, b, c)    = ExprOf a
+type instance ExprOf (a, b, c, d) = ExprOf a
+
+type instance ExprOf [a]          = ExprOf a
+
+type instance ExprOf (Comp exp)   = exp
+type instance ExprOf (Comp exp a) = exp
 
 -- | Specialization of the 'Syntactic' class for the Feldspar domain
 class    ( Syntactic a

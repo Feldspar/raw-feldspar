@@ -20,16 +20,13 @@ import Feldspar.Frontend
 class Forcible a
   where
     -- | Representation of a forced value
-    type ValueRep a
-
-    -- | ...
-    type ValueExp a :: * -> *
+    type ValueRep a :: *
 
     -- | Force an expression to a value. The resulting value can be used
     -- multiple times without risking re-computation.
     --
     -- 'toValue' will allocate memory to hold the value.
-    toValue :: (MonadComp exp m, ValueExp a ~ exp) => a -> m (ValueRep a)
+    toValue :: (MonadComp exp m, ExprOf a ~ exp) => a -> m (ValueRep a)
 
     -- | Convert a forced value back to an expression
     fromValue :: ValueRep a -> a
@@ -51,23 +48,34 @@ class Forcible a
 instance Type a => Forcible (Data a)
   where
     type ValueRep (Data a) = Data a
-    type ValueExp (Data a) = Data
     toValue   = unsafeFreezeRef <=< initRef
     fromValue = sugar
-{-
-instance (Forcible a, Forcible b) => Forcible (a,b)
+
+instance (ExprOf a ~ ExprOf b, Forcible a, Forcible b) => Forcible (a,b)
   where
     type ValueRep (a,b) = (ValueRep a, ValueRep b)
     toValue (a,b)   = (,) <$> toValue a <*> toValue b
     fromValue (a,b) = (fromValue a, fromValue b)
 
-instance (Forcible a, Forcible b, Forcible c) => Forcible (a,b,c)
+instance ( ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c
+         , Forcible a
+         , Forcible b
+         , Forcible c)
+    => Forcible (a,b,c)
   where
     type ValueRep (a,b,c) = (ValueRep a, ValueRep b, ValueRep c)
     toValue (a,b,c)   = (,,) <$> toValue a <*> toValue b <*> toValue c
     fromValue (a,b,c) = (fromValue a, fromValue b, fromValue c)
 
-instance (Forcible a, Forcible b, Forcible c, Forcible d) => Forcible (a,b,c,d)
+instance ( ExprOf a ~ ExprOf b
+         , ExprOf a ~ ExprOf c
+         , ExprOf a ~ ExprOf d
+         , Forcible a
+         , Forcible b
+         , Forcible c
+         , Forcible d)
+    => Forcible (a,b,c,d)
   where
     type ValueRep (a,b,c,d) = (ValueRep a, ValueRep b, ValueRep c, ValueRep d)
     toValue (a,b,c,d)   = (,,,) <$> toValue a <*> toValue b <*> toValue c <*> toValue d
@@ -78,17 +86,24 @@ instance Forcible a => Forcible [a]
     type ValueRep [a] = [ValueRep a]
     toValue   = mapM toValue
     fromValue = map fromValue
--}{-
+
 -- | Cast between 'Forcible' types that have the same value representation
-forceCast :: (Forcible a, Forcible b, ValueRep a ~ ValueRep b, MonadComp m) =>
-    a -> m b
+forceCast
+  :: ( Forcible a
+     , Forcible b
+     , ValueRep a ~ ValueRep b
+     , ExprOf a   ~ ExprOf b
+     , MonadComp (ExprOf a) m)
+  => a -> m b
 forceCast = fmap fromValue . toValue
 
 -- | Force the computation of an expression. The resulting value can be used
 -- multiple times without risking re-computation.
-force :: (Forcible a, MonadComp m) => a -> m a
+force
+  :: (Forcible a, MonadComp (ExprOf a) m)
+  => a -> m a
 force = forceCast
--}
+
 --------------------------------------------------------------------------------
 -- * 'Storable' class
 --------------------------------------------------------------------------------
