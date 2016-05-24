@@ -89,20 +89,30 @@ infixl 1 ?
 --------------------------------------------------------------------------------
 -- ** Literals
 
-class Val (exp :: * -> *) where
-  value :: Type a => Internal (exp a) -> exp a
+class VAL (exp :: * -> *) where
+  value :: Syntax exp a => Internal a -> a
 
-instance Val Data where
+instance VAL Data where
   value = sugarSymFeld . Lit
 
-instance Val HData where
+instance VAL HData where
   value = sugarSymHFeld . Lit
 
-true :: (Val exp, Internal (exp Bool) ~ Bool) => exp Bool
+true :: (VAL exp, Syntax exp (exp Bool), Internal (exp Bool) ~ Bool) => exp Bool
 true = value True
 
-false :: (Val exp, Internal (exp Bool) ~ Bool) => exp Bool
+false :: (VAL exp, Syntax exp (exp Bool), Internal (exp Bool) ~ Bool) => exp Bool
 false = value False
+
+-- | Example value
+--
+-- 'example' can be used similarly to 'undefined' in normal Haskell, i.e. to
+-- create an expression whose value is irrelevant.
+--
+-- Note that it is generally not possible to use 'undefined' in Feldspar
+-- expressions, as this will crash the compiler.
+example :: (VAL exp, Syntax exp a, Type (Internal a)) => a
+example = value Inhabited.example
 
 --------------------------------------------------------------------------------
 -- ** Primitive functions
@@ -521,11 +531,11 @@ ifE c t f = do
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
 
-{-
 -- | Break out from a loop
-break :: MonadComp m => m ()
+break :: MonadComp exp m => m ()
 break = liftComp $ Comp Imp.break
 
+{-
 -- | Assertion
 assert :: MonadComp m
     => Data Bool  -- ^ Expression that should be true

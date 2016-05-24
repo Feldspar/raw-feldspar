@@ -8,6 +8,7 @@ import Feldspar
 
 
 
+{-
 freezeVec :: (MonadComp m, Syntax a) =>
     Data Length -> Arr (Internal a) -> m (Vector a)
 freezeVec len arr = do
@@ -122,13 +123,13 @@ type Matrix a = Vector (Vector (Data a))
 -- | Transpose of a matrix. Assumes that the number of rows is > 0.
 transpose :: Type a => Matrix a -> Matrix a
 transpose a = Indexed (length (a!0)) $ \k -> Indexed (length a) $ \l -> a ! l ! k
-
+-}
 
 
 --------------------------------------------------------------------------------
 -- * Manifest vectors
 --------------------------------------------------------------------------------
-
+{-
 data Manifest a = Manifest (Data Length) (IArr (Internal a))
 
 toPull :: Syntax a => Manifest a -> Vector a
@@ -140,13 +141,13 @@ fromPull (Indexed len ixf) = do
     for (0,1,Excl len) $ \i -> setArr i (ixf i) arr
     iarr <- unsafeFreezeArr arr
     return $ Manifest len iarr
-
+-}
 
 
 --------------------------------------------------------------------------------
 -- * Examples
 --------------------------------------------------------------------------------
-
+{-
 -- | The span of a vector (difference between greatest and smallest element)
 spanVec :: Vector (Data Float) -> Data Float
 spanVec vec = hi-lo
@@ -194,3 +195,4 @@ chunked c f vec = do
     setRef off (x+1)
   iarr <- unsafeFreezeArr arr
   return $ Manifest len iarr
+-}
