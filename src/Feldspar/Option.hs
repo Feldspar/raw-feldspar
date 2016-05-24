@@ -165,14 +165,13 @@ guardO msg c = Option $ singleton $ Guard msg c
 -- evaluated if the guard is false.
 guarded :: Monad m => String -> exp Bool -> a -> OptionT exp m a
 guarded msg c a = guardO msg c >> return a
-{-
+
 rebuildOption :: Monad m => Option exp a -> OptionT exp m a
 rebuildOption = interpretWithMonad go . unOption
   where
-    go :: Opt (Param2 (OptionT m) exp) a -> OptionT exp m a
+    go :: Opt (Param2 (OptionT exp m) exp) a -> OptionT exp m a
     go (None msg)    = none msg
     go (Guard msg c) = guardO msg c
--}
 
 -- | Deconstruct an 'Option' value (analogous to 'either' in normal Haskell)
 option :: (COND exp, Syntax exp b)
@@ -195,7 +194,7 @@ caseOption :: (COND exp, Syntax exp b)
 caseOption o n s = option n s o
 
 -- | Extract the value of an 'Option' that is assumed to be present
-fromSome :: (COND exp, VAL exp, Syntax exp a) => Option exp a -> a
+fromSome :: (COND exp, Syntax exp a) => Option exp a -> a
 fromSome = option (const example) id
 
 -- | Deconstruct an 'Option' value (analogous to 'maybe' in normal Haskell)

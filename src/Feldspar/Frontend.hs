@@ -89,20 +89,9 @@ infixl 1 ?
 --------------------------------------------------------------------------------
 -- ** Literals
 
-class VAL (exp :: * -> *) where
-  value :: Syntax exp a => Internal a -> a
-
-instance VAL Data where
-  value = sugarSymFeld . Lit
-
-instance VAL HData where
-  value = sugarSymHFeld . Lit
-
-true :: (VAL exp, Syntax exp (exp Bool), Internal (exp Bool) ~ Bool) => exp Bool
-true = value True
-
-false :: (VAL exp, Syntax exp (exp Bool), Internal (exp Bool) ~ Bool) => exp Bool
-false = value False
+value :: Syntax exp a => Internal a -> a
+value = undefined
+  -- sugarSymExp (Proxy :: Proxy (Domain a))
 
 -- | Example value
 --
@@ -111,7 +100,7 @@ false = value False
 --
 -- Note that it is generally not possible to use 'undefined' in Feldspar
 -- expressions, as this will crash the compiler.
-example :: (VAL exp, Syntax exp a, Type (Internal a)) => a
+example :: (Syntax exp a, Type (Internal a)) => a
 example = value Inhabited.example
 
 --------------------------------------------------------------------------------
@@ -208,19 +197,34 @@ quotRem a b = (q, r)
 --------------------------------------------------------------------------------
 
 class BOOL (exp :: * -> *) where
+  true  :: exp Bool
+  false :: exp Bool
   not :: exp Bool -> exp Bool
   and :: exp Bool -> exp Bool -> exp Bool
   or  :: exp Bool -> exp Bool -> exp Bool
 
 instance BOOL Data where
+  true  = value True
+  false = value False
   not = sugarSymFeld Not
   and = sugarSymFeld And
   or  = sugarSymFeld Or
 
 instance BOOL HData where
+  true  = value True
+  false = value False
   not = sugarSymHFeld Not
   and = sugarSymHFeld And
   or  = sugarSymHFeld Or
+
+infixr 3 &&
+infixr 2 ||
+
+(&&) :: BOOL exp => exp Bool -> exp Bool -> exp Bool
+(&&) = and
+
+(||) :: BOOL exp => exp Bool -> exp Bool -> exp Bool
+(||) = or
 
 --------------------------------------------------------------------------------
 

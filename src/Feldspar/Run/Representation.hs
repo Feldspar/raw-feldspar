@@ -34,17 +34,18 @@ newtype Run a = Run
     }
   deriving (Functor, Applicative, Monad)
 
-instance MonadComp Run
+instance MonadComp Data Run
   where
     liftComp        = Run . lift . unComp
     iff c t f       = Run $ Imp.iff c (unRun t) (unRun f)
-    for  range body = Run $ Imp.for range (unRun . body)
+    for range body  = Run $ undefined
+    --for  range body = Run $ Imp.for range (unRun . body)
     while cont body = Run $ Imp.while (unRun cont) (unRun body)
 
 class Monad m => MonadRun m
   where
     liftRun :: m a -> Run a
 
-instance MonadRun Comp where liftRun = liftComp
-instance MonadRun Run  where liftRun = id
+instance MonadRun (Comp Data) where liftRun = liftComp
+instance MonadRun Run         where liftRun = id
 

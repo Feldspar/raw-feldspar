@@ -142,9 +142,9 @@ data ForLoop sig
 data IOSym sig
   where
     -- Turn a program into a pure value
-    UnsafePerform :: Syntax exp a => Comp exp (exp a) -> IOSym (Full a)
+    UnsafePerform     :: Comp Data (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
-    UnsafePerformWith :: Comp exp () -> IOSym (a :-> Full a)
+    UnsafePerformWith :: Comp Data () -> IOSym (a :-> Full a)
 
 type FeldConstructs
     =   BindingT
@@ -190,19 +190,12 @@ instance Syntactic (Struct PrimType' Data a)
 
 --------------------------------------------------------------------------------
 
--- | ...
-data Test sig
-  where
-    Testing :: (Num a, PrimType' a) => Test (a :-> a :-> Full a)
-
 type HFeldConstructs
     =   BindingT
     :+: Let
     :+: Tuple
     :+: Primitive
     :+: ForLoop
-    :+: IOSym
-    :+: Test
 
 type HFeldDomain = HFeldConstructs :&: TypeRepFun
 
