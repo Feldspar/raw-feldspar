@@ -22,14 +22,16 @@ import Data.ALaCarte (Param0, Param1, Param2, Param3)
 import Control.Monad.Operational.Higher (Program, ProgramT, (:+:))
 import qualified Control.Monad.Operational.Higher as Oper
 
-import qualified Language.Embedded.Hardware as Hard
+import qualified Language.Embedded.Hardware       as Hard
+import Language.Embedded.Hardware.Command.Backend.VHDL
+
 import qualified Language.Embedded.Imperative     as Soft
 import qualified Language.Embedded.Imperative.CMD as Soft
 import qualified Language.Embedded.Expression     as Soft
 
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
-import Feldspar.Primitive.Backend.C ()
+import Feldspar.Primitive.Backend.VHDL ()
 import Feldspar.Representation
 import Feldspar.Hardware.Representation
 import Feldspar.Optimize
@@ -108,18 +110,18 @@ type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 Prim PrimType') m)
 -- | Monad for intermediate programs.
 type ProgI = Program TargetCMD (Param2 Prim PrimType')
 
-translateExp :: forall m a. Monad m => Data a -> TargetT m (VExp a)
-translateExp = goAST . optimize . unData
+translateExp :: forall m a. Monad m => HData a -> TargetT m (VExp a)
+translateExp = goAST {-. optimize-} . unHData
   where
-    goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
+    goAST :: ASTF HFeldDomain b -> TargetT m (VExp b)
     goAST = simpleMatch (\(s :&: ValT t) -> go t s)
 
-    goSmallAST :: PrimType' b => ASTF FeldDomain b -> TargetT m (Prim b)
+    goSmallAST :: PrimType' b => ASTF HFeldDomain b -> TargetT m (Prim b)
     goSmallAST = fmap extractSingle . goAST
 
     go :: TypeRep (DenResult sig)
-       -> FeldConstructs sig
-       -> Args (AST FeldDomain) sig
+       -> HFeldConstructs sig
+       -> Args (AST HFeldDomain) sig
        -> TargetT m (VExp (DenResult sig))
     go t lit Nil
       | Just (Lit a) <- prj lit
@@ -211,6 +213,7 @@ translateExp = goAST . optimize . unData
     go (Single _) free Nil
       | Just (FreeVar v) <- prj free
       = return $ Single $ sugarSymPrim $ FreeVar v
+{-
     go t unsafe Nil
       | Just (UnsafePerform prog) <- prj unsafe
       = translateExp =<< Oper.reexpressEnv unsafeTranslateSmallExp (Oper.liftProgram $ unComp prog)
@@ -219,9 +222,10 @@ translateExp = goAST . optimize . unData
       = do a' <- goAST a
            Oper.reexpressEnv unsafeTranslateSmallExp (Oper.liftProgram $ unComp prog)
            return a'
+-}
     go _ s _ = error $ renderSym s
 
-unsafeTranslateSmallExp :: Monad m => Data a -> TargetT m (Prim a)
+unsafeTranslateSmallExp :: Monad m => HData a -> TargetT m (Prim a)
 unsafeTranslateSmallExp a =
   do Single b <- translateExp a
      return b
@@ -300,10 +304,11 @@ translate = Oper.interpretWithMonad lowerInstr
 -- *
 --------------------------------------------------------------------------------
 
+-- | ...
 runIO :: MonadHardware m => m a -> IO a
 runIO = Hard.runIO . translate . liftHardware
 
--- | Interpret a program in the 'IO' monad
+-- | Interpret a program in the 'IO' monad.
 --
 -- See ../Run/runIO'.
 runIO' :: MonadHardware m => m a -> IO a
@@ -317,15 +322,13 @@ runIO'
 
 -- | Compile a program to VHDL code represented as a string.
 compile :: MonadHardware m => m a -> String
-compile = undefined
+compile = Hard.compile . translate . liftHardware
 
+-- | ...
 icompile :: MonadHardware m => m a -> IO ()
-icompile = undefined
+icompile = putStrLn . compile
 
 {-
-compile :: (MonadHardware m, Harden a) => m a -> String
-compile = Hard.compile . lowerTop . liftHardware
-
 icompile :: (MonadHardware m, Harden a) => m a -> IO ()
 icompile = Hard.wcompile . fmap (const ()) . lowerTop . liftHardware
 -}

@@ -26,31 +26,31 @@ type HardwareCMD =
   :+: SignalCMD
   :+: StructuralCMD
 
-
 -- | ...
 newtype Hardware a = Hardware
     { unHardware ::
         ProgramT
           HardwareCMD
-          (Param2 Data PrimType')
-          (Program CompCMD (Param2 Data PrimType'))
+          (Param2 HData PrimType')
+          (Program CompCMD (Param2 HData PrimType'))
           a
     }
   deriving (Functor, Applicative, Monad)
 
-instance MonadComp Hardware
+instance MonadComp HData Hardware
   where
     liftComp        = Hardware . lift . unComp
     iff c t f       = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    for  (_, _, Excl n) body = Hardware $ Hard.for n       (unHardware . body)
-    for  (_, _, Incl n) body = Hardware $ Hard.for (n - 1) (unHardware . body)
+    for range body  = Hardware $ undefined
+    --for  (_, _, Excl n) body = Hardware $ Hard.for n       (unHardware . body)
+    --for  (_, _, Incl n) body = Hardware $ Hard.for (n - 1) (unHardware . body)
     while cont body = undefined
 
 class Monad m => MonadHardware m
   where
     liftHardware :: m a -> Hardware a
 
-instance MonadHardware Comp     where liftHardware = liftComp
-instance MonadHardware Hardware where liftHardware = id
+instance MonadHardware (Comp HData) where liftHardware = liftComp
+instance MonadHardware Hardware     where liftHardware = id
 
 --------------------------------------------------------------------------------

@@ -27,27 +27,27 @@ newNamedSig :: PrimType a => String -> Hardware (Signal a)
 newNamedSig name = Hardware $ Hard.newNamedSignal name
 
 -- | Create an initialized signal.
-initSig :: PrimType a => Data a -> Hardware (Signal a)
+initSig :: PrimType a => HData a -> Hardware (Signal a)
 initSig = initNamedSig "s"
 
 -- | Create an initialized named signal.
-initNamedSig :: PrimType a => String -> Data a -> Hardware (Signal a)
+initNamedSig :: PrimType a => String -> HData a -> Hardware (Signal a)
 initNamedSig name e = Hardware $ Hard.initNamedSignal name e
 
 -- | Get the contents of a signal.
-getSig :: PrimType a => Signal a -> Hardware (Data a)
+getSig :: PrimType a => Signal a -> Hardware (HData a)
 getSig = Hardware . Hard.getSignal
 
 -- | Set the contents of a signal.
-setSig :: PrimType a => Signal a -> Data a -> Hardware ()
+setSig :: PrimType a => Signal a -> HData a -> Hardware ()
 setSig s = Hardware . Hard.setSignal s
 
 -- | Modify the contents of a signal.
-modifySig :: PrimType a => Signal a -> (Data a -> Data a) -> Hardware ()
+modifySig :: PrimType a => Signal a -> (HData a -> HData a) -> Hardware ()
 modifySig s f = setSig s . f =<< unsafeFreezeSig s
 
 -- | Freeze the contents of a signal.
-unsafeFreezeSig :: PrimType a => Signal a -> Hardware (Data a)
+unsafeFreezeSig :: PrimType a => Signal a -> Hardware (HData a)
 unsafeFreezeSig = Hardware . Hard.unsafeFreezeSignal
 
 --------------------------------------------------------------------------------
