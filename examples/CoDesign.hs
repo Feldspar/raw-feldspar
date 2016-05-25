@@ -1,64 +1,68 @@
 module CoDesign where
 
-{-
-
 import qualified Prelude
 
+import Feldspar
 import Feldspar.Run
-import Feldspar.Hardware (liftHardware)
+import Feldspar.Hardware
 import qualified Feldspar.Hardware.Compile as HW
-import qualified Feldspar.Run.Compile as SW
+import qualified Feldspar.Run.Compile      as SW
+
+-- ...
+import Data.TypedStruct
+import Language.Embedded.Imperative (FreeExp)
+import Feldspar.Representation (FreeDict, TypeRepFun)
+import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
+import Feldspar.Primitive.Representation (Primitive)
 
 --------------------------------------------------------------------------------
 -- * ...
 --------------------------------------------------------------------------------
 
-simple :: Comp ()
-simple = do
-  fls <- initRef false
-  tru <- initRef true
-  end <- initRef (0 :: Data Word32)
-  while ((<= 5) <$> getRef end) $ do
-    b <- getRef fls
-    iff b
-      (do setRef tru false
-          setRef fls true)
-      (do modifyRefD end (+1))
+-- | A simple generic program, as in, it can be ran on both the software and
+--   hardware backends of Feldspar.
+generic
+  :: forall sup exp m.
+     ( MonadComp exp m
+     , NUM exp
+       -- ...
+     , FreeExp exp
+     , FreeDict exp
+       -- ...
+     , Syntax exp (exp Int8)
+     , Int8 ~ Internal (exp Int8)
+       -- ...
+     , Domain (exp Int8) ~ (sup :&: TypeRepFun)
+     , Primitive :<: sup
+     )
+  => m ()
+generic =
+  do let zero = value 0 :: exp Int8
+         one  = value 1 :: exp Int8
+         
+     a <- initRef zero
+     b <- initRef one
 
+     u <- getRef a :: m (exp Int8)
+     v <- getRef b
+
+     setRef a (u `plus`  v)
+     setRef b (u `minus` v)
+     
+     return ()
+
+-- | Software interp. of 'generic'.
 software :: Run ()
-software = do
-  done <- initRef false
-  sum  <- initRef (0 :: Data Word32)
-  n    <- initRef (0 :: Data Word8)
-  while (not <$> getRef done) $ do
-    printf "Enter a number (0 means done): "
-    n <- fget stdin
-    iff (n == 0)
-      (setRef done true)
-      (modifyRef sum (+n))
-  x <- getRef sum
-  printf "The sum of your numbers is %d.\n" (x :: Data Word32)
+software = generic
 
-abort :: Run ()
-abort = do
-    addInclude "<stdlib.h>"
-    callProc "abort" []
+-- | Hardware interp. of 'generic'.
+hardware :: Hardware ()
+hardware = generic
 
 --------------------------------------------------------------------------------
 
-testSimple :: IO ()
-testSimple = do
-  SW.icompile simple
-  putStrLn ""
-  HW.icompile simple
-
-testSoftware :: IO ()
 testSoftware = SW.icompile software
 
-testAll = do
-    testSimple
-    testSoftware
+testHardware = HW.icompile hardware
 
 --------------------------------------------------------------------------------
-
--}
