@@ -41,10 +41,10 @@ instance MonadComp HData Hardware
   where
     liftComp        = Hardware . lift . unComp
     iff c t f       = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    for range body  = Hardware $ undefined
+    for range body  = Hardware $ error "hardware:for"
     --for  (_, _, Excl n) body = Hardware $ Hard.for n       (unHardware . body)
     --for  (_, _, Incl n) body = Hardware $ Hard.for (n - 1) (unHardware . body)
-    while cont body = undefined
+    while cont body = Hardware $ error "hardware:while"
 
 class Monad m => MonadHardware m
   where

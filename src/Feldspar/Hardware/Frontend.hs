@@ -1,4 +1,8 @@
-module Feldspar.Hardware.Frontend where
+module Feldspar.Hardware.Frontend
+  ( Hardware
+  , MonadHardware(..)
+  , module Feldspar.Hardware.Frontend
+  ) where
 
 import Language.Embedded.Hardware (Signal)
 import qualified Language.Embedded.Hardware as Hard

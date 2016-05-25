@@ -1,7 +1,3 @@
-module Feldspar.Hardware where
-
-{-
-
 module Feldspar.Hardware
   ( -- * Front end
     module Feldspar
@@ -19,5 +15,4 @@ import Feldspar.Hardware.Representation
 import Feldspar.Hardware.Compile
 import Feldspar.Hardware.Frontend
 
--}
 
