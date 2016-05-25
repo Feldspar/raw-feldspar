@@ -74,6 +74,7 @@ library
     imperative-edsl >= 0.5,
     hardware-edsl >= 0.1.1.1,
     language-c-quote,
+    language-vhdl,
     mtl,
     open-typerep >= 0.6,
     operational-alacarte >= 0.2.1,
