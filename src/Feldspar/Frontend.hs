@@ -89,9 +89,16 @@ infixl 1 ?
 --------------------------------------------------------------------------------
 -- ** Literals
 
-value :: Syntax exp a => Internal a -> a
-value = undefined
-  -- sugarSymExp (Proxy :: Proxy (Domain a))
+value
+  :: forall sup exp a.
+     ( Syntax exp a
+       -- new.
+     , Domain a ~ (sup :&: TypeRepFun)
+     , Primitive :<: sup
+       -- ...
+     )
+  => Internal a -> a
+value = sugarSymExp (Proxy::Proxy (Domain a)) . Lit
 
 -- | Example value
 --
@@ -100,7 +107,12 @@ value = undefined
 --
 -- Note that it is generally not possible to use 'undefined' in Feldspar
 -- expressions, as this will crash the compiler.
-example :: (Syntax exp a, Type (Internal a)) => a
+example
+  :: ( Syntax exp a
+     , Type (Internal a)
+     , Domain a ~ (sup :&: TypeRepFun)
+     , Primitive :<: sup)
+  => a
 example = value Inhabited.example
 
 --------------------------------------------------------------------------------
@@ -317,7 +329,7 @@ instance MonadComp exp (Comp exp)
   where
     liftComp        = id
     iff b tru fls   = Comp $ Imp.iff b (unComp tru) (unComp fls)
-    for range body  = Comp $ undefined --Imp.for (0, 1, Imp.Incl range) (unComp . body)
+    for range body  = Comp $ error "Comp:for" --Imp.for (0, 1, Imp.Incl range) (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
 
 --------------------------------------------------------------------------------

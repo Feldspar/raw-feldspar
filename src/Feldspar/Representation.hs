@@ -258,6 +258,7 @@ class    ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
+           
          , Syntactic (Struct PrimType' exp (Internal a))
          , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
          , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
@@ -268,6 +269,7 @@ instance ( Syntactic a
          , Domain a          ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
+           
          , Syntactic (Struct PrimType' exp (Internal a))
          , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
          , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
@@ -353,7 +355,7 @@ instance Imp.FreeExp HData
 
 instance Imp.EvalExp HData
   where
-    evalExp = undefined -- eval
+    evalExp = error "Imp.evalExp HData" -- eval
 
 --------------------------------------------------------------------------------
 
@@ -375,7 +377,7 @@ instance Hard.FreeExp HData
 
 instance Hard.EvaluateExp HData
   where
-    evalE = undefined --eval
+    evalE = error "Hard.evalE HData" --eval
 
 --------------------------------------------------------------------------------
 

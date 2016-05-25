@@ -26,6 +26,7 @@ import Language.Syntactic.Functional.Tuple
 
 import Feldspar hiding (desugar, sugar)
 import Feldspar.Representation
+import Feldspar.Primitive.Representation (Primitive)
 
 --------------------------------------------------------------------------------
 -- * ...
@@ -81,7 +82,11 @@ validWhen :: exp Bool -> a -> Validated exp a
 validWhen = Validated
 
 -- | Invalid value
-invalid :: BOOL exp => Syntax exp a => Validated exp a
+invalid
+  :: ( BOOL exp
+     , Domain a ~ (sup :&: TypeRepFun)
+     , Primitive :<: sup)
+  => Syntax exp a => Validated exp a
 invalid = Validated false example
 
 -- | Deconstruct an 'Validated' value

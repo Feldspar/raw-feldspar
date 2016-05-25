@@ -25,7 +25,7 @@ module Feldspar.Option
 
 import Prelude ()
 
-import Control.Monad.Operational.Higher
+import Control.Monad.Operational.Higher hiding ((:<:))
 import Control.Monad.Identity
 import Control.Monad.Trans
 
@@ -34,6 +34,7 @@ import Language.Embedded.Imperative (FreeExp)
 
 import Feldspar
 import Feldspar.Representation
+import Feldspar.Primitive.Representation (Primitive)
 
 --------------------------------------------------------------------------------
 -- *
@@ -194,7 +195,12 @@ caseOption :: (COND exp, Syntax exp b)
 caseOption o n s = option n s o
 
 -- | Extract the value of an 'Option' that is assumed to be present
-fromSome :: (COND exp, Syntax exp a) => Option exp a -> a
+fromSome
+  :: ( COND exp
+     , Syntax exp a
+     , Domain a ~ (sup :&: TypeRepFun)
+     , Primitive :<: sup)
+  => Option exp a -> a
 fromSome = option (const example) id
 
 -- | Deconstruct an 'Option' value (analogous to 'maybe' in normal Haskell)
