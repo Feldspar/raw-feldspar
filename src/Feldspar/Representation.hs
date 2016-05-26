@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE InstanceSigs #-}
 
 -- | Internal representation of Feldspar programs
 
@@ -13,7 +14,7 @@ import Data.List (genericTake)
 import Data.Typeable (Typeable)
 import Data.Word
 import Data.Proxy
-import Data.Constraint (Dict (..))
+import Data.Constraint (Dict (..), Constraint)
 
 import Language.Syntactic
 import Language.Syntactic.Functional
@@ -106,8 +107,81 @@ typeEqFun _ _ = Nothing
 
 --------------------------------------------------------------------------------
 
+-- | Representation of all supported types
+type HTypeRep = Struct HPrimType' HPrimTypeRep
+
+-- | Supported types
+class (Eq a, Show a, Ord a, Typeable a, Inhabited a) => HType a
+  where
+    -- | Reify a type
+    typeHRep :: HTypeRep a
+
+instance HType Bool    where typeHRep = Single BoolHT
+instance HType Int8    where typeHRep = Single Int8HT
+instance HType Int16   where typeHRep = Single Int16HT
+instance HType Int32   where typeHRep = Single Int32HT
+instance HType Int64   where typeHRep = Single Int64HT
+instance HType Word8   where typeHRep = Single Word8HT
+instance HType Word16  where typeHRep = Single Word16HT
+instance HType Word32  where typeHRep = Single Word32HT
+instance HType Word64  where typeHRep = Single Word64HT
+instance (HType a, HType b) => HType (a,b) where typeHRep = Two typeHRep typeHRep
+
+-- | Alias for the conjunction of 'PrimType'' and 'Type'
+class    (HPrimType' a, HType a) => HPrimType a
+instance (HPrimType' a, HType a) => HPrimType a
+
+-- | Convert any 'Struct' with a 'PrimType' constraint to a 'TypeRep'
+toHTypeRep :: Struct HPrimType' c a -> HTypeRep a
+toHTypeRep = mapStruct (const primHTypeRep)
+
+-- | Check whether two type representations are equal
+typeHEq :: HTypeRep a -> HTypeRep b -> Maybe (Dict (a ~ b))
+typeHEq (Single t)  (Single u) = primHTypeEq t u
+typeHEq (Two t1 t2) (Two u1 u2) = do
+    Dict <- typeHEq t1 u1
+    Dict <- typeHEq t2 u2
+    return Dict
+typeHEq _ _ = Nothing
+
+-- | Reflect a 'TypeRep' to a 'Typeable' constraint
+witHTypeable :: HTypeRep a -> Dict (Typeable a)
+witHTypeable (Single t)
+    | Dict <- witPrimHType t
+    = Dict
+witHTypeable (Two ta tb)
+    | Dict <- witHTypeable ta
+    , Dict <- witHTypeable tb
+    = Dict
+
+-- | Representation of supported value types + N-ary functions over such types
+data HTypeRepFun a
+  where
+    ValHT :: HTypeRep a -> HTypeRepFun a
+    FunHT :: HTypeRep a -> HTypeRepFun b -> HTypeRepFun (a -> b)
+  -- Another option would have been to make `FunT` a constructor in `TypeRep`.
+  -- That would have got rid of the extra layer at the expense of less accurate
+  -- types (functions would be allowed in pairs, etc.). The current design was
+  -- chosen in order to be able to reuse `Struct` instead of making `TypeRep` a
+  -- new data type.
+
+-- | Check whether two type representations are equal
+typeHEqFun :: HTypeRepFun a -> HTypeRepFun b -> Maybe (Dict (a ~ b))
+typeHEqFun (ValHT t)     (ValHT u)     = typeHEq t u
+typeHEqFun (FunHT ta tb) (FunHT ua ub) = do
+    Dict <- typeHEq ta ua
+    Dict <- typeHEqFun tb ub
+    return Dict
+typeHEqFun _ _ = Nothing
+
+--------------------------------------------------------------------------------
+
+type family   PredOf (exp :: * -> *) :: (* -> Constraint)
+type instance PredOf Data  = PrimType'
+type instance PredOf HData = HPrimType'
+
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
+newtype Ref exp a = Ref { unRef :: Struct (PredOf exp) Imp.Ref a }
   -- A reference to a tuple is a struct of smaller references. This means that
   -- creating a reference to a tuple will generate several calls to generate new
   -- references. This must be done already in the front end, which means that
@@ -121,12 +195,12 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- dynamic typing.)
 
 -- | Mutable array
-newtype Arr a = Arr { unArr :: Struct PrimType' (Imp.Arr Index) a }
+newtype Arr exp a = Arr { unArr :: Struct (PredOf exp) (Imp.Arr Index) a }
   -- An array of tuples is represented as a struct of smaller arrays. See
   -- comment to `Ref`.
 
 -- | Immutable array
-newtype IArr a = IArr { unIArr :: Struct PrimType' (Imp.IArr Index) a }
+newtype IArr exp a = IArr { unIArr :: Struct (PredOf exp) (Imp.IArr Index) a }
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
@@ -161,7 +235,7 @@ newtype Data a = Data { unData :: ASTF FeldDomain a }
 -- | Declaring 'Data' as syntactic sugar
 instance Syntactic (Data a)
   where
-    type Domain (Data a)   = FeldDomain
+    type Domain   (Data a) = FeldDomain
     type Internal (Data a) = a
     desugar = unData
     sugar   = Data
@@ -194,42 +268,42 @@ type HFeldConstructs
     =   BindingT
     :+: Let
     :+: Tuple
-    :+: Primitive
+    :+: HPrimitive
     :+: ForLoop
 
-type HFeldDomain = HFeldConstructs :&: TypeRepFun
+type HFeldDomain = HFeldConstructs :&: HTypeRepFun
 
 newtype HData a = HData { unHData :: ASTF HFeldDomain a }
 
 -- | Declaring 'HData' as syntactic sugar
 instance Syntactic (HData a)
   where
-    type Domain (HData a)   = HFeldDomain
+    type Domain   (HData a) = HFeldDomain
     type Internal (HData a) = a
     desugar = unHData
     sugar   = HData
 
-instance Syntactic (Struct PrimType' HData a)
+instance Syntactic (Struct HPrimType' HData a)
     -- Note that this instance places no constraints on `a`. This is crucial in
     -- the way it is used in the rest of the code. It would be possible to
     -- define `desugar` and `sugar` in terms of the instance for pairs; however,
     -- that would require constraining `a`.
   where
-    type Domain   (Struct PrimType' HData a) = HFeldDomain
-    type Internal (Struct PrimType' HData a) = a
+    type Domain   (Struct HPrimType' HData a) = HFeldDomain
+    type Internal (Struct HPrimType' HData a) = a
 
     desugar (Single a) = unHData a
-    desugar (Two a b)  = sugarSymDecor (ValT $ Two ta tb) Pair a' b'
+    desugar (Two a b)  = sugarSymDecor (ValHT $ Two ta tb) Pair a' b'
       where
         a' = desugar a
         b' = desugar b
-        ValT ta = getDecor a'
-        ValT tb = getDecor b'
+        ValHT ta = getDecor a'
+        ValHT tb = getDecor b'
 
     sugar a = case getDecor a of
-        ValT (Single _)  -> Single $ HData a
-        ValT (Two ta tb) ->
-            Two (sugarSymDecor (ValT ta) Fst a) (sugarSymDecor (ValT tb) Snd a)
+        ValHT (Single _)  -> Single $ HData a
+        ValHT (Two ta tb) ->
+            Two (sugarSymDecor (ValHT ta) Fst a) (sugarSymDecor (ValHT tb) Snd a)
 
 --------------------------------------------------------------------------------
 
@@ -239,70 +313,98 @@ type instance DomainOf HData     = HFeldDomain
 
 type family ExprOf (dat :: k) :: (* -> *)
 type instance ExprOf FeldDomain   = Data
-type instance ExprOf (Data a)     = Data
-
 type instance ExprOf HFeldDomain  = HData
+type instance ExprOf (Data  a)    = Data
 type instance ExprOf (HData a)    = HData
-
+type instance ExprOf (Comp exp)   = exp
+type instance ExprOf (Comp exp a) = exp
 type instance ExprOf (a, b)       = ExprOf a
 type instance ExprOf (a, b, c)    = ExprOf a
 type instance ExprOf (a, b, c, d) = ExprOf a
-
 type instance ExprOf [a]          = ExprOf a
-
-type instance ExprOf (Comp exp)   = exp
-type instance ExprOf (Comp exp a) = exp
 
 -- | Specialization of the 'Syntactic' class for the Feldspar domain
 class    ( Syntactic a
-         , Domain a          ~ DomainOf exp
+         , Domain a ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
+
+         , SugarSymExp exp
+         , SugarSymExpPrim exp
            
-         , Syntactic (Struct PrimType' exp (Internal a))
-         , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
-         , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
+         , Syntactic (Struct (PredOf exp) exp (Internal a))
+         , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
+         , Internal  (Struct (PredOf exp) exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
          
 instance ( Syntactic a
-         , Domain a          ~ DomainOf exp
+         , Domain a ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
          , Type (Internal a)
-           
-         , Syntactic (Struct PrimType' exp (Internal a))
-         , Domain    (Struct PrimType' exp (Internal a)) ~ Domain a
-         , Internal  (Struct PrimType' exp (Internal a)) ~ Internal a
+
+         , SugarSymExp exp
+         , SugarSymExpPrim exp
+                      
+         , Syntactic (Struct (PredOf exp) exp (Internal a))
+         , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
+         , Internal  (Struct (PredOf exp) exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
 
 --------------------------------------------------------------------------------
 
-sugarSymExp
-  :: ( Signature sig
-     , fi     ~ SmartFun domain sig
-     , sig    ~ SmartSig fi
-     , domain ~ SmartSym fi
-     , domain ~ (sup :&: TypeRepFun)
-     , sub :<: sup
-     , SyntacticN f fi
-     , Type (DenResult sig)
-     )
-  => proxy domain -> sub sig -> f
-sugarSymExp _ = sugarSymDecor $ ValT typeRep
+type family   PrimOf (exp :: * -> *) :: (* -> *)
+type instance PrimOf Data  = PrimDomain
+type instance PrimOf HData = HPrimDomain
 
-sugarSymExpPrim
-  :: ( Signature sig
-     , fi     ~ SmartFun domain sig
-     , sig    ~ SmartSig fi
-     , domain ~ SmartSym fi
-     , domain ~ (sup :&: TypeRepFun)
-     , sub :<: sup
-     , SyntacticN f fi
-     , PrimType' (DenResult sig)
-     )
-  => proxy domain -> sub sig -> f
-sugarSymExpPrim _ = sugarSymDecor $ ValT $ Single primTypeRep
+type family   TypeOf (exp :: * -> *) :: (* -> Constraint)
+type instance TypeOf Data  = Type
+type instance TypeOf HData = HType
+
+type family   TypeRepFunOf (exp :: * -> *) :: (* -> *)
+type instance TypeRepFunOf Data  = TypeRepFun
+type instance TypeRepFunOf HData = HTypeRepFun
+
+class SugarSymExp exp
+  where
+    sugarSymExp
+      :: ( Signature sig
+         , fi  ~ SmartFun (DomainOf exp) sig
+         , sig ~ SmartSig fi
+         , DomainOf exp ~ SmartSym fi
+         , DomainOf exp ~ (sup :&: (TypeRepFunOf exp))
+         , sub :<: sup
+         , SyntacticN f fi
+         , (TypeOf exp) (DenResult sig))
+      => proxy exp -> sub sig -> f
+
+instance SugarSymExp Data where
+  sugarSymExp _ = sugarSymDecor $ ValT typeRep
+
+instance SugarSymExp HData where
+  sugarSymExp _ = sugarSymDecor $ ValHT typeHRep
+
+--------------------------------------------------------------------------------
+
+class SugarSymExpPrim exp
+  where
+    sugarSymExpPrim
+      :: ( Signature sig
+         , fi  ~ SmartFun (DomainOf exp) sig
+         , sig ~ SmartSig fi
+         , DomainOf exp ~ SmartSym fi
+         , DomainOf exp ~ (sup :&: (TypeRepFunOf exp))
+         , sub :<: sup
+         , SyntacticN f fi
+         , (PredOf exp) (DenResult sig))
+      => proxy exp -> sub sig -> f
+
+instance SugarSymExpPrim Data where
+  sugarSymExpPrim _ = sugarSymDecor $ ValT $ Single primTypeRep
+
+instance SugarSymExpPrim HData where
+  sugarSymExpPrim _ = sugarSymDecor $ ValHT $ Single primHTypeRep
 
 -- | Evaluate a closed expression
 eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
@@ -311,37 +413,11 @@ eval = evalClosed . desugar
 
 --------------------------------------------------------------------------------
 
-sugarSymFeld
-  :: ( Signature sig
-     , fi         ~ SmartFun FeldDomain sig
-     , sig        ~ SmartSig fi
-     , FeldDomain ~ SmartSym fi
-     , sub :<: FeldConstructs
-     , SyntacticN f fi
-     , Type (DenResult sig)
-     )
-  => sub sig -> f
-sugarSymFeld = sugarSymExp (Proxy :: Proxy FeldDomain)
-
-sugarSymHFeld
-  :: ( Signature sig
-     , fi          ~ SmartFun HFeldDomain sig
-     , sig         ~ SmartSig fi
-     , HFeldDomain ~ SmartSym fi
-     , sub :<: HFeldConstructs
-     , SyntacticN f fi
-     , Type (DenResult sig)
-     )
-  => sub sig -> f
-sugarSymHFeld = sugarSymExp (Proxy :: Proxy HFeldDomain)
-
---------------------------------------------------------------------------------
-
 instance Imp.FreeExp Data
   where
     type FreePred Data = PrimType'
-    constExp = sugarSymExpPrim (Proxy::Proxy FeldDomain) . Lit
-    varExp   = sugarSymExpPrim (Proxy::Proxy FeldDomain) . FreeVar
+    constExp = sugarSymExpPrim (Proxy::Proxy Data) . Lit
+    varExp   = sugarSymExpPrim (Proxy::Proxy Data) . FreeVar
 
 instance Imp.EvalExp Data
   where
@@ -349,9 +425,9 @@ instance Imp.EvalExp Data
 
 instance Imp.FreeExp HData
   where
-    type FreePred HData = PrimType'
-    constExp = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . Lit
-    varExp   = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . FreeVar
+    type FreePred HData = HPrimType'
+    constExp = sugarSymExpPrim (Proxy::Proxy HData) . HLit
+    varExp   = sugarSymExpPrim (Proxy::Proxy HData) . HFreeVar
 
 instance Imp.EvalExp HData
   where
@@ -362,8 +438,8 @@ instance Imp.EvalExp HData
 instance Hard.FreeExp Data
   where
     type PredicateExp Data = PrimType'
-    litE = sugarSymExpPrim (Proxy::Proxy FeldDomain) . Lit
-    varE = sugarSymExpPrim (Proxy::Proxy FeldDomain) . FreeVar
+    litE = sugarSymExpPrim (Proxy::Proxy Data) . Lit
+    varE = sugarSymExpPrim (Proxy::Proxy Data) . FreeVar
 
 instance Hard.EvaluateExp Data
   where
@@ -371,9 +447,9 @@ instance Hard.EvaluateExp Data
 
 instance Hard.FreeExp HData
   where
-    type PredicateExp HData = PrimType'
-    litE = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . Lit
-    varE = sugarSymExpPrim (Proxy::Proxy HFeldDomain) . FreeVar
+    type PredicateExp HData = HPrimType'
+    litE = sugarSymExpPrim (Proxy::Proxy HData) . HLit
+    varE = sugarSymExpPrim (Proxy::Proxy HData) . HFreeVar
 
 instance Hard.EvaluateExp HData
   where
@@ -381,46 +457,55 @@ instance Hard.EvaluateExp HData
 
 --------------------------------------------------------------------------------
 
-withPrim :: forall proxy1 proxy2 exp a b. FreeDict exp
-  => proxy1 exp -> proxy2 a
-  -> (Imp.FreePred exp a => b)
-  -> (PrimType' a => b)
-withPrim p _ f = case freeDict p (primTypeRep :: PrimTypeRep a) of
-  Dict -> f
-
 class FreeDict exp
   where
-    freeDict :: proxy exp -> PrimTypeRep a -> Dict (Imp.FreePred exp a)
+    witPrim :: proxy1 exp -> proxy2 a
+            -> (Imp.FreePred exp a => b)
+            -> (PredOf exp a => b)
 
 instance FreeDict Data
   where
-    freeDict _ rep = case rep of
-      BoolT   -> Dict
-      Int8T   -> Dict
-      Int16T  -> Dict
-      Int32T  -> Dict
-      Int64T  -> Dict
-      Word8T  -> Dict
-      Word16T -> Dict
-      Word32T -> Dict
-      Word64T -> Dict
-      FloatT  -> Dict
-      DoubleT -> Dict
+    witPrim
+      :: forall proxy1 proxy2 a b. proxy1 Data -> proxy2 a
+      -> (Imp.FreePred Data a => b)
+      -> (PrimType' a => b)
+    witPrim p _ f = case freeDict p (primTypeRep :: PrimTypeRep a) of
+      Dict -> f
+      
+freeDict :: proxy1 Data -> PrimTypeRep a -> Dict (Imp.FreePred Data a)
+freeDict _ rep = case rep of
+  BoolT   -> Dict
+  Int8T   -> Dict
+  Int16T  -> Dict
+  Int32T  -> Dict
+  Int64T  -> Dict
+  Word8T  -> Dict
+  Word16T -> Dict
+  Word32T -> Dict
+  Word64T -> Dict
+  FloatT  -> Dict
+  DoubleT -> Dict
 
 instance FreeDict HData
   where
-    freeDict _ rep = case rep of
-      BoolT   -> Dict
-      Int8T   -> Dict
-      Int16T  -> Dict
-      Int32T  -> Dict
-      Int64T  -> Dict
-      Word8T  -> Dict
-      Word16T -> Dict
-      Word32T -> Dict
-      Word64T -> Dict
-      FloatT  -> Dict
-      DoubleT -> Dict    
+    witPrim
+      :: forall proxy1 proxy2 a b. proxy1 HData -> proxy2 a
+      -> (Imp.FreePred HData a => b)
+      -> (HPrimType' a => b)
+    witPrim p _ f = case freeHDict p (primHTypeRep :: HPrimTypeRep a) of
+      Dict -> f
+
+freeHDict :: proxy1 HData -> HPrimTypeRep a -> Dict (Imp.FreePred HData a)
+freeHDict _ rep = case rep of
+  BoolHT   -> Dict
+  Int8HT   -> Dict
+  Int16HT  -> Dict
+  Int32HT  -> Dict
+  Int64HT  -> Dict
+  Word8HT  -> Dict
+  Word16HT -> Dict
+  Word32HT -> Dict
+  Word64HT -> Dict
 
 --------------------------------------------------------------------------------
 -- * Monadic computations
@@ -432,7 +517,7 @@ type CompCMD = Imp.RefCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
 newtype Comp (exp :: * -> *) (a :: *) = Comp {
-    unComp :: Oper.Program CompCMD (Oper.Param2 exp PrimType') a
+    unComp :: Oper.Program CompCMD (Oper.Param2 exp (PredOf exp)) a
   }
   deriving (Functor, Applicative, Monad)
 

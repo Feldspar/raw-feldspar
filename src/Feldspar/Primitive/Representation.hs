@@ -99,6 +99,75 @@ witPrimType FloatT  = Dict
 witPrimType DoubleT = Dict
 
 --------------------------------------------------------------------------------
+
+-- | Representation of primitive supported types.
+data HPrimTypeRep a
+  where
+    BoolHT   :: HPrimTypeRep Bool
+    Int8HT   :: HPrimTypeRep Int8
+    Int16HT  :: HPrimTypeRep Int16
+    Int32HT  :: HPrimTypeRep Int32
+    Int64HT  :: HPrimTypeRep Int64
+    Word8HT  :: HPrimTypeRep Word8
+    Word16HT :: HPrimTypeRep Word16
+    Word32HT :: HPrimTypeRep Word32
+    Word64HT :: HPrimTypeRep Word64
+    FloatHT  :: HPrimTypeRep Float
+    DoubleHT :: HPrimTypeRep Double
+
+-- | Primitive supported types.
+class (Eq a, Ord a, Show a, Typeable a) => HPrimType' a
+  where
+    -- | Reify a primitive type
+    primHTypeRep :: HPrimTypeRep a
+
+instance HPrimType' Bool   where primHTypeRep = BoolHT
+instance HPrimType' Int8   where primHTypeRep = Int8HT
+instance HPrimType' Int16  where primHTypeRep = Int16HT
+instance HPrimType' Int32  where primHTypeRep = Int32HT
+instance HPrimType' Int64  where primHTypeRep = Int64HT
+instance HPrimType' Word8  where primHTypeRep = Word8HT
+instance HPrimType' Word16 where primHTypeRep = Word16HT
+instance HPrimType' Word32 where primHTypeRep = Word32HT
+instance HPrimType' Word64 where primHTypeRep = Word64HT
+instance HPrimType' Float  where primHTypeRep = FloatHT
+instance HPrimType' Double where primHTypeRep = DoubleHT
+
+-- | Convenience function; like 'primHTypeRep' but with an extra argument to
+-- constrain the type parameter. The extra argument is ignored.
+primHTypeOf :: HPrimType' a => a -> HPrimTypeRep a
+primHTypeOf _ = primHTypeRep
+
+-- | Check whether two type representations are equal
+primHTypeEq :: HPrimTypeRep a -> HPrimTypeRep b -> Maybe (Dict (a ~ b))
+primHTypeEq BoolHT   BoolHT   = Just Dict
+primHTypeEq Int8HT   Int8HT   = Just Dict
+primHTypeEq Int16HT  Int16HT  = Just Dict
+primHTypeEq Int32HT  Int32HT  = Just Dict
+primHTypeEq Int64HT  Int64HT  = Just Dict
+primHTypeEq Word8HT  Word8HT  = Just Dict
+primHTypeEq Word16HT Word16HT = Just Dict
+primHTypeEq Word32HT Word32HT = Just Dict
+primHTypeEq Word64HT Word64HT = Just Dict
+primHTypeEq FloatHT  FloatHT  = Just Dict
+primHTypeEq DoubleHT DoubleHT = Just Dict
+primHTypeEq _        _        = Nothing
+
+-- | Reflect a 'HPrimHTypeRep' to a 'HPrimHType'' constraint
+witPrimHType :: HPrimTypeRep a -> Dict (HPrimType' a)
+witPrimHType BoolHT   = Dict
+witPrimHType Int8HT   = Dict
+witPrimHType Int16HT  = Dict
+witPrimHType Int32HT  = Dict
+witPrimHType Int64HT  = Dict
+witPrimHType Word8HT  = Dict
+witPrimHType Word16HT = Dict
+witPrimHType Word32HT = Dict
+witPrimHType Word64HT = Dict
+witPrimHType FloatHT  = Dict
+witPrimHType DoubleHT = Dict
+
+--------------------------------------------------------------------------------
 -- * Expressions
 --------------------------------------------------------------------------------
 
@@ -200,6 +269,96 @@ instance Hard.EvaluateExp Prim
     evalE = evalPrim
 
 --------------------------------------------------------------------------------
+-- ** ...
+
+-- | Primitive operations
+data HPrimitive sig
+  where
+    HFreeVar :: String -> HPrimitive (Full a)
+    HLit     :: (Eq a, Ord a, Show a) => a -> HPrimitive (Full a)
+
+    HNot :: HPrimitive (Bool :-> Full Bool)
+    HAnd :: HPrimitive (Bool :-> Bool :-> Full Bool)
+    HOr  :: HPrimitive (Bool :-> Bool :-> Full Bool)
+    
+    HEq  :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)
+    HNEq :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)
+    HLt  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HGt  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HLe  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HGe  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
+
+    HAdd :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HSub :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HMul :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HNeg :: (Num a, HPrimType' a) => HPrimitive (a :-> Full a)
+
+    HRem  :: (Integral a, HPrimType' a)   => HPrimitive (a :-> a :-> Full a)
+    HDiv  :: (Fractional a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HPow  :: (Floating a, HPrimType' a)   => HPrimitive (a :-> a :-> Full a) 
+
+    HI2N   :: (Integral a, Num b, HPrimType' a, HPrimType' b)      => HPrimitive (a :-> Full b)
+    HI2B   :: (Integral a, HPrimType' a)                          => HPrimitive (a :-> Full Bool)
+    HB2I   :: (Integral a, HPrimType' a)                          => HPrimitive (Bool :-> Full a)
+
+    HArrIx :: IArr Index a -> HPrimitive (Index :-> Full a)
+
+--------------------------------------------------------------------------------
+
+type HPrimDomain = HPrimitive :&: HPrimTypeRep
+
+newtype HPrim a = HPrim { unHPrim :: ASTF HPrimDomain a }
+
+instance Syntactic (HPrim a)
+  where
+    type Domain (HPrim a) = HPrimDomain
+    type Internal (HPrim a) = a
+    desugar = unHPrim
+    sugar = HPrim
+
+evalHPrim :: HPrim a -> a
+evalHPrim = go . unHPrim
+  where
+    go :: AST HPrimDomain sig -> Denotation sig
+    go (Sym (s :&: _)) = evalSym s
+    go (f :$ a) = go f $ go a
+
+sugarSymHPrim
+    :: ( Signature sig
+       , fi  ~ SmartFun dom sig
+       , sig ~ SmartSig fi
+       , dom ~ SmartSym fi
+       , dom ~ HPrimDomain
+       , SyntacticN f fi
+       , sub :<: HPrimitive
+       , HPrimType' (DenResult sig)
+       )
+    => sub sig -> f
+sugarSymHPrim = sugarSymDecor primHTypeRep
+
+--------------------------------------------------------------------------------
+
+instance Imp.FreeExp HPrim
+  where
+    type FreePred HPrim = HPrimType'
+    constExp = sugarSymHPrim . HLit
+    varExp   = sugarSymHPrim . HFreeVar
+
+instance Hard.FreeExp HPrim
+  where
+    type PredicateExp HPrim = HPrimType'
+    litE = sugarSymHPrim . HLit
+    varE = sugarSymHPrim . HFreeVar
+
+instance Imp.EvalExp HPrim
+  where
+    evalExp = evalHPrim
+
+instance Hard.EvaluateExp HPrim
+  where
+    evalE = evalHPrim
+
+--------------------------------------------------------------------------------
 -- * Interface.
 --------------------------------------------------------------------------------
 
@@ -210,11 +369,22 @@ instance (Num a, PrimType' a) => Num (Prim a)
     (-)         = sugarSymPrim Sub
     (*)         = sugarSymPrim Mul
     negate      = sugarSymPrim Neg
+    abs         = error "abs not implemented for Prim"
+    signum      = error "signum not implemented for Prim"
+
+instance (Num a, HPrimType' a) => Num (HPrim a)
+  where
+    fromInteger = Imp.constExp . fromInteger
+    (+)         = sugarSymHPrim HAdd
+    (-)         = sugarSymHPrim HSub
+    (*)         = sugarSymHPrim HMul
+    negate      = sugarSymHPrim HNeg
+    abs         = error "abs not implemented for HPrim"
+    signum      = error "signum not implemented for HPrim"
 
 --------------------------------------------------------------------------------
 -- Instances.
 --------------------------------------------------------------------------------
-
 
 deriveSymbol ''Primitive
 
@@ -329,6 +499,105 @@ instance Equality Primitive
     equal Cond        Cond        = True
     equal (ArrIx (IArrComp arr1)) (ArrIx (IArrComp arr2)) = arr1==arr2
     equal (ArrIx _) (ArrIx _) = False
+    equal _ _ = False
+
+--------------------------------------------------------------------------------
+
+deriveSymbol ''HPrimitive
+
+instance Render HPrimitive
+  where
+    renderSym (HFreeVar v) = v
+    renderSym (HLit a)     = show a
+    renderSym HAdd         = "(+)"
+    renderSym HSub         = "(-)"
+    renderSym HMul         = "(*)"
+    renderSym HNeg         = "Neg"
+    renderSym HRem         = "Rem"
+    renderSym HDiv         = "Div"
+    renderSym HPow         = "Pow"
+    renderSym HI2N         = "I2N"
+    renderSym HI2B         = "I2B"
+    renderSym HB2I         = "B2I"
+    renderSym HNot         = "Not"
+    renderSym HAnd         = "And"
+    renderSym HOr          = "Or"
+    renderSym HEq          = "(==)"
+    renderSym HNEq         = "(/=)"
+    renderSym HLt          = "(<)"
+    renderSym HGt          = "(>)"
+    renderSym HLe          = "(<=)"
+    renderSym HGe          = "(>=)"
+    renderSym (HArrIx (IArrComp arr)) = "ArrIx " ++ arr
+    renderSym (HArrIx _)              = "ArrIx ..."
+
+    renderArgs = renderArgsSmart
+
+instance StringTree HPrimitive
+
+instance Eval HPrimitive
+  where
+    evalSym (HFreeVar v) = error $ "evaluating free variable " ++ show v
+    evalSym (HLit a)     = a
+    evalSym HAdd         = (+)
+    evalSym HSub         = (-)
+    evalSym HMul         = (*)
+    evalSym HNeg         = negate
+    evalSym HRem         = rem
+    evalSym HDiv         = (/)
+    evalSym HPow         = (**)
+    evalSym HI2N         = fromInteger . toInteger
+    evalSym HI2B         = (/=0)
+    evalSym HB2I         = \a -> if a then 1 else 0
+    evalSym HNot         = not
+    evalSym HAnd         = (&&)
+    evalSym HOr          = (||)
+    evalSym HEq          = (==)
+    evalSym HNEq         = (/=)
+    evalSym HLt          = (<)
+    evalSym HGt          = (>)
+    evalSym HLe          = (<=)
+    evalSym HGe          = (>=)
+    evalSym (HArrIx (IArrRun arr)) = \i ->
+        if i<l || i>h
+          then error $ "ArrIx: index "
+                    ++ show (toInteger i)
+                    ++ " out of bounds "
+                    ++ show (toInteger l, toInteger h)
+          else arr!i
+      where
+        (l,h) = bounds arr
+    evalSym (HArrIx (IArrComp arr)) = error $ "evaluating symbolic array " ++ arr
+
+-- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
+instance EvalEnv HPrimitive env
+
+-- | Returns false for arrays that don't have a symbolic representation
+instance Equality HPrimitive
+  where
+    equal (HFreeVar v) (HFreeVar w) = v==w
+    equal (HLit a)     (HLit b)     = show a == show b
+    equal HAdd         HAdd         = True
+    equal HSub         HSub         = True
+    equal HMul         HMul         = True
+    equal HNeg         HNeg         = True
+    equal HRem         HRem         = True
+    equal HDiv         HDiv         = True
+    equal HPow         HPow         = True
+    equal HI2N         HI2N         = True
+    equal HI2B         HI2B         = True
+    equal HB2I         HB2I         = True
+    equal HNot         HNot         = True
+    equal HAnd         HAnd         = True
+    equal HOr          HOr          = True
+    equal HEq          HEq          = True
+    equal HNEq         HNEq         = True
+    equal HLt          HLt          = True
+    equal HGt          HGt          = True
+    equal HLe          HLe          = True
+    equal HGe          HGe          = True
+    equal (HArrIx (IArrComp arr1)) (HArrIx (IArrComp arr2)) = arr1==arr2
+    equal (HArrIx _) (HArrIx _) = False
     equal _ _ = False
 
 --------------------------------------------------------------------------------
