@@ -17,16 +17,33 @@ import Language.Syntactic.Functional.Tuple.TH
 
 import Feldspar.Representation
 
+import Data.Proxy
+
 --------------------------------------------------------------------------------
 -- * ...
 --------------------------------------------------------------------------------
+
+class TypeRepOf exp
+  where
+    typeRepVal :: TypeOf exp a => proxy exp -> TypeRepFunOf exp a
+    typeRepFun :: TypeOf exp a => proxy exp -> TypeRepFunOf exp b -> TypeRepFunOf exp (a -> b)
+
+instance TypeRepOf Data where
+  typeRepVal _ = ValT typeRep
+  typeRepFun _ = FunT typeRep
+
+instance TypeRepOf HData where
+  typeRepVal _ = ValHT typeHRep
+  typeRepFun _ = FunHT typeHRep
 
 instance
     ( Syntax exp a
     , Syntactic b
     , Domain b ~ DomainOf exp
-    , Domain a ~ (sup :&: TypeRepFun)
+    , Domain a ~ (sup :&: TypeRepFunOf exp)
     , BindingT :<: sup
+    , TypeRepOf exp
+    , TypeOf exp (Internal a)
     )
     => Syntactic (a -> b)
   where
@@ -34,25 +51,27 @@ instance
     type Internal (a -> b) = Internal a -> Internal b
     desugar f = lamT_template varSym lamSym (desugar . f . sugar)
       where
-        varSym v   = inj (VarT v) :&: ValT typeRep
-        lamSym v b = Sym (inj (LamT v) :&: FunT typeRep (getDecor b)) :$ b
+        varSym v   = inj (VarT v) :&: typeRepVal (Proxy::Proxy exp)
+        lamSym v b = Sym (inj (LamT v) :&: typeRepFun (Proxy::Proxy exp) (getDecor b)) :$ b        
     sugar = error "sugar not implemented for (a -> b)"
 
 instance
     ( Syntax exp a
     , Syntax exp b
     , Domain b ~ DomainOf exp
-    , Domain a ~ (sup :&: TypeRepFun)
+    , Domain a ~ (sup :&: TypeRepFunOf exp)
     , Tuple :<: sup
-    )
+      -- *** hmm ...
+    , TypeOf exp (Internal a)
+    , TypeOf exp (Internal b)
+    , TypeOf exp (Internal a, Internal b))
     => Syntactic (a, b)
   where
     type Domain   (a, b) = Domain a
     type Internal (a, b) = (Internal a, Internal b)
-    desugar (a, b) = sugarSymExp (Proxy::Proxy (DomainOf exp)) Pair (desugar a) (desugar b)
-    sugar   ab     = ( sugarSymExp (Proxy::Proxy (DomainOf exp)) Fst ab
-                     , sugarSymExp (Proxy::Proxy (DomainOf exp)) Snd ab
-                     )
+    desugar (a, b) = sugarSymExp (Proxy::Proxy exp) Pair (desugar a) (desugar b)
+    sugar   pair   = ( sugarSymExp (Proxy::Proxy exp) Fst pair
+                     , sugarSymExp (Proxy::Proxy exp) Snd pair)
 
 {-
 instance (Syntax a, Syntactic b, Domain b ~ FeldDomain) => Syntactic (a -> b)

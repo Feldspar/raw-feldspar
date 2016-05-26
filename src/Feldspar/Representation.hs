@@ -373,10 +373,10 @@ class SugarSymExp exp
          , fi  ~ SmartFun (DomainOf exp) sig
          , sig ~ SmartSig fi
          , DomainOf exp ~ SmartSym fi
-         , DomainOf exp ~ (sup :&: (TypeRepFunOf exp))
+         , DomainOf exp ~ (sup :&: TypeRepFunOf exp)
          , sub :<: sup
          , SyntacticN f fi
-         , (TypeOf exp) (DenResult sig))
+         , TypeOf exp (DenResult sig))
       => proxy exp -> sub sig -> f
 
 instance SugarSymExp Data where
