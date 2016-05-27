@@ -27,10 +27,13 @@ import qualified Language.Embedded.Expression as Imp
 import qualified Language.Embedded.Imperative.CMD as Imp
 
 import qualified Language.Embedded.Hardware.Interface as Hard
+import qualified Language.Embedded.Hardware.Expression.Represent.Bit as Hard
 
 import Data.Inhabited
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
+
+import GHC.TypeLits
 
 --------------------------------------------------------------------------------
 -- * Object-language types
@@ -125,6 +128,7 @@ instance HType Word8   where typeHRep = Single Word8HT
 instance HType Word16  where typeHRep = Single Word16HT
 instance HType Word32  where typeHRep = Single Word32HT
 instance HType Word64  where typeHRep = Single Word64HT
+instance (Typeable n, KnownNat n) => HType (Hard.Bits n) where typeHRep = Single BitsHT
 instance (HType a, HType b) => HType (a,b) where typeHRep = Two typeHRep typeHRep
 
 -- | Alias for the conjunction of 'PrimType'' and 'Type'

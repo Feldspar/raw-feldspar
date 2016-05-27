@@ -24,6 +24,8 @@ import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
 
+import GHC.TypeLits
+
 --------------------------------------------------------------------------------
 -- * Types
 --------------------------------------------------------------------------------
@@ -112,8 +114,7 @@ data HPrimTypeRep a
     Word16HT :: HPrimTypeRep Word16
     Word32HT :: HPrimTypeRep Word32
     Word64HT :: HPrimTypeRep Word64
-    FloatHT  :: HPrimTypeRep Float
-    DoubleHT :: HPrimTypeRep Double
+    BitsHT   :: (Typeable n, KnownNat n) => HPrimTypeRep (Hard.Bits n)
 
 -- | Primitive supported types.
 class (Eq a, Ord a, Show a, Typeable a) => HPrimType' a
@@ -130,8 +131,8 @@ instance HPrimType' Word8  where primHTypeRep = Word8HT
 instance HPrimType' Word16 where primHTypeRep = Word16HT
 instance HPrimType' Word32 where primHTypeRep = Word32HT
 instance HPrimType' Word64 where primHTypeRep = Word64HT
-instance HPrimType' Float  where primHTypeRep = FloatHT
-instance HPrimType' Double where primHTypeRep = DoubleHT
+instance (Typeable n, KnownNat n) => HPrimType' (Hard.Bits n)
+  where primHTypeRep = BitsHT
 
 -- | Convenience function; like 'primHTypeRep' but with an extra argument to
 -- constrain the type parameter. The extra argument is ignored.
@@ -149,8 +150,7 @@ primHTypeEq Word8HT  Word8HT  = Just Dict
 primHTypeEq Word16HT Word16HT = Just Dict
 primHTypeEq Word32HT Word32HT = Just Dict
 primHTypeEq Word64HT Word64HT = Just Dict
-primHTypeEq FloatHT  FloatHT  = Just Dict
-primHTypeEq DoubleHT DoubleHT = Just Dict
+primHTypeEq BitsHT   BitsHT   = Nothing -- *** <---
 primHTypeEq _        _        = Nothing
 
 -- | Reflect a 'HPrimHTypeRep' to a 'HPrimHType'' constraint
@@ -164,8 +164,7 @@ witPrimHType Word8HT  = Dict
 witPrimHType Word16HT = Dict
 witPrimHType Word32HT = Dict
 witPrimHType Word64HT = Dict
-witPrimHType FloatHT  = Dict
-witPrimHType DoubleHT = Dict
+witPrimHType BitsHT   = Dict
 
 --------------------------------------------------------------------------------
 -- * Expressions

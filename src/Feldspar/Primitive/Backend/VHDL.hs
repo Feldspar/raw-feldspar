@@ -25,11 +25,27 @@ import Feldspar.Primitive.Representation
 instance CompileType HPrimType'
   where
     compileType _ (_ :: proxy a) = case primHTypeRep :: HPrimTypeRep a of
-      BoolHT -> compT (Proxy::Proxy a)
-      Int8HT -> compT (Proxy::Proxy a)
+      BoolHT   -> compT (Proxy::Proxy a)
+      Int8HT   -> compT (Proxy::Proxy a)
+      Int16HT  -> compT (Proxy::Proxy a)
+      Int32HT  -> compT (Proxy::Proxy a)
+      Int64HT  -> compT (Proxy::Proxy a)
+      Word8HT  -> compT (Proxy::Proxy a)
+      Word16HT -> compT (Proxy::Proxy a)
+      Word32HT -> compT (Proxy::Proxy a)
+      Word64HT -> compT (Proxy::Proxy a)
+      BitsHT   -> compT (Proxy::Proxy a)
     compileLit  _ a = case primHTypeOf a of
-      BoolHT -> literal a
-      Int8HT -> literal a
+      BoolHT   -> literal a
+      Int8HT   -> literal a
+      Int16HT  -> literal a
+      Int32HT  -> literal a
+      Int64HT  -> literal a
+      Word8HT  -> literal a
+      Word16HT -> literal a
+      Word32HT -> literal a
+      Word64HT -> literal a
+      BitsHT   -> literal a
 
 --------------------------------------------------------------------------------
 
