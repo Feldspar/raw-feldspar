@@ -22,86 +22,80 @@ import Feldspar.Primitive.Representation
 -- * ...
 --------------------------------------------------------------------------------
 
-instance CompileType PrimType'
+instance CompileType HPrimType'
   where
-    compileType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
-      BoolT -> compT (Proxy::Proxy a)
-      Int8T -> compT (Proxy::Proxy a)
-    compileLit  _ a = case primTypeOf a of
-      BoolT -> literal a
-      Int8T -> literal a
+    compileType _ (_ :: proxy a) = case primHTypeRep :: HPrimTypeRep a of
+      BoolHT -> compT (Proxy::Proxy a)
+      Int8HT -> compT (Proxy::Proxy a)
+    compileLit  _ a = case primHTypeOf a of
+      BoolHT -> literal a
+      Int8HT -> literal a
 
 --------------------------------------------------------------------------------
 
-instance CompileExp Prim
+instance CompileExp HPrim
   where
     compE = compP
 
-compP      :: Prim a -> VHDL V.Expression
+compP      :: HPrim a -> VHDL V.Expression
 compP e    = Hoist.lift <$> compSimple e
 
-compLoop   :: ASTF PrimDomain a -> VHDL Kind
-compLoop   = compSimple . Prim
+compLoop   :: ASTF HPrimDomain a -> VHDL Kind
+compLoop   = compSimple . HPrim
 
-compSimple :: Prim a -> VHDL Kind
-compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unPrim
+compSimple :: HPrim a -> VHDL Kind
+compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
   where
     compDomain :: forall m sig.
-         PrimTypeRep (DenResult sig)
-      -> Primitive sig
-      -> Args (AST PrimDomain) sig
+         HPrimTypeRep (DenResult sig)
+      -> HPrimitive sig
+      -> Args (AST HPrimDomain) sig
       -> VHDL Kind
-    compDomain _ And (a :* b :* Nil) = compExp V.and a b
-    compDomain _ Or  (a :* b :* Nil) = compExp V.or  a b
+    compDomain _ HAnd (a :* b :* Nil) = compExp V.and a b
+    compDomain _ HOr  (a :* b :* Nil) = compExp V.or  a b
     
-    compDomain _ Eq  (a :* b :* Nil) = compRel V.eq  a b
-    compDomain _ NEq (a :* b :* Nil) = compRel V.neq a b
-    compDomain _ Lt  (a :* b :* Nil) = compRel V.lt  a b
-    compDomain _ Gt  (a :* b :* Nil) = compRel V.gt  a b
-    compDomain _ Le  (a :* b :* Nil) = compRel V.lte a b
-    compDomain _ Ge  (a :* b :* Nil) = compRel V.gte a b
+    compDomain _ HEq  (a :* b :* Nil) = compRel V.eq  a b
+    compDomain _ HNEq (a :* b :* Nil) = compRel V.neq a b
+    compDomain _ HLt  (a :* b :* Nil) = compRel V.lt  a b
+    compDomain _ HGt  (a :* b :* Nil) = compRel V.gt  a b
+    compDomain _ HLe  (a :* b :* Nil) = compRel V.lte a b
+    compDomain _ HGe  (a :* b :* Nil) = compRel V.gte a b
     
-    compDomain _ Add (a :* b :* Nil) = compSim V.add a b
-    compDomain _ Sub (a :* b :* Nil) = compSim V.sub a b
-    compDomain _ Neg (a :* Nil)      = do
+    compDomain _ HAdd (a :* b :* Nil) = compSim V.add a b
+    compDomain _ HSub (a :* b :* Nil) = compSim V.sub a b
+    compDomain _ HNeg (a :* Nil)      = do
       x <- Hoist.lift <$> compLoop a
       return $ Hoist.Si $ V.neg x
 
-    compDomain _ Mul  (a :* b :* Nil) = compTrm V.mul a b
-    compDomain _ FDiv (a :* b :* Nil) = compTrm V.div a b
-    compDomain _ Rem  (a :* b :* Nil) = compTrm V.rem a b
-    compDomain _ Quot (a :* b :* Nil) = error "vhdl support missing for primitive: quot"
+    compDomain _ HMul (a :* b :* Nil) = compTrm V.mul a b
+    compDomain _ HDiv (a :* b :* Nil) = compTrm V.div a b
+    compDomain _ HRem (a :* b :* Nil) = compTrm V.rem a b
 
-    compDomain _ Pow  (a :* b :* Nil) = do
+    compDomain _ HPow  (a :* b :* Nil) = do
       x <- Hoist.lift <$> compLoop a
       y <- Hoist.lift <$> compLoop b
       return $ Hoist.F $ V.exp x y
-    compDomain _ Not  (a :* Nil) = do
+    compDomain _ HNot  (a :* Nil) = do
       x <- Hoist.lift <$> compLoop a
       return $ Hoist.F $ V.not x
 
-    compDomain _ Sin   (a :* Nil) = error "vhdl support missing for primitive: sin"
-    compDomain _ Cos   (a :* Nil) = error "vhdl support missing for primitive: cos"
-    compDomain _ Pi    (Nil)      = error "vhdl support missing for primitive: pi"
-    compDomain _ Round (a :* Nil) = error "vhdl support missing for primitive: round"
-
-    compDomain _ (FreeVar v) (Nil) =
+    compDomain _ (HFreeVar v) (Nil) =
       return $ Hoist.P $ V.name $ V.NSimple $ V.Ident v
-    compDomain t (Lit a)     (Nil) | Dict <- witPrimType t =
-      Hoist.E <$> compileLit (Proxy::Proxy PrimType') a
+    compDomain t (HLit a)     (Nil) | Dict <- witPrimHType t =
+      Hoist.E <$> compileLit (Proxy::Proxy HPrimType') a
 
-    compDomain _ I2N (a :* Nil) = undefined
-    compDomain _ I2B (a :* Nil) = undefined
-    compDomain _ B2I (a :* Nil) = undefined
+    compDomain _ HI2N (a :* Nil) = error "todo: hcompile I2N"
+    compDomain _ HI2B (a :* Nil) = error "todo: hcompile I2B"
+    compDomain _ HB2I (a :* Nil) = error "todo: hcompile B2I"
 
-    compDomain _ (ArrIx arr) (i :* Nil) = undefined
+    compDomain _ (HArrIx arr) (i :* Nil) = error "todo: hcompile ArrIx"
     
-    compDomain _ Cond (c :* t :* f :* Nil) = undefined
+    compDomain _ HCond (c :* t :* f :* Nil) = error "todo: hcompile Cond"
     
 -- | ...
 compExp
   :: ([V.Relation] -> V.Expression)
-  -> ASTF PrimDomain a -> ASTF PrimDomain a
+  -> ASTF HPrimDomain a -> ASTF HPrimDomain a
   -> VHDL Kind
 compExp op a b = do
   x <- Hoist.lift <$> compLoop a
@@ -111,7 +105,7 @@ compExp op a b = do
 -- | ..
 compRel
   :: (V.ShiftExpression -> V.ShiftExpression -> V.Relation)
-  -> ASTF PrimDomain a -> ASTF PrimDomain a
+  -> ASTF HPrimDomain a -> ASTF HPrimDomain a
   -> VHDL Kind
 compRel op a b = do
   x <- Hoist.lift <$> compLoop a
@@ -121,7 +115,7 @@ compRel op a b = do
 -- | ...
 compSim
   :: ([V.Term] -> V.SimpleExpression)
-  -> ASTF PrimDomain a -> ASTF PrimDomain a
+  -> ASTF HPrimDomain a -> ASTF HPrimDomain a
   -> VHDL Kind
 compSim op a b = do
   x <- Hoist.lift <$> compLoop a
@@ -130,21 +124,11 @@ compSim op a b = do
 
 compTrm
   :: ([V.Factor] -> V.Term)
-  -> ASTF PrimDomain a -> ASTF PrimDomain a
+  -> ASTF HPrimDomain a -> ASTF HPrimDomain a
   -> VHDL Kind
 compTrm op a b = do
   x <- Hoist.lift <$> compLoop a
   y <- Hoist.lift <$> compLoop b
   return $ Hoist.T $ op [x, y]
 
-{-
-compP = simpleMatch (\(s :&: t) -> go t s) . unPrim
-  where
-    go :: forall m sig.
-          PrimTypeRep (DenResult sig)
-       -> Primitive sig
-       -> Args (AST PrimDomain) sig
-       -> VHDL V.Expression
-    go _ (FreeVar v) Nil = undefined --V.name v
--}
 --------------------------------------------------------------------------------

@@ -94,6 +94,10 @@ printf = fprintf Imp.stdout
 -- * C-specific commands
 --------------------------------------------------------------------------------
 
+type CRef  = Ref Data
+type CArr  = Arr Data
+type CIArr = IArr Data
+
 -- | Create a null pointer
 newPtr :: PrimType a => Run (Ptr a)
 newPtr = newNamedPtr "p"
@@ -108,7 +112,7 @@ newNamedPtr :: PrimType a
 newNamedPtr = Run . Imp.newNamedPtr
 
 -- | Cast a pointer to an array
-ptrToArr :: PrimType a => Ptr a -> Run (Arr a)
+ptrToArr :: PrimType a => Ptr a -> Run (CArr a)
 ptrToArr = fmap (Arr . Single) . Run . Imp.ptrToArr
 
 -- | Create a pointer to an abstract object. The only thing one can do with such
@@ -226,15 +230,15 @@ valArg :: PrimType a => Data a -> FunArg Data PrimType'
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: PrimType a => Ref a -> FunArg Data PrimType'
+refArg :: PrimType a => CRef a -> FunArg Data PrimType'
 refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
-arrArg :: PrimType a => Arr a -> FunArg Data PrimType'
+arrArg :: PrimType a => CArr a -> FunArg Data PrimType'
 arrArg (Arr a) = Imp.arrArg (extractSingle a)
 
 -- | Immutable array argument
-iarrArg :: PrimType a => IArr a -> FunArg Data PrimType'
+iarrArg :: PrimType a => CIArr a -> FunArg Data PrimType'
 iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
 
 -- | Abstract object argument
