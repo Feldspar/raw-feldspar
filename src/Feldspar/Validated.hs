@@ -54,7 +54,7 @@ instance BOOL exp => Monad (Validated exp)
 instance ( Syntax exp a
          , Syntax exp (exp Bool)
          , Internal (exp Bool) ~ Bool
-         , DomainOf exp ~ (sup :&: TypeRepFun)
+         , DomainOf exp ~ (sup :&: TypeRepFunOf exp)
          , Tuple :<: sup
          )
     => Syntactic (Validated exp a)
@@ -83,7 +83,9 @@ validWhen = Validated
 
 -- | Invalid value
 invalid
-  :: ( BOOL exp
+  :: ( VAL exp
+     , BOOL exp
+     , Inhabited (Internal a)
      , Domain a ~ (sup :&: TypeRepFun)
      , Primitive :<: sup)
   => Syntax exp a => Validated exp a

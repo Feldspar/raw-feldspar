@@ -151,7 +151,7 @@ class Storable a
 
 instance Type a => Storable (Data a)
   where
-    type StoreRep (Data a)  = Ref a
+    type StoreRep (Data a)  = Ref Data a
     type StoreSize (Data a) = ()
     newStoreRep _ _      = newRef
     initStoreRep         = initRef

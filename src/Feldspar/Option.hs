@@ -196,8 +196,10 @@ caseOption o n s = option n s o
 
 -- | Extract the value of an 'Option' that is assumed to be present
 fromSome
-  :: ( COND exp
+  :: ( VAL exp
+     , COND exp
      , Syntax exp a
+     , Inhabited (Internal a)
      , Domain a ~ (sup :&: TypeRepFun)
      , Primitive :<: sup)
   => Option exp a -> a
