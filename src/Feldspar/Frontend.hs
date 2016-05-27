@@ -405,15 +405,22 @@ getRef :: forall proxy proxy2 exp m a.
      ( MonadComp exp m
      , Syntax exp a
      , Imp.FreeExp exp
-     , FreeDict exp)
+     , FreeDict exp
+     )
   => Ref exp (Internal a) -> m a
-getRef r = liftComp $ fmap resugar $ mapStructA getty $ val
+getRef r
+    = liftComp
+    $ fmap resugar
+    $ (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+    $ mapStructA getty
+    $ val
   where
     val :: Struct (PredOf exp) Imp.Ref (Internal a)
     val = unRef r
-    
+
     getty :: forall b. PredOf exp b => Imp.Ref b -> Comp exp (exp b)
     getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.getRef
+
 {-
     getRef
       :: (Imp.RefCMD Imp.:<: instr, PredOf exp b, Imp.FreePred exp b)

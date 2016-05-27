@@ -356,6 +356,7 @@ type instance ExprOf [a]          = ExprOf a
 -- | Specialization of the 'Syntactic' class for the Feldspar domain
 class    ( Syntactic a
          , Domain a ~ DomainOf exp
+         , Domain a ~ Domain (exp (Internal a))
          , ExprOf (Domain a) ~ exp
          , TypeOf exp (Internal a)
 
@@ -364,15 +365,17 @@ class    ( Syntactic a
 
          , TypedRep exp
          , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
-           
+
          , Syntactic (Struct (PredOf exp) exp (Internal a))
          , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
          , Internal  (Struct (PredOf exp) exp (Internal a)) ~ Internal a
+         , Internal  (exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
-         
+
 instance ( Syntactic a
          , Domain a ~ DomainOf exp
+         , Domain a ~ Domain (exp (Internal a))
          , ExprOf (Domain a) ~ exp
          , TypeOf exp (Internal a)
 
@@ -381,10 +384,11 @@ instance ( Syntactic a
 
          , TypedRep exp
          , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
-                      
+
          , Syntactic (Struct (PredOf exp) exp (Internal a))
          , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
          , Internal  (Struct (PredOf exp) exp (Internal a)) ~ Internal a
+         , Internal (exp (Internal a)) ~ Internal a
          )
          => Syntax exp a
 
