@@ -11,7 +11,7 @@ import qualified Feldspar.Run.Compile      as SW
 -- ...
 import Data.TypedStruct
 import Language.Embedded.Imperative (FreeExp)
-import Feldspar.Representation (FreeDict, TypeRepFun)
+import Feldspar.Representation
 import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
 import Feldspar.Primitive.Representation (Primitive)
 
@@ -24,6 +24,7 @@ import Feldspar.Primitive.Representation (Primitive)
 generic
   :: forall sup exp m.
      ( MonadComp exp m
+     , VAL exp
      , NUM exp
        -- ...
      , FreeExp exp
@@ -32,8 +33,7 @@ generic
      , Syntax exp (exp Int8)
      , Int8 ~ Internal (exp Int8)
        -- ...
-     , Domain (exp Int8) ~ (sup :&: TypeRepFun)
-     , Primitive :<: sup
+     , PrimTypeOf exp Int8
      )
   => m ()
 generic =
