@@ -24,7 +24,8 @@ import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
 
-import GHC.TypeLits
+import GHC.TypeLits (KnownNat, sameNat)
+import Data.Type.Equality ((:~:))
 
 --------------------------------------------------------------------------------
 -- * Types
@@ -131,8 +132,9 @@ instance HPrimType' Word8  where primHTypeRep = Word8HT
 instance HPrimType' Word16 where primHTypeRep = Word16HT
 instance HPrimType' Word32 where primHTypeRep = Word32HT
 instance HPrimType' Word64 where primHTypeRep = Word64HT
-instance (Typeable n, KnownNat n) => HPrimType' (Hard.Bits n)
-  where primHTypeRep = BitsHT
+instance (Typeable n, KnownNat n) => HPrimType' (Hard.Bits n) where primHTypeRep = BitsHT
+
+                       -- $ fromIntegral $ natVal (Proxy::Proxy n)
 
 -- | Convenience function; like 'primHTypeRep' but with an extra argument to
 -- constrain the type parameter. The extra argument is ignored.
@@ -140,7 +142,7 @@ primHTypeOf :: HPrimType' a => a -> HPrimTypeRep a
 primHTypeOf _ = primHTypeRep
 
 -- | Check whether two type representations are equal
-primHTypeEq :: HPrimTypeRep a -> HPrimTypeRep b -> Maybe (Dict (a ~ b))
+primHTypeEq :: forall a b. HPrimTypeRep a -> HPrimTypeRep b -> Maybe (Dict (a ~ b))
 primHTypeEq BoolHT   BoolHT   = Just Dict
 primHTypeEq Int8HT   Int8HT   = Just Dict
 primHTypeEq Int16HT  Int16HT  = Just Dict
@@ -150,8 +152,14 @@ primHTypeEq Word8HT  Word8HT  = Just Dict
 primHTypeEq Word16HT Word16HT = Just Dict
 primHTypeEq Word32HT Word32HT = Just Dict
 primHTypeEq Word64HT Word64HT = Just Dict
-primHTypeEq BitsHT   BitsHT   = Nothing -- *** <---
+primHTypeEq BitsHT   BitsHT   =
+  case sameNat (peelProxy (Proxy::Proxy a)) (peelProxy (Proxy::Proxy b)) of
+    Just Refl -> Just Dict
+    Nothing   -> Nothing
 primHTypeEq _        _        = Nothing
+
+peelProxy :: KnownNat n => Proxy (Hard.Bits n) -> Proxy n
+peelProxy _ = Proxy
 
 -- | Reflect a 'HPrimHTypeRep' to a 'HPrimHType'' constraint
 witPrimHType :: HPrimTypeRep a -> Dict (HPrimType' a)

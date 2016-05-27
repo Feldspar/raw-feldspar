@@ -79,13 +79,13 @@ testHardware = HW.icompile hardware
 
 vector :: Hardware ()
 vector =
-  do let zero = value (bitFromInteger 0) :: HData (Bits 4)
-         one  = value (bitFromInteger 1) :: HData (Bits 4)
+  do let zero = value (bitFromInteger 0) :: HData (Bits 2)
+         one  = value (bitFromInteger 1) :: HData (Bits 2)
 
      a <- initRef zero
      b <- initRef one
 
-     u <- getRef a :: Hardware (HData (Bits 4))
+     u <- getRef a :: Hardware (HData (Bits 2))
      v <- getRef b
 
      setRef a (u `plus`  v)
@@ -95,6 +95,6 @@ vector =
 
 --------------------------------------------------------------------------------
 
-testVector = HW.icompile hardware
+testVector = HW.icompile vector
 
 --------------------------------------------------------------------------------

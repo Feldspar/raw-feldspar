@@ -85,8 +85,9 @@ lookAlias :: MonadReader Env m => HTypeRep a -> Name -> m (VExp a)
 lookAlias t v = do
     env <- ask
     return $ case Map.lookup v env of
-        Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
-        Just (VExp' e) -> case typeHEq t (toHTypeRep e) of Just Dict -> e
+      Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
+      Just (VExp' e) -> case typeHEq t (toHTypeRep e) of
+        Just Dict -> e
 
 --------------------------------------------------------------------------------
 -- * Translation of expressions.

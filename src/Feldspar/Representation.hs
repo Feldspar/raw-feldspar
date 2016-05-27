@@ -197,10 +197,10 @@ class TypedRep exp
     represent :: TypeOf exp a => proxy exp -> TypeRepOf exp a
 
 instance TypedRep Data where
-  represent _ = typeRep   -- type TypeRep  = Struct PrimType'  PrimTypeRep
+  represent _ = typeRep
 
 instance TypedRep HData where
-  represent _ = typeHRep  -- type HTypeRep = Struct HPrimType' HPrimTypeRep
+  represent _ = typeHRep
 
 --------------------------------------------------------------------------------
 
@@ -551,6 +551,7 @@ freeHDict _ rep = case rep of
   Word16HT -> Dict
   Word32HT -> Dict
   Word64HT -> Dict
+  BitsHT   -> Dict
 
 --------------------------------------------------------------------------------
 -- * Monadic computations
