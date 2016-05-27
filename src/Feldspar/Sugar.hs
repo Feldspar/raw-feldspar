@@ -8,6 +8,8 @@ module Feldspar.Sugar where
 import qualified Language.Haskell.TH as TH
 
 import Data.Proxy
+import Data.Typeable (Typeable)
+import Data.Constraint (Dict(..))
 
 import Language.Syntactic
 import Language.Syntactic.TH
@@ -16,62 +18,69 @@ import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.Functional.Tuple.TH
 
 import Feldspar.Representation
-
-import Data.Proxy
+import Data.TypedStruct
 
 --------------------------------------------------------------------------------
 -- * ...
 --------------------------------------------------------------------------------
 
-class TypeRepOf exp
+class TypedRepFun exp
   where
-    typeRepVal :: TypeOf exp a => proxy exp -> TypeRepFunOf exp a
-    typeRepFun :: TypeOf exp a => proxy exp -> TypeRepFunOf exp b -> TypeRepFunOf exp (a -> b)
+    typeRepVal  :: TypeOf exp a => proxy exp -> TypeRepFunOf exp a
+    typeRepFun  :: TypeOf exp a => proxy exp -> TypeRepFunOf exp b -> TypeRepFunOf exp (a -> b)
+    typeRepDict :: TypeOf exp a => proxy exp -> Dict (Typeable a)
 
-instance TypeRepOf Data where
-  typeRepVal _ = ValT typeRep
-  typeRepFun _ = FunT typeRep
+instance TypedRepFun Data where
+  typeRepVal  _ = ValT typeRep
+  typeRepFun  _ = FunT typeRep
+  typeRepDict _ = Dict
 
-instance TypeRepOf HData where
-  typeRepVal _ = ValHT typeHRep
-  typeRepFun _ = FunHT typeHRep
+instance TypedRepFun HData where
+  typeRepVal  _ = ValHT typeHRep
+  typeRepFun  _ = FunHT typeHRep
+  typeRepDict _ = Dict
 
-instance
+--------------------------------------------------------------------------------
+
+instance forall sup exp a b.
     ( Syntax exp a
     , Syntactic b
     , Domain b ~ DomainOf exp
     , Domain a ~ (sup :&: TypeRepFunOf exp)
     , BindingT :<: sup
-    , TypeRepOf exp
-    , TypeOf exp (Internal a)
+    , TypedRepFun exp
     )
     => Syntactic (a -> b)
   where
     type Domain   (a -> b) = Domain a
     type Internal (a -> b) = Internal a -> Internal b
-    desugar f = lamT_template varSym lamSym (desugar . f . sugar)
+    desugar f = case dict1 of 
+        Dict ->
+          let varSym v   = inj (VarT v) :&: typeRepVal (Proxy::Proxy exp)
+              lamSym v b = Sym (inj (LamT v) :&: typeRepFun (Proxy::Proxy exp) (getDecor b)) :$ b
+          in lamT_template varSym lamSym (desugar . f . sugar)
       where
-        varSym v   = inj (VarT v) :&: typeRepVal (Proxy::Proxy exp)
-        lamSym v b = Sym (inj (LamT v) :&: typeRepFun (Proxy::Proxy exp) (getDecor b)) :$ b        
+        dict1 :: Dict (Typeable (Internal a))
+        dict1 = typeRepDict (Proxy::Proxy exp)
     sugar = error "sugar not implemented for (a -> b)"
 
-instance
+instance forall sup exp a b.
     ( Syntax exp a
     , Syntax exp b
     , Domain b ~ DomainOf exp
     , Domain a ~ (sup :&: TypeRepFunOf exp)
     , Tuple :<: sup
-      -- *** hmm ...
-    , TypeOf exp (Internal a)
-    , TypeOf exp (Internal b)
-    , TypeOf exp (Internal a, Internal b))
+      -- ...
+    )
     => Syntactic (a, b)
   where
     type Domain   (a, b) = Domain a
     type Internal (a, b) = (Internal a, Internal b)
-    desugar (a, b) = sugarSymExp (Proxy::Proxy exp) Pair (desugar a) (desugar b)
-    sugar   pair   = ( sugarSymExp (Proxy::Proxy exp) Fst pair
-                     , sugarSymExp (Proxy::Proxy exp) Snd pair)
+    desugar (a, b) = undefined
+      --sugarSymExp (Proxy::Proxy exp) Pair (desugar a) (desugar b)
+    sugar   pair   = undefined
+      --( sugarSymExp (Proxy::Proxy exp) Fst pair
+      --, sugarSymExp (Proxy::Proxy exp) Snd pair)
 
 {-
 instance (Syntax a, Syntactic b, Domain b ~ FeldDomain) => Syntactic (a -> b)

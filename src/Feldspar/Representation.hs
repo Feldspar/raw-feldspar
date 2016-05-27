@@ -176,6 +176,30 @@ typeHEqFun _ _ = Nothing
 
 --------------------------------------------------------------------------------
 
+type family   TypeRepOf (exp :: * -> *) :: (* -> *)
+type instance TypeRepOf Data  = TypeRep
+type instance TypeRepOf HData = HTypeRep
+
+type family   TypeRepFunOf (exp :: * -> *) :: (* -> *)
+type instance TypeRepFunOf Data  = TypeRepFun
+type instance TypeRepFunOf HData = HTypeRepFun
+
+type family   PrimTypeRepOf (exp :: * -> *) :: (* -> *)
+type instance PrimTypeRepOf Data  = PrimTypeRep
+type instance PrimTypeRepOf HData = HPrimTypeRep
+
+class TypedRep exp
+  where
+    represent :: TypeOf exp a => proxy exp -> TypeRepOf exp a
+
+instance TypedRep Data where
+  represent _ = typeRep   -- type TypeRep  = Struct PrimType'  PrimTypeRep
+
+instance TypedRep HData where
+  represent _ = typeHRep  -- type HTypeRep = Struct HPrimType' HPrimTypeRep
+
+--------------------------------------------------------------------------------
+
 type family   PredOf (exp :: * -> *) :: (* -> Constraint)
 type instance PredOf Data  = PrimType'
 type instance PredOf HData = HPrimType'
@@ -264,12 +288,18 @@ instance Syntactic (Struct PrimType' Data a)
 
 --------------------------------------------------------------------------------
 
+-- | For loop
+data HForLoop sig
+  where
+    HForLoop :: HType st =>
+        HForLoop (Length :-> st :-> (Index -> st -> st) :-> Full st)
+
 type HFeldConstructs
     =   BindingT
     :+: Let
     :+: Tuple
     :+: HPrimitive
-    :+: ForLoop
+    :+: HForLoop
 
 type HFeldDomain = HFeldConstructs :&: HTypeRepFun
 
@@ -327,10 +357,13 @@ type instance ExprOf [a]          = ExprOf a
 class    ( Syntactic a
          , Domain a ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
-         , Type (Internal a)
+         , TypeOf exp (Internal a)
 
          , SugarSymExp exp
          , SugarSymExpPrim exp
+
+         , TypedRep exp
+         , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
            
          , Syntactic (Struct (PredOf exp) exp (Internal a))
          , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
@@ -341,10 +374,13 @@ class    ( Syntactic a
 instance ( Syntactic a
          , Domain a ~ DomainOf exp
          , ExprOf (Domain a) ~ exp
-         , Type (Internal a)
+         , TypeOf exp (Internal a)
 
          , SugarSymExp exp
          , SugarSymExpPrim exp
+
+         , TypedRep exp
+         , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
                       
          , Syntactic (Struct (PredOf exp) exp (Internal a))
          , Domain    (Struct (PredOf exp) exp (Internal a)) ~ Domain a
@@ -362,9 +398,10 @@ type family   TypeOf (exp :: * -> *) :: (* -> Constraint)
 type instance TypeOf Data  = Type
 type instance TypeOf HData = HType
 
-type family   TypeRepFunOf (exp :: * -> *) :: (* -> *)
-type instance TypeRepFunOf Data  = TypeRepFun
-type instance TypeRepFunOf HData = HTypeRepFun
+type family   PrimTypeOf (exp :: * -> *) :: (* -> Constraint)
+type instance PrimTypeOf Data  = PrimType
+type instance PrimTypeOf HData = HPrimType
+
 
 class SugarSymExp exp
   where
@@ -394,10 +431,10 @@ class SugarSymExpPrim exp
          , fi  ~ SmartFun (DomainOf exp) sig
          , sig ~ SmartSig fi
          , DomainOf exp ~ SmartSym fi
-         , DomainOf exp ~ (sup :&: (TypeRepFunOf exp))
+         , DomainOf exp ~ (sup :&: TypeRepFunOf exp)
          , sub :<: sup
          , SyntacticN f fi
-         , (PredOf exp) (DenResult sig))
+         , PredOf exp (DenResult sig))
       => proxy exp -> sub sig -> f
 
 instance SugarSymExpPrim Data where
@@ -555,5 +592,20 @@ deriveRender id ''ForLoop
 deriveEquality  ''ForLoop
 
 deriveSymbol ''IOSym
+
+--------------------------------------------------------------------------------
+
+instance Eval HForLoop
+  where
+    evalSym HForLoop = \len init body ->
+      foldl (flip body) init $ genericTake len [0..]
+
+instance EvalEnv HForLoop env
+
+instance StringTree HForLoop
+
+deriveSymbol    ''HForLoop
+deriveRender id ''HForLoop
+deriveEquality  ''HForLoop
 
 --------------------------------------------------------------------------------

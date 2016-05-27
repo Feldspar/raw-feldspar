@@ -303,6 +303,8 @@ data HPrimitive sig
 
     HArrIx :: IArr Index a -> HPrimitive (Index :-> Full a)
 
+    HCond  :: HPrimitive (Bool :-> a :-> a :-> Full a)
+
 --------------------------------------------------------------------------------
 
 type HPrimDomain = HPrimitive :&: HPrimTypeRep
