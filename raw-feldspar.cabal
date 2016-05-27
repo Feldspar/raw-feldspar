@@ -84,7 +84,8 @@ library
     mtl,
     operational-alacarte,
     prelude-edsl >= 0.4,
-    syntactic >= 3.6,
+    syntactic >= 3.6.1,
+      -- Smallest version that has `instD`
     template-haskell
 
   hs-source-dirs: src

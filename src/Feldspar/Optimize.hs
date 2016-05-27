@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Optimize Feldspar expressions
 
 module Feldspar.Optimize where
@@ -46,18 +48,6 @@ prj' = prj
   -- type signature for such patterns, but I wan't able to do this for `SymP`
   -- (the inferred type is not accepted).
 
-viewLit :: ASTF FeldDomain a -> Maybe a
-viewLit lit
-    | Just (Lit a) <- prj lit = Just a
-viewLit _ = Nothing
-
-pattern LitP :: (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
-pattern LitP t a <- Sym ((prj -> Just (Lit a)) :&: ValT t)
-  where
-    LitP t a = Sym (inj (Lit a) :&: ValT t)
-
-pattern NonLitP <- (viewLit -> Nothing)
-
 pattern SymP t s <- Sym ((prj' -> Just s) :&: ValT t)
   where
     SymP t s = Sym ((inj s) :&: ValT t)
@@ -72,13 +62,34 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
 
 -- There type signatures are needed in order to use `simplifyUp` in the
 -- constructor
-pattern AddP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
-
+#if __GLASGOW_HASKELL__ >= 800
+pattern LitP  :: () => (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern AddP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP  :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+#else
+pattern LitP  :: (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern AddP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
 pattern QuotP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 pattern RemP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+#endif
+
+viewLit :: ASTF FeldDomain a -> Maybe a
+viewLit lit
+    | Just (Lit a) <- prj lit = Just a
+viewLit _ = Nothing
+
+pattern LitP t a <- Sym ((prj -> Just (Lit a)) :&: ValT t)
+  where
+    LitP t a = Sym (inj (Lit a) :&: ValT t)
+
+pattern NonLitP <- (viewLit -> Nothing)
 
 pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
 pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b
