@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds           #-}
+
 module CoDesign where
 
 import qualified Prelude
@@ -9,11 +11,17 @@ import qualified Feldspar.Hardware.Compile as HW
 import qualified Feldspar.Run.Compile      as SW
 
 -- ...
+import Language.Embedded.Hardware.Expression.Represent.Bit
+
+-- ...
 import Data.TypedStruct
 import Language.Embedded.Imperative (FreeExp)
 import Feldspar.Representation
 import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
 import Feldspar.Primitive.Representation (Primitive)
+
+
+import GHC.TypeLits
 
 --------------------------------------------------------------------------------
 -- * ...
@@ -64,5 +72,29 @@ hardware = generic
 testSoftware = SW.icompile software
 
 testHardware = HW.icompile hardware
+
+--------------------------------------------------------------------------------
+-- * ...
+--------------------------------------------------------------------------------
+
+vector :: Hardware ()
+vector =
+  do let zero = value (bitFromInteger 0) :: HData (Bits 4)
+         one  = value (bitFromInteger 1) :: HData (Bits 4)
+
+     a <- initRef zero
+     b <- initRef one
+
+     u <- getRef a :: Hardware (HData (Bits 4))
+     v <- getRef b
+
+     setRef a (u `plus`  v)
+     setRef b (u `minus` v)
+
+     return ()
+
+--------------------------------------------------------------------------------
+
+testVector = HW.icompile hardware
 
 --------------------------------------------------------------------------------
