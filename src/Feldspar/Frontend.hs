@@ -405,173 +405,235 @@ getRef :: forall proxy proxy2 exp m a.
      ( MonadComp exp m
      , Syntax exp a
      , Imp.FreeExp exp
-     , FreeDict exp
-     )
+     , FreeDict exp)
   => Ref exp (Internal a) -> m a
 getRef r
     = liftComp
     $ fmap resugar
     $ (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
     $ mapStructA getty
-    $ val
+    $ unRef r
   where
-    val :: Struct (PredOf exp) Imp.Ref (Internal a)
-    val = unRef r
-
     getty :: forall b. PredOf exp b => Imp.Ref b -> Comp exp (exp b)
     getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.getRef
 
-{-
-    getRef
-      :: (Imp.RefCMD Imp.:<: instr, PredOf exp b, Imp.FreePred exp b)
-      => Imp.Ref b -> Imp.ProgramT instr (Imp.Param2 exp (PredOf exp)) Identity (exp b)
-    getRef = Imp.getRef
--}
-{-
 -- | Set the contents of a reference.
-setRef :: forall exp m a. (MonadComp exp m, Syntax exp a, FreeDict exp)
-  => Ref (Internal a) -> a -> m ()
-setRef r = liftComp . sequence_ . zipListStruct setty (unRef r) . resugar
+setRef :: forall exp m a.
+     ( MonadComp exp m
+     , Syntax exp a
+     , FreeDict exp)
+  => Ref exp (Internal a) -> a -> m ()
+setRef r = liftComp
+         . sequence_
+         . (\a -> a :: [Comp exp ()])
+         . zipListStruct setty (unRef r)
+         . (\a -> a :: Struct (PredOf exp) exp (Internal a))
+         . resugar
   where
-    setty :: forall b. PrimType' b => Imp.Ref b -> exp b -> Comp exp ()
-    setty ref = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setRef ref)
+    setty :: forall b. PredOf exp b => Imp.Ref b -> exp b -> Comp exp ()
+    setty ref = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setRef ref)
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
 --   as long as the resulting value is alive).
-unsafeFreezeRef :: forall exp m a. (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
-  => Ref (Internal a) -> m a
-unsafeFreezeRef = liftComp . fmap resugar . mapStructA getty . unRef
+unsafeFreezeRef :: forall exp m a.
+     ( MonadComp exp m
+     , Syntax exp a
+     , Imp.FreeExp exp
+     , FreeDict exp)
+  => Ref exp (Internal a) -> m a
+unsafeFreezeRef = liftComp
+                . fmap resugar
+                . (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+                . mapStructA getty
+                . unRef
   where
-    getty :: forall b. PrimType' b => Imp.Ref b -> Comp exp (exp b)
-    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeRef
--}
-{-
--- | Modify the contents of reference.
-modifyRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> (a -> a) -> m ()
-modifyRef r f = setRef r . f =<< unsafeFreezeRef r
+    getty :: forall b. PredOf exp b => Imp.Ref b -> Comp exp (exp b)
+    getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeRef
 
+
+-- | Modify the contents of reference.
+modifyRef
+  :: (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
+  => Ref exp (Internal a) -> (a -> a) -> m ()
+modifyRef r f = setRef r . f =<< unsafeFreezeRef r
+{-
 -- | A version of 'modifyRef' that fixes the value type to @`Data` a@
 modifyRefD :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
 modifyRefD r f = setRef r . f =<< unsafeFreezeRef r
 -}
 --------------------------------------------------------------------------------
 -- ** Arrays
-{-
+
 -- | Create and initialize a named array.
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr :: (MonadComp exp m, PrimType' a)
+initNamedArr :: (MonadComp exp m, PredOf exp a)
   => String -- ^ Base name.
   -> [a]    -- ^ Initial contents.
-  -> m (Arr a)
-initNamedArr base val = liftComp $ fmap (Arr . Single) $ Comp $ Imp.initNamedArr base val
--}
-{-
+  -> m (Arr exp a)
+initNamedArr base = liftComp
+                  . fmap (Arr . Single)
+                  . Comp
+                  . Imp.initNamedArr base
+
 -- | Create and initialize an array.
-initArr :: (MonadComp exp m, PrimType' a)
+initArr :: (MonadComp exp m, PredOf exp a)
   => [a] -- ^ Initial contents.
-  -> m (Arr a)
+  -> m (Arr exp a)
 initArr = initNamedArr "a"
 
 -- | Create an uninitialized named array.
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedArr :: forall exp m a. (MonadComp exp m, Type a)
+newNamedArr :: forall exp m a.
+     ( MonadComp exp m
+     , TypeOf exp a
+     , TypedRep exp
+     , TypeRepOf exp ~ Struct (PredOf exp) exp)  -- *** <----
   => String     -- ^ Base name.
   -> exp Length -- ^ Size.
-  -> m (Arr a)
-newNamedArr base l =
-  liftComp $ fmap Arr $ mapStructA (const $ Comp $ Imp.newNamedArr base l) typeRep
+  -> m (Arr exp a)
+newNamedArr base l
+    = liftComp
+    $ fmap Arr
+    $ mapStructA (const $ Comp $ Imp.newNamedArr base l)
+    $ represent (Proxy::Proxy exp)
 
 -- | Create an uninitialized array.
-newArr :: (MonadComp exp m, Type a)
+newArr ::
+     ( MonadComp exp m
+     , TypeOf exp a
+     , TypedRep exp
+     , TypeRepOf exp ~ Struct (PredOf exp) exp) -- *** <----
   => exp Length -- ^ Size.
-  -> m (Arr a)
+  -> m (Arr exp a)
 newArr = newNamedArr "a"
 
 -- | Get an element of an array.
-getArr :: forall exp m a. (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
-  => exp Index -> Arr (Internal a) -> m a
-getArr i = liftComp . fmap resugar . mapStructA getty . unArr
+getArr :: forall exp m a.
+     ( MonadComp exp m
+     , Syntax exp a
+     , Imp.FreeExp exp
+     , FreeDict exp)
+  => exp Index -> Arr exp (Internal a) -> m a
+getArr i = liftComp
+         . fmap resugar
+         . (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+         . mapStructA getty
+         . unArr
   where
-    getty :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (exp b)
-    getty = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.getArr i)
+    getty :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (exp b)
+    getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.getArr i)
 
 -- | Set an element of an array.
-setArr :: forall exp m a. (MonadComp exp m, Syntax exp a, FreeDict exp)
-  => exp Index -> a -> Arr (Internal a) -> m ()
-setArr i a = liftComp . sequence_ . zipListStruct setty (resugar a) . unArr
+setArr :: forall exp m a.
+     ( MonadComp exp m
+     , Syntax exp a
+     , FreeDict exp)
+  => exp Index -> a -> Arr exp (Internal a) -> m ()
+setArr i a = liftComp
+           . sequence_
+           . (\a -> a :: [Comp exp ()])
+           . zipListStruct setty (resugar a :: Struct (PredOf exp) exp (Internal a))
+           . unArr
   where
-    setty :: forall b. PrimType' b => exp b -> Imp.Arr Length b -> Comp exp ()
-    setty a arr = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setArr i a arr)
+    setty :: forall b. PredOf exp b => exp b -> Imp.Arr Index b -> Comp exp ()
+    setty a arr = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setArr i a arr)
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either array.
 copyArr :: forall exp m a. MonadComp exp m
-  => Arr a      -- ^ Destination.
-  -> Arr a      -- ^ Source.
+  => Arr exp a  -- ^ Destination.
+  -> Arr exp a  -- ^ Source.
   -> exp Length -- ^ Number of elements.
   -> m ()
-copyArr arr1 arr2 len = liftComp $ sequence_ $ zipListStruct copy (unArr arr1) (unArr arr2)
+copyArr arr1 arr2 len = liftComp
+                      $ sequence_
+                      $ (\a -> a :: [Comp exp ()])
+                      $ zipListStruct copy (unArr arr1) (unArr arr2)
   where
-    copy :: forall b. PrimType' b => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
+    copy :: forall b. PredOf exp b => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
     copy a1 a2 = Comp $ Imp.copyArr a1 a2 len
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
-freezeArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
-  => Arr a
+freezeArr :: forall exp m a.
+     ( MonadComp exp m
+     , TypeOf exp a
+     , FreeDict exp)
+  => Arr exp a
   -> exp Length -- ^ Number of elements to copy.
-  -> m (IArr a)
-freezeArr arr n = liftComp $ fmap IArr $ mapStructA freeze $ unArr arr
+  -> m (IArr exp a)
+freezeArr arr n = liftComp
+                $ fmap IArr
+                $ mapStructA freeze
+                $ unArr arr
   where
-    freeze :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
-    freeze a = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.freezeArr a n)
+    freeze :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze a = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.freezeArr a n)
 
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeFreezeArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
-  => Arr a
-  -> m (IArr a)
-unsafeFreezeArr = liftComp . fmap IArr . mapStructA freeze . unArr
+unsafeFreezeArr :: forall exp m a.
+     ( MonadComp exp m
+     , TypeOf exp a
+     , FreeDict exp)
+  => Arr exp a
+  -> m (IArr exp a)
+unsafeFreezeArr = liftComp
+                . fmap IArr
+                . mapStructA freeze
+                . unArr
   where
-    freeze :: forall b. PrimType' b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
-    freeze = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeArr
+    freeze :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeArr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
-thawArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
-  => IArr a
+thawArr :: forall exp m a.
+     ( MonadComp exp m
+     , TypeOf exp a
+     , FreeDict exp)
+  => IArr exp a
   -> exp Length -- ^ Number of elements to copy.
-  -> m (Arr a)
-thawArr arr n = liftComp $ fmap Arr $ mapStructA thaw $ unIArr arr
+  -> m (Arr exp a)
+thawArr arr n = liftComp
+              $ fmap Arr
+              $ mapStructA thaw
+              $ unIArr arr
   where
-    thaw :: forall b. PrimType' b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
-    thaw a = Comp $ withPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.thawArr a n)
+    thaw :: forall b. PredOf exp b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw a = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.thawArr a n)
 
 -- | Thaw an immutable array to a mutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeThawArr :: forall exp m a. (MonadComp exp m, Type a, FreeDict exp)
-  => IArr a
-  -> m (Arr a)
-unsafeThawArr = liftComp . fmap Arr . mapStructA thaw . unIArr
+unsafeThawArr :: forall exp m a.
+     ( MonadComp exp m
+     , TypeOf exp a
+     , FreeDict exp)
+  => IArr exp a
+  -> m (Arr exp a)
+unsafeThawArr = liftComp
+              . fmap Arr
+              . mapStructA thaw
+              . unIArr
   where
-    thaw :: forall b. PrimType' b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
-    thaw = Comp . withPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeThawArr
+    thaw :: forall b. PredOf exp b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeThawArr
 
 -- | Create and initialize an immutable array.
-initIArr :: forall exp m a. (MonadComp exp m, PrimType a)
+initIArr :: forall exp m a. (MonadComp exp m, PredOf exp a)
   => [a]
-  -> m (IArr a)
+  -> m (IArr exp a)
 initIArr val = liftComp $ fmap (IArr . Single) $ Comp $ Imp.initIArr val
--}
+
 --------------------------------------------------------------------------------
 -- ** Control-flow
-{-
+
 -- | Conditional statement that returns an expression.
 ifE :: (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
     => exp Bool  -- ^ Condition.
@@ -586,7 +648,7 @@ ifE c t f = do
 -- | Break out from a loop
 break :: MonadComp exp m => m ()
 break = liftComp $ Comp Imp.break
--}
+
 {-
 -- | Assertion
 assert :: MonadComp m

@@ -200,9 +200,18 @@ instance TypedRep HData where
 
 --------------------------------------------------------------------------------
 
+type family   TypeOf (exp :: * -> *) :: (* -> Constraint)
+type instance TypeOf Data  = Type
+type instance TypeOf HData = HType
+
+-- todo: PrimOf
 type family   PredOf (exp :: * -> *) :: (* -> Constraint)
 type instance PredOf Data  = PrimType'
 type instance PredOf HData = HPrimType'
+
+type family   PrimTypeOf (exp :: * -> *) :: (* -> Constraint)
+type instance PrimTypeOf Data  = PrimType
+type instance PrimTypeOf HData = HPrimType
 
 -- | Mutable variable
 newtype Ref exp a = Ref { unRef :: Struct (PredOf exp) Imp.Ref a }
@@ -397,15 +406,6 @@ instance ( Syntactic a
 type family   PrimOf (exp :: * -> *) :: (* -> *)
 type instance PrimOf Data  = PrimDomain
 type instance PrimOf HData = HPrimDomain
-
-type family   TypeOf (exp :: * -> *) :: (* -> Constraint)
-type instance TypeOf Data  = Type
-type instance TypeOf HData = HType
-
-type family   PrimTypeOf (exp :: * -> *) :: (* -> Constraint)
-type instance PrimTypeOf Data  = PrimType
-type instance PrimTypeOf HData = HPrimType
-
 
 class SugarSymExp exp
   where
