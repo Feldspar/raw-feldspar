@@ -109,7 +109,7 @@ newNamedPtr = Run . Imp.newNamedPtr
 
 -- | Cast a pointer to an array
 ptrToArr :: PrimType a => Ptr a -> Run (Arr a)
-ptrToArr = fmap (Arr . Single) . Run . Imp.ptrToArr
+ptrToArr = fmap (Arr 0 . Single) . Run . Imp.ptrToArr
 
 -- | Create a pointer to an abstract object. The only thing one can do with such
 -- objects is to pass them to 'callFun' or 'callProc'.
@@ -231,11 +231,11 @@ refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
 arrArg :: PrimType' a => Arr a -> FunArg Data PrimType'
-arrArg (Arr a) = Imp.arrArg (extractSingle a)
+arrArg (Arr o a) = Imp.offset (Imp.arrArg (extractSingle a)) o
 
 -- | Immutable array argument
 iarrArg :: PrimType' a => IArr a -> FunArg Data PrimType'
-iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
+iarrArg (IArr o a) = Imp.offset (Imp.iarrArg (extractSingle a)) o
 
 -- | Abstract object argument
 objArg :: Object -> FunArg Data PrimType'

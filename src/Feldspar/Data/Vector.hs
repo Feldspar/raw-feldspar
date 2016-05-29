@@ -71,6 +71,9 @@ class Folding vec
     -- | Left fold of a vector
     fold :: Syntax a => (a -> b -> a) -> a -> vec b -> a
 
+    -- | Monadic left fold of a vector
+    foldM :: (Syntax a, MonadComp m) => (a -> b -> m a) -> a -> vec b -> m a
+
 -- | Sum the elements of a vector
 sum :: (Num a, Syntax a, Folding vec) => vec a -> a
 sum = fold (+) 0
@@ -79,6 +82,16 @@ sum = fold (+) 0
 -- requires traversing the vector.
 lengthByFold :: (Functor vec, Folding vec) => vec a -> Data Length
 lengthByFold = fold (+) 0 . fmap (const 1)
+
+-- | Perform all actions in a vector in sequence
+sequenceVec :: (Folding vec, MonadComp m) => vec (m ()) -> m ()
+sequenceVec = foldM (const id) ()
+  -- It might seem useful to also have the function:
+  --
+  --     sequenceVec2 :: MonadComp m => vec (m a) -> Push a
+  --
+  -- However, that would lead to a `Push` vector with embedded effects, which is
+  -- not allowed.
 
 
 
@@ -112,8 +125,8 @@ instance Finite (Pull a)
 instance Syntax a => Forcible (Pull a)
   where
     type ValueRep (Pull a) = Dim1 (IArr (Internal a))
-    toValue   = fromPull
-    fromValue = toPullSyn
+    toValue   = toValue . toPush
+    fromValue = toPull
 
 instance Syntax a => Storable (Pull a)
   where
@@ -140,12 +153,35 @@ instance Syntax a => Storable (Pull a)
         setRef dLenRef sLen
         copyArr dst src sLen
 
-instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
-    MarshalFeld (Pull (Data a))
+instance
+    ( MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    , Syntax a
+    ) =>
+      MarshalFeld (Pull a)
   where
-    type HaskellRep (Pull (Data a)) = [a]
-    fromFeld = fromPull >=> fromFeld
-    toFeld   = toPull <$> (toFeld :: Run (Dim1 (IArr a)))
+    type HaskellRep (Pull a) = [Internal a]
+    fromFeld = fromFeld <=< toValue
+    toFeld   = fmap sugar . toPull <$> (toFeld :: Run (Dim1 (IArr (Internal a))))
+  -- Ideally, we would like the more general instance
+  --
+  --     instance MarshalFeld a => MarshalFeld (Pull a)
+  --       where type HaskellRep (Pull a) = [HaskellRep a]
+  --       fromFeld (Pull len ixf) = do
+  --           fput stdout "" len " "
+  --           for (0,1,Excl len) (fromFeld . ixf)
+  --       toFeld = do
+  --           len <- fget stdin
+  --           return $ Pull len ...
+  --
+  -- However, `toFeld` needs to return a `Pull` with an index function
+  -- `Data Index -> a`. The only way to construct such a function is by storing
+  -- the elements in an array and index into that. This poses two problems: (1)
+  -- how big an array should `toFeld` allocate, and (2) the type `a` is not
+  -- necessarily an expression (e.g. it can be a `Pull`), so there has to be a
+  -- way to write `a` to memory, even if it has just been read from memory by
+  -- `toFeld`. Problem (1) could be solved if we could have nested mutable
+  -- arrays, but problem (2) would remain.
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -176,6 +212,11 @@ instance ( Syntax a, BulkTransferable a
 instance Folding Pull
   where
     fold f x vec = forLoop (length vec) x $ \i s -> f s (vec!i)
+      -- It would be possible to also express `fold` by converting to `PushSeq`
+      -- (in which case the `Folding` class could probably be replaced by
+      -- `PushySeq`), but the current implementation has the advantage of using
+      -- a pure `forLoop` which potentially can be better optimized.
+    foldM f x vec = foldM f x $ toPushSeq vec
 
 
 
@@ -195,14 +236,10 @@ instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 -- `Dim1` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
 -- `Dim2` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
 -- @
-toPull :: Pully vec a => vec -> Pull a
-toPull arr = Pull (length arr) (arr!)
-
--- | A version of 'toPull' for elements in the 'Syntax' class
-toPullSyn
-    :: (Indexed arr, Finite arr, Syntax a, IndexedElem arr ~ Data (Internal a))
-    => arr -> Pull a
-toPullSyn = fmap sugar . toPull
+toPull :: (Pully vec (Data (Internal a)), Syntax a) => vec -> Pull a
+toPull vec = fmap sugar $ Pull (length vec) (vec!)
+  -- This function is more general than `fromValue` since it also handles e.g.
+  -- `Dim2`.
 
 -- | Convert a 2-dimensional indexed array to a nested 'Pull' vector
 toPull2 :: (Indexed arr, Syntax a, IndexedElem arr ~ Data (Internal a)) =>
@@ -211,13 +248,6 @@ toPull2 (Dim2 r c arr) =
     Pull r $ \k ->
       Pull c $ \l ->
         sugar (arr ! (k*c+l))
-
-fromPull :: (Syntax a, MonadComp m) => Pull a -> m (Dim1 (IArr (Internal a)))
-fromPull (Pull len ixf) = do
-    arr <- newArr len
-    for (0,1,Excl len) $ \i -> setArr i (ixf i) arr
-    iarr <- unsafeFreezeArr arr
-    return $ Dim1 len iarr
 
 freezeVec :: (MonadComp m, Syntax a) =>
     Data Length -> Arr (Internal a) -> m (Pull a)
@@ -338,23 +368,45 @@ matMul a b = forEach a $ \a' ->
 --------------------------------------------------------------------------------
 
 -- | Push vector
+--
+-- The function that dumps the content of the vector is not allowed to perform
+-- any side effects except through the \"write\" method
+-- (@`Data` `Index` -> a -> m ()@) that is passed to it.
 data Push a
   where
     Push
         :: Data Length
         -> (forall m . MonadComp m => (Data Index -> a -> m ()) -> m ())
         -> Push a
+  -- The no-side-effects condition ensures that `Push` behaves as pure data with
+  -- the denotation of a finite list.
+  --
+  -- TODO If there was an appropriate `store` function, it should be possible to
+  -- formulate a law that `v :: Push a` should be equivalent to `store v`. If
+  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
+  -- `store v ++ store v`.
 
 -- | 'Push' vector specialized to 'Data' elements
 type DPush a = Push (Data a)
 
 instance Functor Push
   where
-    fmap f (Push len dump) = Push len $ \write -> dump $ \i -> write i . f
+    fmap f (Push len dump) = Push len $ \write ->
+        dump $ \i -> write i . f
 
 instance Finite (Push a)
   where
     length (Push len _) = len
+
+instance Syntax a => Forcible (Push a)
+  where
+    type ValueRep (Push a) = Dim1 (IArr (Internal a))
+    toValue (Push len dump) = do
+        arr <- newArr len
+        dump $ \i a -> setArr i a arr
+        iarr <- unsafeFreezeArr arr
+        return $ Dim1 len iarr
+    fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
 
 class Pushy vec
   where
@@ -385,7 +437,7 @@ listPush as = Push 2 $ \write ->
     let Push len1 dump1 = toPush v1
         Push len2 dump2 = toPush v2
     in  Push (len1+len2) $ \write ->
-          dump1 write >> dump2 write
+          dump1 write >> dump2 (write . (+len1))
 
 -- Concatenate nested vectors to a 'Push' vector
 concatPush :: (Pushy vec1, Pushy vec2, Functor vec1)
@@ -415,11 +467,23 @@ flattenPush n f = concatPush n . fmap (listPush . f) . toPush
 --------------------------------------------------------------------------------
 
 -- | Sequential push vector
+--
+-- The function that dumps the content of the vector is not allowed to perform
+-- any side effects except through the \"put\" method (@a -> m ()@) that is
+-- passed to it.
 data PushSeq a
   where
     PushSeq
-        :: (forall m . MonadComp m => (a -> m ()) -> m ())
+        :: { dumpSeq :: forall m . MonadComp m => (a -> m ()) -> m () }
         -> PushSeq a
+  -- The no-side-effects condition ensures that `PushSeq` behaves as pure data
+  -- with the denotation of a (possibly infinite) list. It also ensures that the
+  -- `Folding` instance is sound.
+  --
+  -- TODO If there was an appropriate `store` function, it should be possible to
+  -- formulate a law that `v :: PushSeq a` should be equivalent to `store v`. If
+  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
+  -- `store v ++ store v`.
 
 -- | 'PushSeq' vector specialized to 'Data' elements
 type DPushSeq a = PushSeq (Data a)
@@ -427,6 +491,9 @@ type DPushSeq a = PushSeq (Data a)
 instance Functor PushSeq
   where
     fmap f (PushSeq dump) = PushSeq $ \put -> dump (put . f)
+
+-- No instance `Syntax a => Forcible (PushSeq a)` because `PushSeq` doesn't have
+-- known length.
 
 class PushySeq vec
   where
@@ -441,10 +508,13 @@ instance PushySeq Pull
 
 instance Folding PushSeq
   where
-    fold step init (PushSeq dump) = unsafePerform $ do
+    fold step init = unsafePerform . foldM (\s -> return . step s) init
+    foldM step init vec = do
         r <- initRef init
-        let put = modifyRef r . flip step
-        dump put
+        let put a = do
+              s <- unsafeFreezeRef r
+              setRef r =<< step s a
+        dumpSeq vec put
         unsafeFreezeRef r
 
 
@@ -459,11 +529,8 @@ listPushSeq as = PushSeq $ \put -> mapM_ put as
 
 -- | Append two vectors to a 'PushSeq' vector
 (++) :: (PushySeq vec1, PushySeq vec2) => vec1 a -> vec2 a -> PushSeq a
-(++) v1 v2 =
-    let PushSeq dump1 = toPushSeq v1
-        PushSeq dump2 = toPushSeq v2
-    in  PushSeq $ \put ->
-          dump1 put >> dump2 put
+(++) v1 v2 = PushSeq $ \put ->
+    dumpSeq (toPushSeq v1) put >> dumpSeq (toPushSeq v2) put
 
 -- Concatenate nested vectors to a 'PushSeq' vector
 concat :: (PushySeq vec1, PushySeq vec2, Functor vec1) =>
@@ -472,8 +539,7 @@ concat vec =
     let PushSeq dump1 = toPushSeq $ fmap toPushSeq vec
     in  PushSeq $ \put ->
           dump1 $ \(PushSeq dump2) ->
-            dump2 $ \a ->
-              put a
+            dump2 put
 
 -- | Flatten a vector of elements with a static structure
 flatten
@@ -484,22 +550,9 @@ flatten
 flatten f = concat . fmap (listPushSeq . f) . toPushSeq
 
 filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
-filter pred v =
-    let PushSeq dump = toPushSeq v
-    in  PushSeq $ \put -> do
-          let put' a = iff (pred a) (put a) (return ())
-          dump put'
-
-foldM :: (Syntax a, PushySeq vec, MonadComp m) =>
-    (a -> b -> m a) -> a -> vec b -> m a
-foldM step init v = do
-    let PushSeq dump = toPushSeq v
-    r <- initRef init
-    let put a = do
-          s <- unsafeFreezeRef r
-          setRef r =<< step s a
-    dump put
-    unsafeFreezeRef r
+filter pred v = PushSeq $ \put -> do
+    let put' a = iff (pred a) (put a) (return ())
+    dumpSeq (toPushSeq v) put'
 
 unfoldPushSeq :: Syntax a => (a -> (b,a)) -> a -> PushSeq b
 unfoldPushSeq step init = PushSeq $ \put -> do
@@ -528,8 +581,14 @@ class Linearizable m a
         :: a                              -- ^ Structure to linearize
         -> (Data (LinearElem a) -> m ())  -- ^ Method for pushing a single element
         -> m ()
-             -- Note: This is `PushSeq` with `m` exposed. It needs to be exposed
-             -- for the instances for monads to work.
+             -- Note:
+             --
+             -- 1. This is `PushSeq` with `m` exposed. It needs to be exposed
+             --    for the instances for monads to work.
+             -- 2. We don't want to use `PushSeq` here (even if `m` was
+             --    exposed), because linearizing structures with embedded
+             --    effects would lead to a `PushSeq` with embedded effects,
+             --    which is not a valid `PushSeq`.
 
 instance Linearizable m (Data a)
   where
@@ -579,9 +638,7 @@ instance (Type a, MonadComp m) => Linearizable m (Dim1 (Arr a))
 instance (Linearizable m a, MonadComp m) => Linearizable m (Pull a)
   where
     type LinearElem (Pull a) = LinearElem a
-    linearPush (Pull len ixf) put =
-        for (0,1,Excl len) $ \i ->
-          linearPush (ixf i) put
+    linearPush = linearPush . toPushSeq
 
 instance (Linearizable m a, MonadComp m) => Linearizable m (PushSeq a)
   where
@@ -589,19 +646,9 @@ instance (Linearizable m a, MonadComp m) => Linearizable m (PushSeq a)
     linearPush (PushSeq dump) = dump . flip linearPush
 
 -- | Fold the content of a 'Linearizable' data structure
-linearFold :: (Linearizable Comp lin, Syntax a) =>
-    (a -> Data (LinearElem lin) -> a) -> a -> lin -> a
-linearFold step init lin = unsafePerform $ do
-    let dump = linearPush lin
-    r <- initRef init
-    let put = modifyRef r . flip step
-    dump put
-    unsafeFreezeRef r
-
--- | Fold the content of a 'Linearizable' data structure
-linearFoldM :: (Linearizable m lin, Syntax a, MonadComp m) =>
+linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
     (a -> Data (LinearElem lin) -> m a) -> a -> lin -> m a
-linearFoldM step init lin = do
+linearFold step init lin = do
     let dump = linearPush lin
     r <- initRef init
     let put a = do
@@ -610,19 +657,18 @@ linearFoldM step init lin = do
     dump put
     unsafeFreezeRef r
 
+-- | Map a monadic function over the content of a 'Linearizable' data structure
+linearMapM :: (Linearizable m lin, MonadComp m) =>
+    (Data (LinearElem lin) -> m ()) -> lin -> m ()
+linearMapM f = linearFold (\_ -> f) ()
+
 -- | Write the content of a 'Linearizable' data structure to an array
-linearArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
+linearWriteArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
     => Arr (LinearElem a)  -- ^ Where to put the result
     -> a                   -- ^ Value to linearize
     -> m (Data Length)     -- ^ Number of elements written
-linearArr arr a = do
-    r <- initRef (0 :: Data Index)
-    let put b = do
-          i <- unsafeFreezeRef r
-          setArr i b arr
-          setRef r (i+1)
-    linearPush a put
-    unsafeFreezeRef r
+linearWriteArr arr a = do
+    linearFold (\i b -> setArr i b arr >> return (i+1)) 0 a
 
 
 

@@ -415,7 +415,7 @@ arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
     ix :: PrimType' b => Imp.IArr Index b -> Data b
-    ix arr = sugarSymFeldPrim (ArrIx arr) i
+    ix arr' = sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr)
 
 class Indexed a
   where
@@ -622,7 +622,7 @@ newNamedArr :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)
-newNamedArr base l = liftComp $ fmap Arr $
+newNamedArr base l = liftComp $ fmap (Arr 0) $
     mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
 
 -- | Create and initialize an array
@@ -642,20 +642,25 @@ initNamedArr :: (PrimType a, MonadComp m)
     -> [a]     -- ^ Initial contents
     -> m (Arr a)
 initNamedArr base =
-    liftComp . fmap (Arr . Single) . Comp . Imp.initNamedArr base
+    liftComp . fmap (Arr 0 . Single) . Comp . Imp.initNamedArr base
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
-getArr i = liftComp . fmap resugar . mapStructA (Comp . Imp.getArr i) . unArr
+getArr i arr
+    = liftComp
+    $ fmap resugar
+    $ mapStructA (Comp . Imp.getArr (i + arrOffset arr))
+    $ unArr arr
 
 -- | Set an element of an array
 setArr :: forall m a . (Syntax a, MonadComp m) =>
     Data Index -> a -> Arr (Internal a) -> m ()
-setArr i a
+setArr i a arr
     = liftComp
-    . sequence_
-    . zipListStruct (\a' arr' -> Comp $ Imp.setArr i a' arr') rep
-    . unArr
+    $ sequence_
+    $ zipListStruct
+        (\a' arr' -> Comp $ Imp.setArr (i + arrOffset arr) a' arr') rep
+    $ unArr arr
   where
     rep = resugar a :: Struct PrimType' Data (Internal a)
 
@@ -668,7 +673,10 @@ copyArr :: (Type a, MonadComp m)
     -> Data Length  -- ^ Number of elements
     -> m ()
 copyArr arr1 arr2 len = liftComp $ sequence_ $
-    zipListStruct (\a1 a2 -> Comp $ Imp.copyArr a1 a2 len)
+    zipListStruct
+      (\a1 a2 ->
+          Comp $ Imp.copyArr (a1, arrOffset arr1) (a2, arrOffset arr2) len
+      )
       (unArr arr1)
       (unArr arr2)
 
@@ -678,21 +686,22 @@ freezeArr :: (Type a, MonadComp m)
     => Arr a
     -> Data Length  -- ^ Length of new array
     -> m (IArr a)
-freezeArr arr n
-    = liftComp
-    $ fmap IArr
-    $ mapStructA (Comp . flip Imp.freezeArr n)
-    $ unArr arr
+freezeArr arr n = liftComp $ do
+    arr2 <- newArr n
+    copyArr arr2 arr n
+    unsafeFreezeArr arr2
+  -- This is better than calling `freezeArr` from imperative-edsl, since that
+  -- one copies without offset.
 
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
 unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
-unsafeFreezeArr
+unsafeFreezeArr arr
     = liftComp
-    . fmap IArr
-    . mapStructA (Comp . Imp.unsafeFreezeArr)
-    . unArr
+    $ fmap (IArr (arrOffset arr))
+    $ mapStructA (Comp . Imp.unsafeFreezeArr)
+    $ unArr arr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
@@ -700,26 +709,25 @@ thawArr :: (Type a, MonadComp m)
     => IArr a
     -> Data Length  -- ^ Number of elements to copy
     -> m (Arr a)
-thawArr arr n
-    = liftComp
-    $ fmap Arr
-    $ mapStructA (Comp . flip Imp.thawArr n)
-    $ unIArr
-    $ arr
+thawArr arr n = liftComp $ do
+    arr2 <- unsafeThawArr arr
+    arr3 <- newArr n
+    copyArr arr3 arr2 n
+    return arr3
 
 -- | Thaw an immutable array to a mutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
 unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
-unsafeThawArr
+unsafeThawArr arr
     = liftComp
-    . fmap Arr
-    . mapStructA (Comp . Imp.unsafeThawArr)
-    . unIArr
+    $ fmap (Arr (iarrOffset arr))
+    $ mapStructA (Comp . Imp.unsafeThawArr)
+    $ unIArr arr
 
 -- | Create and initialize an immutable array
 initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
-initIArr = liftComp . fmap (IArr . Single) . Comp . Imp.initIArr
+initIArr = liftComp . fmap (IArr 0 . Single) . Comp . Imp.initIArr
 
 
 

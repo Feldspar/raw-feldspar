@@ -10,7 +10,7 @@ import Language.Syntactic.TH
 
 inhabitedTupleInstances :: Int -> DecsQ
 inhabitedTupleInstances n = return
-    [ InstanceD
+    [ instD
         [AppT (ConT (mkName "Inhabited")) (VarT a) | a <- take w varSupply]
         ( AppT
             (ConT (mkName "Inhabited"))
