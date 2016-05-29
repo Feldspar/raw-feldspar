@@ -222,19 +222,19 @@ strArg :: String -> FunArg Data PrimType'
 strArg = Imp.strArg
 
 -- | Value argument
-valArg :: PrimType a => Data a -> FunArg Data PrimType'
+valArg :: PrimType' a => Data a -> FunArg Data PrimType'
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: PrimType a => Ref a -> FunArg Data PrimType'
+refArg :: PrimType' a => Ref a -> FunArg Data PrimType'
 refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
-arrArg :: PrimType a => Arr a -> FunArg Data PrimType'
+arrArg :: PrimType' a => Arr a -> FunArg Data PrimType'
 arrArg (Arr a) = Imp.arrArg (extractSingle a)
 
 -- | Immutable array argument
-iarrArg :: PrimType a => IArr a -> FunArg Data PrimType'
+iarrArg :: PrimType' a => IArr a -> FunArg Data PrimType'
 iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
 
 -- | Abstract object argument
