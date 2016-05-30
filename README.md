@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/emilaxelsson/raw-feldspar.png)](https://travis-ci.org/emilaxelsson/raw-feldspar)
+
 # Resource-Aware Feldspar
 
 This package is a prototype for a new design for Feldspar. It tries two things:
