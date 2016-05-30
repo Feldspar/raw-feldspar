@@ -98,6 +98,7 @@ type TargetCMD
     :+: Hard.VArrayCMD
     :+: Hard.LoopCMD
     :+: Hard.ConditionalCMD
+    :+: Hard.ComponentCMD
     :+: Hard.StructuralCMD
     :+: Hard.SignalCMD
         -- Leftovers from reexpress translation of Comp.
@@ -243,6 +244,7 @@ type FinalCMD
     :+: Hard.LoopCMD
     :+: Hard.ConditionalCMD
     :+: Hard.StructuralCMD
+    :+: Hard.ComponentCMD
     :+: Hard.SignalCMD
 
 -- | Target monad during translation.
@@ -287,8 +289,10 @@ instance Lower Soft.ControlCMD
     lowerInstr (Soft.Break)              = error "lower break"
     lowerInstr (Soft.Assert cond msg)    = error "lower assert"
 
+
 instance Lower Hard.VariableCMD    where lowerInstr = Oper.singleInj
 instance Lower Hard.VArrayCMD      where lowerInstr = Oper.singleInj
+instance Lower Hard.ComponentCMD   where lowerInstr = Oper.singleInj
 instance Lower Hard.StructuralCMD  where lowerInstr = Oper.singleInj
 instance Lower Hard.SignalCMD      where lowerInstr = Oper.singleInj
 instance Lower Hard.LoopCMD        where lowerInstr = Oper.singleInj

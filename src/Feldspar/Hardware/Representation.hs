@@ -25,6 +25,7 @@ type HardwareCMD =
   :+: LoopCMD
   :+: SignalCMD
   :+: StructuralCMD
+  :+: ComponentCMD
 
 -- | ...
 newtype Hardware a = Hardware
