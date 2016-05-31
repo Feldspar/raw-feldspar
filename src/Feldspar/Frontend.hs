@@ -434,10 +434,28 @@ class Finite a
     -- | The length of a finite structure
     length :: a -> Data Length
 
+-- | Linear structures that can be sliced
+class Slicable a
+  where
+    -- | Take a slice of a structure
+    slice
+        :: Data Index   -- ^ Start index
+        -> Data Length  -- ^ Slice length
+        -> a            -- ^ Structure to slice
+        -> a
+
 instance Type a => Indexed (IArr a)
   where
     type IndexedElem (IArr a) = Data a
     (!) = arrIx
+
+instance Slicable (Arr a)
+  where
+    slice from _ (Arr o arr) = Arr (o+from) arr
+
+instance Slicable (IArr a)
+  where
+    slice from _ (IArr o arr) = IArr (o+from) arr
 
 -- | Make a dimension-less value 1-dimensional by pairing it with a length
 --
@@ -456,6 +474,10 @@ instance Indexed a => Indexed (Dim1 a)
 instance Indexed a => Finite (Dim1 a)
   where
     length = dimLength
+
+instance Slicable a => Slicable (Dim1 a)
+  where
+    slice from n (Dim1 len a) = Dim1 n $ slice from n a
 
 -- | Make a dimension-less value 2-dimensional by pairing it with a pair of
 -- lengths
