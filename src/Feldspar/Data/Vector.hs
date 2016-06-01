@@ -322,6 +322,11 @@ zipWith :: (Pully vec1 a, Pully vec2 b) =>
     (a -> b -> c) -> vec1 -> vec2 -> Pull c
 zipWith f a b = fmap (uncurry f) $ zip a b
 
+unzipWith :: Pully vec ab => (ab -> (a, b)) -> vec -> (Pull a, Pull b)
+unzipWith f ab = (Pull len (fst . f . (ab!)), Pull len (snd . f . (ab!)))
+  where
+    len = length ab
+
 -- | Left fold of a non-empty vector
 fold1 :: (Syntax a, Pully vec a) => (a -> a -> a) -> vec -> a
 fold1 f vec  = forLoop (length vec) (vec!0) $ \i st -> f (vec!(i+1)) st
