@@ -296,6 +296,9 @@ inits1 = tail . inits
 replicate :: Data Length -> a -> Pull a
 replicate l = Pull l . const
 
+map :: Pully vec a => (a -> b) -> vec -> Pull b
+map f vec = Pull (length vec) (f . (vec!))
+
 zip :: (Pully vec1 a, Pully vec2 b) => vec1 -> vec2 -> Pull (a,b)
 zip a b = Pull (length a `min` length b) (\i -> (a!i, b!i))
 
