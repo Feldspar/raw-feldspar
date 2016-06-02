@@ -5,6 +5,8 @@ module Feldspar.Data.Array where
 
 
 
+import Data.Proxy
+
 import Feldspar.Run
 
 
@@ -101,6 +103,43 @@ instance Finite (Nest a)
 instance Slicable a => Slicable (Nest a)
   where
     slice from n (Nest _ w man) = Nest n w $ slice (from*w) (n*w) man
+
+instance Forcible a => Forcible (Nest a)
+  where
+    type ValueRep (Nest a) = (Data Length, Data Length, ValueRep a)
+    toValue (Nest h w a) = toValue (h,w,a)
+    fromValue v = let (h,w,a) = fromValue v in Nest h w a
+
+instance Storable a => Storable (Nest a)
+  where
+    type StoreRep (Nest a)  = (Ref Length, Ref Length, StoreRep a)
+    type StoreSize (Nest a) = StoreSize a
+    newStoreRep _ sz =
+        newStoreRep (Proxy :: Proxy (Data Length, Data Length, a)) ((),(),sz)
+    initStoreRep (Nest h w a) = initStoreRep (h,w,a)
+    readStoreRep rep = do
+      (h,w,a) <- readStoreRep rep
+      return $ Nest h w a
+    unsafeFreezeStoreRep rep = do
+      (h,w,a) <- unsafeFreezeStoreRep rep
+      return $ Nest h w a
+    writeStoreRep rep (Nest h w a) = writeStoreRep rep (h,w,a)
+    copyStoreRep _ = copyStoreRep (Proxy :: Proxy (Data Length, Data Length, a))
+
+-- | Note that @`HaskellRep` (`Nest` a) = (`Length`, `Length`, `HaskellRep` a)@
+-- rather than @[HaskellRep a]@. This means that e.g.
+-- @`Nest` (`Nest` (`Fin` (`IArr` a)))@ is represented as
+-- @(Length,Length,(Length,Length,(Length,[...])))@ instead of the more
+-- convenient @[[...]]@.
+instance MarshalFeld a => MarshalFeld (Nest a)
+  where
+    type HaskellRep (Nest a) = (Length, Length, HaskellRep a)
+    fromFeld (Nest h w a) = fromFeld (h,w,a)
+    toFeld = do
+        (h,w,a) <- toFeld
+        return $ Nest h w a
+  -- The reason for not using `HaskellRep (Nest a) = [HaskellRep a]` is that
+  -- this representation makes it impossible to implement `toFeld`.
 
 -- | Add a layer of nesting to a linear data structure by symbolically chopping
 -- it up into segments. The nesting is symbolic in the sense that
