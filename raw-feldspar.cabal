@@ -45,6 +45,7 @@ library
     Feldspar.Hardware.Frontend
     Feldspar.Hardware.Compile
     Feldspar.Hardware
+    Feldspar.Data.Array
     Feldspar.Data.Vector
     Feldspar.Data.Option
     Feldspar.Data.Validated

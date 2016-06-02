@@ -9,6 +9,7 @@ import qualified Prelude
 import Data.Proxy
 
 import Feldspar
+import Feldspar.Data.Array
 import Feldspar.Run
 import Feldspar.Run.Concurrent
 import qualified Language.Embedded.Concurrent as Imp
@@ -45,8 +46,6 @@ import qualified Language.Embedded.Concurrent as Imp
 --
 -- There are also some disadvantages to nesting:
 --
---   * We can't have nested manifest vectors, so conversion to/from memory
---     arrays becomes a bit ad hoc (see the various `toPull*` functions).
 --   * There is no guarantee that the inner vectors have the same length, so
 --     functions operating on matrices have to assume this property.
 --   * Similarly, it is generally not possible to get the length of the inner
@@ -62,7 +61,7 @@ import qualified Language.Embedded.Concurrent as Imp
 
 
 --------------------------------------------------------------------------------
--- * General operations
+-- * Generic operations
 --------------------------------------------------------------------------------
 
 -- | Foldable vectors
@@ -96,6 +95,98 @@ sequenceVec = foldM (const id) ()
 
 
 --------------------------------------------------------------------------------
+-- * Manifest vectors
+--------------------------------------------------------------------------------
+
+-- | A non-nestable vector with a concrete representation in memory
+--
+-- A multi-dimensional manifest vector can be obtained using 'nest'; e.g:
+--
+-- @
+-- -- Vector of Double
+-- vec :: `Manifest` (`Data` `Double`)
+--
+-- -- Matrix of Double
+-- mat :: `Nest` (`Manifest` (`Data` `Double`))
+-- mat = `nest` 10 10 vec
+-- @
+--
+-- In general, a vector of type @`Nest` ... (`Nest` (`Manifest` a))@ is
+-- preferred over @`Pull` ... (`Pull` (`Pull` a))@, because:
+--
+-- * The former can be converted to the latter (TODO How?)
+--
+-- * The former can be flattened cheaply without using division and modulus
+--
+-- * The former can be used directly (after flattening) in cases where a memory
+--   array is needed (e.g. when calling an external procedure). The latter first
+--   needs to be copied into a memory array.
+data Manifest a = Manifest (Data Length) (IArr (Internal a))
+
+instance Syntax a => Indexed (Manifest a)
+  where
+    type IndexedElem (Manifest a) = a
+    Manifest _ arr ! i = sugar (arr ! i)
+
+instance Finite (Manifest a)
+  where
+    length (Manifest l _) = l
+
+instance Slicable (Manifest a)
+  where
+    slice from n (Manifest _ arr) = Manifest n $ slice from n arr
+
+instance Syntax a => Forcible (Manifest a)
+  where
+    type ValueRep (Manifest a) = Manifest a
+    toValue   = return
+    fromValue = id
+
+instance Syntax a => Storable (Manifest a)
+  where
+    type StoreRep (Manifest a)  = (Ref Length, Arr (Internal a))
+    type StoreSize (Manifest a) = Data Length
+    newStoreRep _ len = do
+        lenRef <- initRef len
+        arr    <- newArr len
+        return (lenRef,arr)
+    initStoreRep vec = do
+        rep <- newStoreRep (Nothing :: Maybe (Pull a)) (length vec)
+        writeStoreRep rep vec
+        return rep
+    readStoreRep (lenRef,arr) = do
+        len  <- getRef lenRef
+        iarr <- freezeArr arr len
+        return $ Manifest len iarr
+    unsafeFreezeStoreRep (lenRef,arr) = do
+        len  <- unsafeFreezeRef lenRef
+        iarr <- unsafeFreezeArr arr
+        return $ Manifest len iarr
+    writeStoreRep (lenRef,dst) (Manifest len iarr) = do
+        setRef lenRef len
+        src <- unsafeThawArr iarr
+        copyArr dst src len
+    copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do
+        sLen <- unsafeFreezeRef sLenRef
+        setRef dLenRef sLen
+        copyArr dst src sLen
+
+instance
+    ( MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    , Syntax a
+    ) =>
+      MarshalFeld (Manifest a)
+  where
+    type HaskellRep (Manifest a) = [Internal a]
+    fromFeld (Manifest len arr) = fromFeld $ Fin len arr
+    toFeld = do
+        Fin len arr <- toFeld
+        return $ Manifest len arr
+
+
+
+--------------------------------------------------------------------------------
 -- * Pull vectors
 --------------------------------------------------------------------------------
 
@@ -122,9 +213,13 @@ instance Finite (Pull a)
   where
     length (Pull len _) = len
 
+instance Slicable (Pull a)
+  where
+    slice from n = take n . drop from
+
 instance Syntax a => Forcible (Pull a)
   where
-    type ValueRep (Pull a) = Dim1 (IArr (Internal a))
+    type ValueRep (Pull a) = Manifest a
     toValue   = toValue . toPush
     fromValue = toPull
 
@@ -132,26 +227,12 @@ instance Syntax a => Storable (Pull a)
   where
     type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
     type StoreSize (Pull a) = Data Length
-    newStoreRep _ len = do
-        lenRef <- initRef len
-        arr    <- newArr len
-        return (lenRef,arr)
-    initStoreRep vec = do
-        rep <- newStoreRep (Nothing :: Maybe (Pull a)) (length vec)
-        writeStoreRep rep vec
-        return rep
-    readStoreRep (lenRef,arr) = do
-        len <- getRef lenRef
-        freezeVec len arr
-    unsafeFreezeStoreRep (lenRef,arr) = do
-        len <- unsafeFreezeRef lenRef
-        unsafeFreezeVec len arr
-    writeStoreRep (lenRef,arr) (Pull l ixf) =
-        for (0, 1, Excl l) $ \i -> setArr i (ixf i) arr
-    copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do
-        sLen <- unsafeFreezeRef sLenRef
-        setRef dLenRef sLen
-        copyArr dst src sLen
+    newStoreRep _        = newStoreRep (Proxy :: Proxy (Manifest a))
+    initStoreRep         = toValue >=> initStoreRep
+    readStoreRep         = fmap fromValue . readStoreRep
+    unsafeFreezeStoreRep = fmap fromValue . unsafeFreezeStoreRep
+    writeStoreRep s      = toValue >=> writeStoreRep s
+    copyStoreRep _       = copyStoreRep (Proxy :: Proxy (Manifest a))
 
 instance
     ( MarshalHaskell (Internal a)
@@ -162,7 +243,7 @@ instance
   where
     type HaskellRep (Pull a) = [Internal a]
     fromFeld = fromFeld <=< toValue
-    toFeld   = fmap sugar . toPull <$> (toFeld :: Run (Dim1 (IArr (Internal a))))
+    toFeld   = fromValue <$> toFeld
   -- Ideally, we would like the more general instance
   --
   --     instance MarshalFeld a => MarshalFeld (Pull a)
@@ -218,53 +299,19 @@ instance Folding Pull
       -- a pure `forLoop` which potentially can be better optimized.
     foldM f x vec = foldM f x $ toPushSeq vec
 
-
-
-----------------------------------------
--- ** Conversion
-----------------------------------------
-
 -- | Vectors that are 'Pull'-like
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 
--- | Convert an indexed structure to a 'Pull' vector
---
--- Example types:
---
--- @
--- `Dim1` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
--- `Dim2` (`IArr` `Double`) -> `Pull` (`Data` `Double`)
--- @
-toPull :: (Pully vec (Data (Internal a)), Syntax a) => vec -> Pull a
-toPull vec = fmap sugar $ Pull (length vec) (vec!)
-  -- This function is more general than `fromValue` since it also handles e.g.
-  -- `Dim2`.
-
--- | Convert a 2-dimensional indexed array to a nested 'Pull' vector
-toPull2 :: (Indexed arr, Syntax a, IndexedElem arr ~ Data (Internal a)) =>
-    Dim2 arr -> Pull (Pull a)
-toPull2 (Dim2 r c arr) =
-    Pull r $ \k ->
-      Pull c $ \l ->
-        sugar (arr ! (k*c+l))
-
-freezeVec :: (MonadComp m, Syntax a) =>
-    Data Length -> Arr (Internal a) -> m (Pull a)
-freezeVec len arr = do
-    iarr <- freezeArr arr len
-    return $ Pull len $ \i -> arrIx iarr i
-
-unsafeFreezeVec :: (MonadComp m, Syntax a) =>
-    Data Length -> Arr (Internal a) -> m (Pull a)
-unsafeFreezeVec len arr = do
-    iarr <- unsafeFreezeArr arr
-    return $ Pull len $ \i -> arrIx iarr i
+-- | Convert an indexed structure (e.g. @`Fin` (`IArr` a)@ or @`Manifest` a@) to
+-- a 'Pull' vector
+toPull :: Pully vec a => vec -> Pull a
+toPull vec = Pull (length vec) (vec!)
 
 
 
 ----------------------------------------
--- ** Vector operations
+-- ** Operations
 ----------------------------------------
 
 head :: Pully vec a => vec -> a
@@ -398,12 +445,12 @@ instance Finite (Push a)
 
 instance Syntax a => Forcible (Push a)
   where
-    type ValueRep (Push a) = Dim1 (IArr (Internal a))
+    type ValueRep (Push a) = Manifest a
     toValue (Push len dump) = do
         arr <- newArr len
         dump $ \i a -> setArr i a arr
         iarr <- unsafeFreezeArr arr
-        return $ Dim1 len iarr
+        return $ Manifest len iarr
     fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
 
 class Pushy vec
@@ -498,6 +545,9 @@ class PushySeq vec
     toPushSeq :: vec a -> PushSeq a
 
 instance PushySeq PushSeq where toPushSeq = id
+
+-- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
+-- `Syntax` constraint.
 
 instance PushySeq Pull
   where
@@ -619,19 +669,24 @@ instance Linearizable Run a => Linearizable Run (Run a)
     type LinearElem (Run a) = LinearElem a
     linearPush m put = m >>= flip linearPush put
 
-instance (Type a, MonadComp m) => Linearizable m (Dim1 (IArr a))
+instance (Type a, MonadComp m) => Linearizable m (Fin (IArr a))
   where
-    type LinearElem (Dim1 (IArr a)) = a
-    linearPush (Dim1 len arr) put =
+    type LinearElem (Fin (IArr a)) = a
+    linearPush (Fin len arr) put =
         for (0,1,Excl len) $ \i ->
           put (arr!i)
 
-instance (Type a, MonadComp m) => Linearizable m (Dim1 (Arr a))
+instance (Type a, MonadComp m) => Linearizable m (Fin (Arr a))
   where
-    type LinearElem (Dim1 (Arr a)) = a
-    linearPush (Dim1 len arr) put = do
+    type LinearElem (Fin (Arr a)) = a
+    linearPush (Fin len arr) put = do
         iarr <- unsafeFreezeArr arr
-        linearPush (Dim1 len iarr) put
+        linearPush (Fin len iarr) put
+
+instance (Syntax a, MonadComp m) => Linearizable m (Manifest a)
+  where
+    type LinearElem (Manifest a) = Internal a
+    linearPush = linearPush . toPushSeq . fmap desugar . toPull
 
 instance (Linearizable m a, MonadComp m) => Linearizable m (Pull a)
   where
@@ -688,7 +743,7 @@ chunked :: (Syntax b, MonadComp m)
         => Int                 -- ^ Size of the chunks
         -> (Pull a -> Pull b)  -- ^ Applied to every chunk
         -> Pull a
-        -> m (Dim1 (IArr (Internal b)))
+        -> m (Manifest b)
 chunked c f vec = do
   let c' = fromInteger $ toInteger c
       len = length vec
@@ -708,5 +763,5 @@ chunked c f vec = do
     setArr x (v!i) arr
     setRef off (x+1)
   iarr <- unsafeFreezeArr arr
-  return $ Dim1 len iarr
+  return $ Manifest len iarr
 

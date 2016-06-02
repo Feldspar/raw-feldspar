@@ -7,6 +7,7 @@ import Test.Tasty.QuickCheck
 import Test.Tasty.TH
 
 import Feldspar.Run
+import Feldspar.Data.Array
 
 
 
@@ -48,10 +49,10 @@ main =
     marshalled (return :: Pass (Data Double))           $ \f_Double ->
     marshalled (return :: Pass (Data (Complex Float)))  $ \f_CompFloat ->
     marshalled (return :: Pass (Data (Complex Double))) $ \f_CompDouble ->
-    marshalled (return :: Pass (Dim1 (Arr Double)))     $ \f_Arr ->
-    marshalled (return :: Pass (Dim1 (IArr Int32)))     $ \f_IArr ->
+    marshalled (return :: Pass (Fin (Arr Double)))      $ \f_Arr ->
+    marshalled (return :: Pass (Fin (IArr Int32)))      $ \f_IArr ->
     marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
-    marshalled (return :: Pass (Dim1 (IArr Double), (Data Int8, Dim1 (Arr (Complex Float))))) $ \f_Nested ->
+    marshalled (return :: Pass (Fin (IArr Double), (Data Int8, Fin (Arr (Complex Float))))) $ \f_Nested ->
 
       defaultMain $ testGroup "tests"
         [ $testGroupGenerator

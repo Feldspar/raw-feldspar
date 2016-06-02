@@ -10,9 +10,7 @@ import Control.Monad.Identity
 import Data.Bits (Bits, FiniteBits)
 import qualified Data.Bits as Bits
 import Data.Complex (Complex)
-import Data.Foldable (Foldable)
 import Data.Int
-import Data.Traversable (Traversable)
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -456,50 +454,6 @@ instance Slicable (Arr a)
 instance Slicable (IArr a)
   where
     slice from _ (IArr o arr) = IArr (o+from) arr
-
--- | Make a dimension-less value 1-dimensional by pairing it with a length
---
--- A typical use of 'Dim1' is @`Dim1` (`IArr` a)@.
-data Dim1 a = Dim1
-    { dimLength  :: Data Length
-    , dim1_inner :: a
-    }
-  deriving (Functor, Foldable, Traversable)
-
-instance Indexed a => Indexed (Dim1 a)
-  where
-    type IndexedElem (Dim1 a) = IndexedElem a
-    Dim1 _ a ! i = a!i
-
-instance Indexed a => Finite (Dim1 a)
-  where
-    length = dimLength
-
-instance Slicable a => Slicable (Dim1 a)
-  where
-    slice from n (Dim1 len a) = Dim1 n $ slice from n a
-
--- | Make a dimension-less value 2-dimensional by pairing it with a pair of
--- lengths
---
--- A typical use of 'Dim2' is @`Dim2` (`IArr` a)@.
-data Dim2 a = Dim2
-    { dimRows    :: Data Length
-    , dimCols    :: Data Length
-    , dim2_inner :: a
-    }
-  deriving (Functor, Foldable, Traversable)
-
--- | Linear row-major indexing
-instance Indexed a => Indexed (Dim2 a)
-  where
-    type IndexedElem (Dim2 a) = IndexedElem a
-    Dim2 _ _ a ! i = a!i
-
--- | Length is `#rows * #columns`
-instance Indexed a => Finite (Dim2 a)
-  where
-    length (Dim2 r c _) = r*c
 
 
 
