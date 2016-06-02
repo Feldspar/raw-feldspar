@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Feldspar.Data.Vector where
@@ -373,7 +374,7 @@ fold1 :: (Syntax a, Pully vec a) => (a -> a -> a) -> vec -> a
 fold1 f vec  = forLoop (length vec) (vec!0) $ \i st -> f (vec!(i+1)) st
 
 -- | Scalar product
-scProd :: (Num a, Syntax a, Pully vec a) => vec -> vec -> a
+scProd :: (Num a, Syntax a, Pully vec1 a, Pully vec2 a) => vec1 -> vec2 -> a
 scProd a b = sum (zipWith (*) a b)
 
 
@@ -390,22 +391,25 @@ pullMatrix
     -> Pull (Pull a)
 pullMatrix r c ixf = Pull r $ \k -> Pull c $ \l -> ixf k l
 
--- These operations are not overloaded using `Pully` since there are no nested
--- structures that can be converted to `Pull (Pull a)` without going through
--- memory.
-
 -- | Transpose of a matrix. Assumes that the number of rows is > 0 and that all
 -- rows have the same length.
-transpose :: Pull (Pull a) -> Pull (Pull a)
+transpose :: (Pully mat row, Pully row a) => mat -> Pull (Pull a)
 transpose a = Pull (length (a!0)) $ \k -> Pull (length a) $ \l -> a!l!k
 
 -- | Matrix multiplication
-matMul :: (Num a, Syntax a) => Pull (Pull a) -> Pull (Pull a) -> Pull (Pull a)
+matMul
+    :: ( Pully mat1 row
+       , Pully mat2 row
+       , Pully row a
+       , Num a
+       , Syntax a
+       )
+    => mat1 -> mat2 -> Pull (Pull a)
 matMul a b = forEach a $ \a' ->
                forEach (transpose b) $ \b' ->
                  scProd a' b'
   where
-    forEach = flip fmap
+    forEach = flip map
 
 
 
