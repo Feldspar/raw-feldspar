@@ -459,11 +459,19 @@ class Pushy vec
 
 instance Pushy Push where toPush = id
 
+-- | Convert a 'Pully' vector to 'Push'
+--
+-- This function is useful for vectors that do not have a 'Pushy' instance (e.g.
+-- 'Manifest').
+pullyToPush :: Pully vec a => vec -> Push a
+pullyToPush vec = Push l $ \write -> for (0,1,Excl l) $ \i ->
+    write i (vec!i)
+  where
+    l = length vec
+
 instance Pushy Pull
   where
-    toPush (Pull len ixf) = Push len $ \write ->
-        for (0,1,Excl len) $ \i ->
-          write i (ixf i)
+    toPush = pullyToPush
 
 
 
