@@ -85,6 +85,16 @@ instance (MarshalHaskell a, MarshalHaskell b) => MarshalHaskell (a,b)
     fromHaskell (a,b) = unwords [fromHaskell a, fromHaskell b]
     toHaskell = (,) <$> toHaskell <*> toHaskell
 
+instance (MarshalHaskell a, MarshalHaskell b, MarshalHaskell c) => MarshalHaskell (a,b,c)
+  where
+    fromHaskell (a,b,c) = unwords [fromHaskell a, fromHaskell b, fromHaskell c]
+    toHaskell = (,,) <$> toHaskell <*> toHaskell <*> toHaskell
+
+instance (MarshalHaskell a, MarshalHaskell b, MarshalHaskell c, MarshalHaskell d) => MarshalHaskell (a,b,c,d)
+  where
+    fromHaskell (a,b,c,d) = unwords [fromHaskell a, fromHaskell b, fromHaskell c, fromHaskell d]
+    toHaskell = (,,,) <$> toHaskell <*> toHaskell <*> toHaskell <*> toHaskell
+
 instance MarshalHaskell a => MarshalHaskell [a]
   where
     fromHaskell as = unwords $ show (Prelude.length as) : map fromHaskell as
@@ -136,7 +146,19 @@ instance (MarshalFeld a, MarshalFeld b) => MarshalFeld (a,b)
   where
     type HaskellRep (a,b) = (HaskellRep a, HaskellRep b)
     fromFeld (a,b) = fromFeld a >> printf " " >> fromFeld b
-    toFeld         = (,) <$> toFeld <*> toFeld
+    toFeld = (,) <$> toFeld <*> toFeld
+
+instance (MarshalFeld a, MarshalFeld b, MarshalFeld c) => MarshalFeld (a,b,c)
+  where
+    type HaskellRep (a,b,c) = (HaskellRep a, HaskellRep b, HaskellRep c)
+    fromFeld (a,b,c) = fromFeld a >> printf " " >> fromFeld b >> printf " " >> fromFeld c
+    toFeld = (,,) <$> toFeld <*> toFeld <*> toFeld
+
+instance (MarshalFeld a, MarshalFeld b, MarshalFeld c, MarshalFeld d) => MarshalFeld (a,b,c,d)
+  where
+    type HaskellRep (a,b,c,d) = (HaskellRep a, HaskellRep b, HaskellRep c, HaskellRep d)
+    fromFeld (a,b,c,d) = fromFeld a >> printf " " >> fromFeld b >> printf " " >> fromFeld c >> printf " " >> fromFeld d
+    toFeld = (,,,) <$> toFeld <*> toFeld <*> toFeld <*> toFeld
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@
 connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
