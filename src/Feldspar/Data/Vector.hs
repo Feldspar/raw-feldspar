@@ -114,7 +114,8 @@ sequenceVec = foldM (const id) ()
 -- In general, a vector of type @`Nest` ... (`Nest` (`Manifest` a))@ is
 -- preferred over @`Pull` ... (`Pull` (`Pull` a))@, because:
 --
--- * The former can be converted to the latter (TODO How?)
+-- * The former can be converted to the latter (using combinations of `toPull`
+--   and `fmap`)
 --
 -- * The former can be flattened cheaply without using division and modulus
 --
@@ -299,11 +300,11 @@ instance Folding Pull
       -- a pure `forLoop` which potentially can be better optimized.
     foldM f x vec = foldM f x $ toPushSeq vec
 
--- | Vectors that are 'Pull'-like
+-- | Data structures that are 'Pull'-like (i.e. support '!' and 'length')
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 
--- | Convert an indexed structure (e.g. @`Fin` (`IArr` a)@ or @`Manifest` a@) to
+-- | Convert a 'Pully' structure (e.g. @`Fin` (`IArr` a)@ or @`Manifest` a@) to
 -- a 'Pull' vector
 toPull :: Pully vec a => vec -> Pull a
 toPull vec = Pull (length vec) (vec!)
@@ -459,7 +460,7 @@ class Pushy vec
 
 instance Pushy Push where toPush = id
 
--- | Convert a 'Pully' vector to 'Push'
+-- | Convert a 'Pully' structure to 'Push'
 --
 -- This function is useful for vectors that do not have a 'Pushy' instance (e.g.
 -- 'Manifest').

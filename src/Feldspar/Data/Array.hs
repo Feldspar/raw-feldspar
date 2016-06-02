@@ -87,6 +87,7 @@ data Nest a = Nest
     , nestSegLength :: Data Length
     , nestInner     :: a
     }
+  deriving (Functor, Foldable, Traversable)
 
 instance Slicable a => Indexed (Nest a)
   where
