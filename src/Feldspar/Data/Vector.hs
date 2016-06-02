@@ -302,11 +302,6 @@ map f vec = Pull (length vec) (f . (vec!))
 zip :: (Pully vec1 a, Pully vec2 b) => vec1 -> vec2 -> Pull (a,b)
 zip a b = Pull (length a `min` length b) (\i -> (a!i, b!i))
 
-unzip :: Pully vec (a,b) => vec -> (Pull a, Pull b)
-unzip ab = (Pull len (fst . (ab!)), Pull len (snd . (ab!)))
-  where
-    len = length ab
-
 permute :: Pully vec a =>
     (Data Length -> Data Index -> Data Index) -> (vec -> Pull a)
 permute perm vec = Pull len ((vec!) . perm len)
