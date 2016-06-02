@@ -1,5 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+import Data.List (genericIndex)
+
 import qualified Test.QuickCheck.Monadic as QC
 
 import Test.Tasty
@@ -34,6 +36,31 @@ property_marshalFeld f a = QC.monadicIO $ do
     b <- QC.run $ f a
     QC.assert (a Prelude.== b)
 
+-- | Indexing in a 3-dimensional structure
+nestIndex
+    :: ( Fin (IArr Int32)
+       , (Data Length, Data Length, Data Length)
+       , (Data Index,  Data Index,  Data Index)
+       )
+    -> Run (Data Int32)
+nestIndex (arr,(l1,l2,l3),(i1,i2,i3)) = return $ nestedArr ! i1 ! i2 ! i3
+  where
+    nestedArr = nest l1 l2 $ nest l2 l3 arr
+
+property_nestIndex f =
+    forAll genLenIx $ \(l1,i1) ->
+    forAll genLenIx $ \(l2,i2) ->
+    forAll genLenIx $ \(l3,i3) ->
+      let l = fromIntegral (l1*l2*l3)
+      in  forAll (vector l) $ \(as :: [Int32]) -> QC.monadicIO $ do
+            a <- QC.run $ f (as,(l1,l2,l3),(i1,i2,i3))
+            QC.assert (a Prelude.== genericIndex as (i1*l2*l3 + i2*l3 + i3))
+  where
+    genLenIx = do
+        l <- choose (1,5)
+        i <- choose (0,l-1)
+        return (l,i)
+
 type Pass a = a -> Run a
 
 main =
@@ -54,6 +81,8 @@ main =
     marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
     marshalled (return :: Pass (Fin (IArr Double), (Data Int8, Fin (Arr (Complex Float))))) $ \f_Nested ->
 
+    marshalled nestIndex $ \nestIndex_c ->
+
       defaultMain $ testGroup "tests"
         [ $testGroupGenerator
         , testGroup "marshalFeld"
@@ -73,6 +102,9 @@ main =
             , testProperty "marshalFeld IArr"           $ property_marshalFeld f_IArr
             , testProperty "marshalFeld Pair"           $ property_marshalFeld f_Pair
             , testProperty "marshalFeld Nested"         $ property_marshalFeld f_Nested
+            ]
+        , testGroup "misc"
+            [ testProperty "nestIndex" $ property_nestIndex nestIndex_c
             ]
         ]
 
