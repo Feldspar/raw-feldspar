@@ -100,15 +100,15 @@ sequenceVec = foldM (const id) ()
 
 -- | A non-nestable vector with a concrete representation in memory
 --
--- A multi-dimensional manifest vector can be obtained using 'nest'; e.g:
+-- A multi-dimensional manifest vector can be obtained using 'multiNest'; e.g:
 --
 -- @
 -- -- Vector of Double
 -- vec :: `Manifest` (`Data` `Double`)
 --
--- -- Matrix of Double
+-- -- 10*20 matrix of Double
 -- mat :: `Nest` (`Manifest` (`Data` `Double`))
--- mat = `nest` 10 10 vec
+-- mat = `multiNest` (10 :> 20 :> ZE) vec
 -- @
 --
 -- In general, a vector of type @`Nest` ... (`Nest` (`Manifest` a))@ is

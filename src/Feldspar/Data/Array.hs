@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 -- | Data structures for working with arrays
 module Feldspar.Data.Array where
 
@@ -105,14 +107,74 @@ instance Slicable a => Slicable (Nest a)
 --
 -- In an expression @`nest` l w a@, it must be the case that
 -- @l*w == `length` a@.
+--
+-- 'multiNest' may be a more convenient alternative to 'nest', expecially for
+-- adding several levels of nesting.
 nest
     :: Data Length  -- Number of segments
     -> Data Length  -- Segment length
     -> a
     -> Nest a
 nest = Nest
+  -- TODO Assert w == length a
 
 -- | Remove a layer of nesting
 unnest :: Nest a -> a
 unnest (Nest _ _ a) = a
+
+-- | Increase dimensionality
+--
+-- This type is used to represent the number of dimensions of a
+-- multi-dimensional structure. For example, @`Dim` (`Dim` ())@ means two
+-- dimensions (see the aliases 'Dim1', 'Dim2', etc.).
+data Dim d
+
+-- | One dimension
+type Dim1 = Dim ()
+
+-- | Two dimensions
+type Dim2 = Dim Dim1
+
+-- | Three dimensions
+type Dim3 = Dim Dim2
+
+-- | Four dimensions
+type Dim4 = Dim Dim3
+
+-- | A description of the extent of a rectangular multi-dimensional structure
+--
+-- For example, this value
+--
+-- @
+-- 10 :> 20 :> Z :: Extent (Dim (Dim ()))
+-- @
+--
+-- describes a two-dimensional structure with 10 rows and 20 columns.
+data Extent d
+  where
+    ZE   :: Extent ()
+    (:>) :: Data Length -> Extent d -> Extent (Dim d)
+
+infixr 5 :>
+
+-- | Get a list of the extent in each dimension
+listExtent :: Extent d -> [Data Length]
+listExtent ZE       = []
+listExtent (l :> e) = l : listExtent e
+
+-- | Add as much nesting to a one-dimensional structure as needed to reach the
+-- given dimensionality
+type family MultiNest d a
+  where
+    MultiNest (Dim ()) a = a
+    MultiNest (Dim d)  a = Nest (MultiNest d a)
+
+-- | Turn a one-dimensional structure into a multi-dimensional one by adding
+-- nesting as described by the given 'Extent'
+multiNest
+    :: Extent (Dim d)  -- ^ Extent of the result
+    -> a               -- ^ One-dimensional structure
+    -> MultiNest (Dim d) a
+multiNest (l :> ZE)       a = a  -- TODO Assert l == length a
+multiNest (l1 :> l2 :> e) a = Nest l1 l2 $ multiNest (l2 :> e) a
 

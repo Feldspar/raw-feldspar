@@ -45,7 +45,7 @@ nestIndex
     -> Run (Data Int32)
 nestIndex (arr,(l1,l2,l3),(i1,i2,i3)) = return $ nestedArr ! i1 ! i2 ! i3
   where
-    nestedArr = nest l1 l2 $ nest l2 l3 arr
+    nestedArr = multiNest (l1 :> l2 :> l3 :> ZE) arr
 
 property_nestIndex f =
     forAll genLenIx $ \(l1,i1) ->
