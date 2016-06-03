@@ -206,6 +206,18 @@ instance Functor Pull
   where
     fmap f (Pull len ixf) = Pull len (f . ixf)
 
+-- It would be possible to have the instance:
+--
+--     instance Applicative Pull
+--       where
+--         pure a  = Pull 1 (const a)
+--         Pull len1 ixf1 <*> Pull len2 ixf2 = Pull (len1*len2) $ \i ->
+--             let k = i `div` len2
+--                 l = i `mod` len2
+--             in  ixf1 k $ ixf2 l
+--
+-- However, it has been omitted due to the use of `div` and `mod`.
+
 instance Indexed (Pull a)
   where
     type IndexedElem (Pull a) = a
