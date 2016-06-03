@@ -451,6 +451,18 @@ instance Functor Push
     fmap f (Push len dump) = Push len $ \write ->
         dump $ \i -> write i . f
 
+-- | This instance behaves like the list instance:
+--
+-- > pure x    = [x]
+-- > fs <*> xs = [f x | f <- fs, x <- xs]
+instance Applicative Push
+  where
+    pure a  = Push 1 $ \write -> write 0 a
+    Push len1 dump1 <*> Push len2 dump2 = Push (len1*len2) $ \write -> do
+        dump2 $ \i2 a ->
+          dump1 $ \i1 f ->
+            write (i1*len2 + i2) (f a)
+
 instance Finite (Push a)
   where
     length (Push len _) = len
