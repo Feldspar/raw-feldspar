@@ -186,6 +186,9 @@ instance
         Fin len arr <- toFeld
         return $ Manifest len arr
 
+-- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
+-- `Syntax` constraint.
+
 
 
 --------------------------------------------------------------------------------
@@ -310,6 +313,15 @@ instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 toPull :: Pully vec a => vec -> Pull a
 toPull vec = Pull (length vec) (vec!)
 
+instance Pushy Pull
+  where
+    toPush = pullyToPush
+
+instance PushySeq Pull
+  where
+    toPushSeq (Pull len ixf) = PushSeq $ \put ->
+        for (0,1,Excl len) $ \i -> put (ixf i)
+
 
 
 ----------------------------------------
@@ -371,7 +383,7 @@ zipWith f a b = fmap (uncurry f) $ zip a b
 
 -- | Left fold of a non-empty vector
 fold1 :: (Syntax a, Pully vec a) => (a -> a -> a) -> vec -> a
-fold1 f vec  = forLoop (length vec) (vec!0) $ \i st -> f (vec!(i+1)) st
+fold1 f vec = forLoop (length vec) (vec!0) $ \i st -> f (vec!(i+1)) st
 
 -- | Scalar product
 scProd :: (Num a, Syntax a, Pully vec1 a, Pully vec2 a) => vec1 -> vec2 -> a
@@ -474,10 +486,6 @@ pullyToPush vec = Push l $ \write -> for (0,1,Excl l) $ \i ->
   where
     l = length vec
 
-instance Pushy Pull
-  where
-    toPush = pullyToPush
-
 
 
 ----------------------------------------
@@ -558,14 +566,6 @@ class PushySeq vec
     toPushSeq :: vec a -> PushSeq a
 
 instance PushySeq PushSeq where toPushSeq = id
-
--- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
--- `Syntax` constraint.
-
-instance PushySeq Pull
-  where
-    toPushSeq (Pull len ixf) = PushSeq $ \put ->
-        for (0,1,Excl len) $ \i -> put (ixf i)
 
 instance Folding PushSeq
   where
