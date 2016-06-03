@@ -20,13 +20,25 @@ import Feldspar.Frontend
 --------------------------------------------------------------------------------
 
 -- | Commands used in hardware programs.
-type HardwareCMD =
-      ConditionalCMD
-  :+: LoopCMD
-  :+: SignalCMD
-  :+: StructuralCMD
+type HardwareCMD
+    =   VariableCMD
+    :+: SignalCMD
+    :+: ConstantCMD
+    :+: ArrayCMD
+    :+: VArrayCMD
+    :+: LoopCMD
+    :+: ConditionalCMD
+    :+: StructuralCMD
+    :+: ComponentCMD
+  {-
+      SignalCMD
+  :+: ConstantCMD
+  :+: ArrayCMD
   :+: ComponentCMD
-
+  :+: LoopCMD
+  :+: ConditionalCMD
+  :+: StructuralCMD
+-}
 -- | ...
 newtype Hardware a = Hardware
     { unHardware ::

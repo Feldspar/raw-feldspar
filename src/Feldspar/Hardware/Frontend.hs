@@ -3,14 +3,22 @@ module Feldspar.Hardware.Frontend
   , MonadHardware(..)
 
   , Signal
+  , Constant
+  , Ident, ToIdent, (.:)
     
   , module Feldspar.Hardware.Frontend
   ) where
 
-import Language.Embedded.Hardware (Signal)
+import Language.Embedded.Hardware (Signal, Constant, Ident, ToIdent, (.:))
 import qualified Language.Embedded.Hardware as Hard
 
+import Data.Ix (Ix)
+
 import qualified Control.Monad.Operational.Higher as Oper
+
+import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
+import Language.Syntactic.Functional
+import qualified Language.Syntactic as Syntactic
 
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
@@ -35,7 +43,7 @@ newNamedSig name = Hardware $ Hard.newNamedSignal name
 
 -- | Create an initialized signal.
 initSig :: HPrimType a => HData a -> Hardware (Signal a)
-initSig = initNamedSig "s"
+initSig = Hardware . Hard.initSignal
 
 -- | Create an initialized named signal.
 initNamedSig :: HPrimType a => String -> HData a -> Hardware (Signal a)
@@ -56,6 +64,48 @@ modifySig s f = setSig s . f =<< unsafeFreezeSig s
 -- | Freeze the contents of a signal.
 unsafeFreezeSig :: HPrimType a => Signal a -> Hardware (HData a)
 unsafeFreezeSig = Hardware . Hard.unsafeFreezeSignal
+
+--------------------------------------------------------------------------------
+
+signal :: HPrimType a => String -> Hardware (Signal a)
+signal = Hardware . Hard.signal
+
+(<--) :: (Syntax HData a, HPrimType (Internal a)) => Signal (Internal a) -> a -> Hardware ()
+(<--) s = setSig s . Syntactic.resugar
+
+(<=-) :: HPrimType a => Signal a -> Signal a -> Hardware ()
+(<=-) s v = do v' <- unsafeFreezeSig v; setSig s v'
+
+(<==) :: HPrimType a => Signal a -> HData a -> Hardware ()
+(<==) = setSig
+
+--------------------------------------------------------------------------------
+-- ** Constants.
+
+initNamedConst :: HPrimType a => String -> HData a -> Hardware (Constant a)
+initNamedConst name = Hardware . Hard.initNamedConstant name
+
+initConst :: HPrimType a => HData a -> Hardware (Constant a)
+initConst = Hardware . Hard.initConstant
+
+getConst :: HPrimType a => Constant a -> Hardware (HData a)
+getConst = Hardware . Hard.getConstant
+
+--------------------------------------------------------------------------------
+
+constant :: HPrimType a => String -> HData a -> Hardware (Constant a)
+constant name = Hardware . Hard.constant name
+
+--------------------------------------------------------------------------------
+-- ** Arrays.
+
+getSignalRange :: (HPrimType a, Integral a, Ix a)
+  => HData a -> HData a -> Signal (Hard.Bits n) -> Hardware (HData Hard.UBits)
+getSignalRange low high = Hardware . Hard.getSignalRange low high
+
+setSignalRange :: (HPrimType a, Integral a, Ix a)
+  => HData a -> HData a -> Signal (Hard.Bits n) -> HData Hard.UBits -> Hardware ()
+setSignalRange low high s = Hardware . Hard.setSignalRange low high s
 
 --------------------------------------------------------------------------------
 -- ** Components.
@@ -83,13 +133,22 @@ portmap comp = Hardware . Hard.portmap comp
 
 --------------------------------------------------------------------------------
 
-uniqueInput  :: HPrimType' a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
+uniqueInput  :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
 uniqueInput  = Hard.exactInput
 
-uniqueOutput :: HPrimType' a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
+uniqueOutput :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
 uniqueOutput = Hard.exactOutput
 
 ret :: Hardware () -> Signature ()
 ret = Hard.ret . unHardware
+
+--------------------------------------------------------------------------------
+-- ** Structural.
+
+process :: [Ident] -> Hardware () -> Hardware ()
+process is = Hardware . Hard.process is . unHardware
+
+risingEdge :: Signal Bool -> Hardware () -> Hardware ()
+risingEdge s = Hardware . Hard.risingEdge s . unHardware
 
 --------------------------------------------------------------------------------

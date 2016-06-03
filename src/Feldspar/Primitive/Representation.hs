@@ -116,7 +116,8 @@ data HPrimTypeRep a
     Word32HT :: HPrimTypeRep Word32
     Word64HT :: HPrimTypeRep Word64
     BitsHT   :: (Typeable n, KnownNat n) => HPrimTypeRep (Hard.Bits n)
-    IntT     :: HPrimTypeRep Integer
+    UBitsHT  :: HPrimTypeRep Hard.UBits
+    IntHT    :: HPrimTypeRep Integer
 
 -- | Primitive supported types.
 class (Eq a, Ord a, Show a, Typeable a) => HPrimType' a
@@ -134,7 +135,8 @@ instance HPrimType' Word16 where primHTypeRep = Word16HT
 instance HPrimType' Word32 where primHTypeRep = Word32HT
 instance HPrimType' Word64 where primHTypeRep = Word64HT
 instance (Typeable n, KnownNat n) => HPrimType' (Hard.Bits n) where primHTypeRep = BitsHT
-instance HPrimType' Integer where primHTypeRep = IntT
+instance HPrimType' Hard.UBits where primHTypeRep = UBitsHT
+instance HPrimType' Integer where primHTypeRep = IntHT
 
                        -- $ fromIntegral $ natVal (Proxy::Proxy n)
 
@@ -158,7 +160,8 @@ primHTypeEq BitsHT   BitsHT   =
   case sameNat (peelProxy (Proxy::Proxy a)) (peelProxy (Proxy::Proxy b)) of
     Just Refl -> Just Dict
     Nothing   -> Nothing
-primHTypeEq IntT     IntT     = Just Dict
+primHTypeEq UBitsHT  UBitsHT  = Nothing -- ?
+primHTypeEq IntHT    IntHT    = Just Dict
 primHTypeEq _        _        = Nothing
 
 peelProxy :: KnownNat n => Proxy (Hard.Bits n) -> Proxy n
@@ -176,7 +179,8 @@ witPrimHType Word16HT = Dict
 witPrimHType Word32HT = Dict
 witPrimHType Word64HT = Dict
 witPrimHType BitsHT   = Dict
-witPrimHType IntT     = Dict
+witPrimHType UBitsHT  = Dict
+witPrimHType IntHT    = Dict
 
 --------------------------------------------------------------------------------
 -- * Expressions
@@ -308,9 +312,9 @@ data HPrimitive sig
     HDiv  :: (Fractional a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
     HPow  :: (Floating a, HPrimType' a)   => HPrimitive (a :-> a :-> Full a) 
 
-    HI2N   :: (Integral a, Num b, HPrimType' a, HPrimType' b)      => HPrimitive (a :-> Full b)
-    HI2B   :: (Integral a, HPrimType' a)                          => HPrimitive (a :-> Full Bool)
-    HB2I   :: (Integral a, HPrimType' a)                          => HPrimitive (Bool :-> Full a)
+    HI2N   :: (Integral a, Num b, HPrimType' a, HPrimType' b) => HPrimitive (a :-> Full b)
+    HI2B   :: (Integral a, HPrimType' a) => HPrimitive (a :-> Full Bool)
+    HB2I   :: (Integral a, HPrimType' a) => HPrimitive (Bool :-> Full a)
 
     HArrIx :: IArr Index a -> HPrimitive (Index :-> Full a)
 

@@ -645,6 +645,13 @@ ifE c t f = do
     iff c (t >>= setRef res) (f >>= setRef res)
     unsafeFreezeRef res
 
+when :: (MonadComp exp m, Imp.FreeExp exp, FreeDict exp)
+  => exp Bool
+  -> m ()
+  -> m ()
+when c t = do
+  iff c t (return ())
+
 -- | Break out from a loop
 break :: MonadComp exp m => m ()
 break = liftComp $ Comp Imp.break

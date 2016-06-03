@@ -129,7 +129,7 @@ instance HType Word16  where typeHRep = Single Word16HT
 instance HType Word32  where typeHRep = Single Word32HT
 instance HType Word64  where typeHRep = Single Word64HT
 instance (Typeable n, KnownNat n) => HType (Hard.Bits n) where typeHRep = Single BitsHT
-instance HType Integer where typeHRep = Single IntT
+instance HType Integer where typeHRep = Single IntHT
 instance (HType a, HType b) => HType (a,b) where typeHRep = Two typeHRep typeHRep
 
 instance Inhabited Integer where
@@ -556,7 +556,8 @@ freeHDict _ rep = case rep of
   Word32HT -> Dict
   Word64HT -> Dict
   BitsHT   -> Dict
-  IntT     -> Dict
+  UBitsHT  -> Dict
+  IntHT    -> Dict
 
 --------------------------------------------------------------------------------
 -- * Monadic computations

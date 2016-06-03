@@ -34,7 +34,7 @@ module Feldspar
 import Prelude.EDSL hiding (negate)
 import Prelude hiding (pi)
 
-import Control.Monad
+import Control.Monad hiding (when)
 
 import Data.Int
 import Data.Word

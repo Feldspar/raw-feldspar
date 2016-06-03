@@ -95,11 +95,13 @@ lookAlias t v = do
 
 type TargetCMD
     =   Hard.VariableCMD
+    :+: Hard.ArrayCMD
     :+: Hard.VArrayCMD
     :+: Hard.LoopCMD
     :+: Hard.ConditionalCMD
     :+: Hard.ComponentCMD
     :+: Hard.StructuralCMD
+    :+: Hard.ConstantCMD
     :+: Hard.SignalCMD
         -- Leftovers from reexpress translation of Comp.
     :+: Soft.RefCMD
@@ -240,12 +242,14 @@ unsafeTranslateSmallExp a =
 
 type FinalCMD
     =   Hard.VariableCMD
+    :+: Hard.SignalCMD
+    :+: Hard.ConstantCMD
+    :+: Hard.ArrayCMD    
     :+: Hard.VArrayCMD
     :+: Hard.LoopCMD
     :+: Hard.ConditionalCMD
     :+: Hard.StructuralCMD
     :+: Hard.ComponentCMD
-    :+: Hard.SignalCMD
 
 -- | Target monad during translation.
 type FinalT m = ReaderT Env (ProgramT FinalCMD (Param2 HPrim HPrimType') m)
@@ -291,10 +295,12 @@ instance Lower Soft.ControlCMD
 
 
 instance Lower Hard.VariableCMD    where lowerInstr = Oper.singleInj
+instance Lower Hard.ArrayCMD       where lowerInstr = Oper.singleInj
 instance Lower Hard.VArrayCMD      where lowerInstr = Oper.singleInj
 instance Lower Hard.ComponentCMD   where lowerInstr = Oper.singleInj
 instance Lower Hard.StructuralCMD  where lowerInstr = Oper.singleInj
 instance Lower Hard.SignalCMD      where lowerInstr = Oper.singleInj
+instance Lower Hard.ConstantCMD    where lowerInstr = Oper.singleInj
 instance Lower Hard.LoopCMD        where lowerInstr = Oper.singleInj
 instance Lower Hard.ConditionalCMD where lowerInstr = Oper.singleInj
 

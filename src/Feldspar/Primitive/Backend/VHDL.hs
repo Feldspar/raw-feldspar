@@ -35,6 +35,8 @@ instance CompileType HPrimType'
       Word32HT -> compT (Proxy::Proxy a)
       Word64HT -> compT (Proxy::Proxy a)
       BitsHT   -> compT (Proxy::Proxy a)
+      UBitsHT  -> compT (Proxy::Proxy a)
+      IntHT    -> compT (Proxy::Proxy a)
     compileLit  _ a = case primHTypeOf a of
       BoolHT   -> literal a
       Int8HT   -> literal a
@@ -46,6 +48,8 @@ instance CompileType HPrimType'
       Word32HT -> literal a
       Word64HT -> literal a
       BitsHT   -> literal a
+      UBitsHT  -> literal a
+      IntHT    -> literal a
 
 --------------------------------------------------------------------------------
 
