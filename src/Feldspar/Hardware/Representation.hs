@@ -8,7 +8,7 @@ import Control.Monad.Trans
 
 import Control.Monad.Operational.Higher
 
-import Language.Embedded.Hardware as Hard hiding (Comp(..))
+import Language.Embedded.Hardware as Hard hiding (Comp(..), Hardware(..))
 import Language.Embedded.Imperative.CMD (IxRange(..), Border(..))
 
 import Feldspar.Primitive.Representation
@@ -21,24 +21,16 @@ import Feldspar.Frontend
 
 -- | Commands used in hardware programs.
 type HardwareCMD
-    =   VariableCMD
-    :+: SignalCMD
+    =   SignalCMD
+    :+: VariableCMD
     :+: ConstantCMD
     :+: ArrayCMD
     :+: VArrayCMD
     :+: LoopCMD
     :+: ConditionalCMD
-    :+: StructuralCMD
     :+: ComponentCMD
-  {-
-      SignalCMD
-  :+: ConstantCMD
-  :+: ArrayCMD
-  :+: ComponentCMD
-  :+: LoopCMD
-  :+: ConditionalCMD
-  :+: StructuralCMD
--}
+    :+: StructuralCMD
+
 -- | ...
 newtype Hardware a = Hardware
     { unHardware ::
@@ -54,10 +46,8 @@ instance MonadComp HData Hardware
   where
     liftComp        = Hardware . lift . unComp
     iff c t f       = Hardware $ Hard.iff c (unHardware t) (unHardware f)
-    for range body  = Hardware $ error "hardware:for"
-    --for  (_, _, Excl n) body = Hardware $ Hard.for n       (unHardware . body)
-    --for  (_, _, Incl n) body = Hardware $ Hard.for (n - 1) (unHardware . body)
-    while cont body = Hardware $ error "hardware:while"
+    for n body      = Hardware $ Hard.for n (unHardware . body)
+    while cont body = Hardware $ Hard.while (unHardware cont) (unHardware body)
 
 class Monad m => MonadHardware m
   where

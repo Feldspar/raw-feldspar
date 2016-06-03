@@ -7,6 +7,7 @@ module Feldspar.Run.Representation where
 import Control.Monad.Trans
 
 import Language.Embedded.Imperative as Imp
+import Language.Embedded.Expression as Imp
 import Language.Embedded.Concurrent
 
 import Feldspar.Primitive.Representation
@@ -38,8 +39,7 @@ instance MonadComp Data Run
   where
     liftComp        = Run . lift . unComp
     iff c t f       = Run $ Imp.iff c (unRun t) (unRun f)
-    for range body  = Run $ error "run:for"
-    --for  range body = Run $ Imp.for range (unRun . body)
+    for range body  = Run $ Imp.for (Imp.constExp 0, 1, Imp.Incl range) (unRun . body)
     while cont body = Run $ Imp.while (unRun cont) (unRun body)
 
 class Monad m => MonadRun m

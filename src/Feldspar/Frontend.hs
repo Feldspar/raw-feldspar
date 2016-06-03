@@ -13,6 +13,7 @@ import qualified Language.Syntactic as Syntactic
 
 import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
+import qualified Language.Embedded.Expression as Imp
 
 import Data.Inhabited (Inhabited)
 import qualified Data.Inhabited as Inhabited
@@ -320,8 +321,13 @@ class Monad m => MonadComp exp m | m -> exp
     -- | Conditional statement
     iff :: exp Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: (Integral n, PrimType n) => exp n -> (exp n -> m ()) -> m ()
- -- for :: (Integral n, PrimType n) => IxRange (exp n) -> (exp n -> m ()) -> m ()
+    for :: ( Imp.FreeExp exp, Imp.FreePred exp n, Integral n, PrimType n
+           --, PredOf exp n
+           , PredOf exp ~ Imp.FreePred exp -- Meh.
+           )
+        => exp n -> (exp n -> m ()) -> m ()
+    --for :: (Integral n, PrimType n) => exp n -> (exp n -> m ()) -> m ()
+    --for :: (Integral n, PrimType n) => IxRange (exp n) -> (exp n -> m ()) -> m ()
     -- | While loop
     while :: m (exp Bool) -> m () -> m ()
 
@@ -329,7 +335,7 @@ instance MonadComp exp (Comp exp)
   where
     liftComp        = id
     iff b tru fls   = Comp $ Imp.iff b (unComp tru) (unComp fls)
-    for range body  = Comp $ error "Comp:for" --Imp.for (0, 1, Imp.Incl range) (unComp . body)
+    for range body  = Comp $ Imp.for (Imp.constExp 0, 1, Imp.Incl range) (unComp . body)
     while cont body = Comp $ Imp.while (unComp cont) (unComp body)
 
 --------------------------------------------------------------------------------
