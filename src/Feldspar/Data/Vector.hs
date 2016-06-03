@@ -739,17 +739,8 @@ linearWriteArr arr a = do
 
 
 --------------------------------------------------------------------------------
--- * Examples
+-- * Misc.
 --------------------------------------------------------------------------------
-
--- | The span of a vector (difference between greatest and smallest element)
-spanVec :: Pull (Data Float) -> Data Float
-spanVec vec = hi-lo
-  where
-    (lo,hi) = fold (\(l,h) a -> (min a l, max a h)) (vec!0,vec!0) vec
-  -- This demonstrates how tuples interplay with sharing. Tuples are essentially
-  -- useless without sharing. This function would get two identical for loops if
-  -- it wasn't for sharing.
 
 -- | Apply a function to chunks of a @Pull@ vector
 chunked :: (Syntax b, MonadComp m)
