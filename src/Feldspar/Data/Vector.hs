@@ -54,13 +54,13 @@ import qualified Language.Embedded.Concurrent as Imp
 --     functions operating on matrices have to assume this property.
 --   * Similarly, it is generally not possible to get the length of the inner
 --     vectors, so it sometimes has to be provided from the outside (see e.g.
---     `concatPush`).
+--     `concat`).
 --
 -- The `PushSeq` type and the `Linearizable` class attempt to overcome some of
 -- the limitations by allowing arbitrary nested structures to be flattened
--- without knowing the exact shape of the structure. For example, `concat`
--- (which returns `PushSeq`) doesn't have the length argument that `concatPush`
--- has.
+-- without knowing the exact shape of the structure. For example, concatenation
+-- of `PushSeq` is done using `join`, which doesn't have the length argument
+-- that `concat` has.
 
 
 
@@ -89,12 +89,6 @@ lengthByFold = fold (+) 0 . fmap (const 1)
 -- | Perform all actions in a vector in sequence
 sequenceVec :: (Folding vec, MonadComp m) => vec (m ()) -> m ()
 sequenceVec = foldM (const id) ()
-  -- It might seem useful to also have the function:
-  --
-  --     sequenceVec2 :: MonadComp m => vec (m a) -> Push a
-  --
-  -- However, that would lead to a `Push` vector with embedded effects, which is
-  -- not allowed.
 
 
 
@@ -514,16 +508,17 @@ listPush as = Push 2 $ \write ->
           dump1 write >> dump2 (write . (+len1))
 
 -- Concatenate nested vectors to a 'Push' vector
-concatPush :: (Pushy vec1, Pushy vec2, Functor vec1)
+concat :: (Pushy vec1, Pushy vec2, Functor vec1)
     => Data Length  -- ^ Length of inner vectors
     -> vec1 (vec2 a)
     -> Push a
-concatPush il vec =
+concat il vec =
     let Push l dump1 = toPush $ fmap toPush vec
     in  Push (l*il) $ \write ->
           dump1 $ \i (Push l2 dump2) ->
             dump2 $ \j a ->
               write (i*l2+j) a
+  -- TODO Assert il==l2
 
 -- | Flatten a vector of elements with a static structure
 flattenPush
@@ -532,7 +527,7 @@ flattenPush
     -> (a -> [b])   -- ^ Convert source element to a list of destination elements
     -> vec a
     -> Push b
-flattenPush n f = concatPush n . fmap (listPush . f) . toPush
+flattenPush n f = concat n . fmap (listPush . f) . toPush
 
 
 
@@ -541,6 +536,9 @@ flattenPush n f = concatPush n . fmap (listPush . f) . toPush
 --------------------------------------------------------------------------------
 
 -- | Sequential push vector
+--
+-- Note that 'PushSeq' is a 'Monad', so for example concatenation is done using
+-- 'join'.
 --
 -- The function that dumps the content of the vector is not allowed to perform
 -- any side effects except through the \"put\" method (@a -> m ()@) that is
@@ -570,9 +568,9 @@ instance Applicative PushSeq
 instance Monad PushSeq
   where
     return a = PushSeq $ \put -> put a
-    PushSeq dumpa >>= k = PushSeq $ \put -> dumpa $ \a ->
-        let PushSeq dumpb = k a
-        in  dumpb put
+    m >>= k  = PushSeq $ \put ->
+        dumpPushSeq m $ \a ->
+          dumpPushSeq (k a) put
 
 -- No instance `Syntax a => Forcible (PushSeq a)` because `PushSeq` doesn't have
 -- known length.
@@ -611,22 +609,13 @@ listPushSeq as = PushSeq $ \put -> mapM_ put as
 (++) v1 v2 = PushSeq $ \put ->
     dumpPushSeq (toPushSeq v1) put >> dumpPushSeq (toPushSeq v2) put
 
--- Concatenate nested vectors to a 'PushSeq' vector
-concat :: (PushySeq vec1, PushySeq vec2, Functor vec1) =>
-    vec1 (vec2 a) -> PushSeq a
-concat vec =
-    let PushSeq dump1 = toPushSeq $ fmap toPushSeq vec
-    in  PushSeq $ \put ->
-          dump1 $ \(PushSeq dump2) ->
-            dump2 put
-
 -- | Flatten a vector of elements with a static structure
 flatten
     :: PushySeq vec
     => (a -> [b])  -- ^ Convert source element to a list of destination elements
     -> vec a
     -> PushSeq b
-flatten f = concat . fmap (listPushSeq . f) . toPushSeq
+flatten f = join . fmap (listPushSeq . f) . toPushSeq
 
 filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
 filter pred v = PushSeq $ \put -> do
@@ -664,10 +653,10 @@ instance Applicative (PushSeqM m)
 
 instance Monad (PushSeqM m)
   where
-    return = PushSeqM . flip ($)
-    PushSeqM dumpa >>= k = PushSeqM $ \put -> dumpa $ \a ->
-        let PushSeqM dumpb = k a
-        in  dumpb put
+    return  = PushSeqM . flip ($)
+    m >>= k = PushSeqM $ \put ->
+        dumpPushSeqM m $ \a ->
+          dumpPushSeqM (k a) put
 
 instance MonadTrans PushSeqM
   where
