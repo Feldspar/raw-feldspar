@@ -704,6 +704,11 @@ instance Linearizable m (Data a)
     type LinearElem (Data a) = a
     linearPush = flip ($)
 
+instance Linearizable m ()
+  where
+    type LinearElem () = Internal ()
+    linearPush a put = linearPush (desugar a) put
+
 instance (Syntax (a,b), Monad m) => Linearizable m (a,b)
   where
     type LinearElem (a,b) = Internal (a,b)
