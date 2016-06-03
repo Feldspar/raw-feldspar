@@ -669,114 +669,84 @@ instance MonadTrans PushSeqM
 --------------------------------------------------------------------------------
 
 -- Linearizable data structures
-class Linearizable m a
+class MonadComp m => Linearizable m a
   where
     type LinearElem a
+    -- | Convert a structure to a 'PushSeqM' vector
+    linearPush :: a -> PushSeqM m (LinearElem a)
+    default linearPush :: a -> PushSeqM m a
+    linearPush = return
 
-    -- | Given a data structure and a method for pushing an element, put all
-    -- elements in sequence
-    linearPush
-        :: a                              -- ^ Structure to linearize
-        -> (Data (LinearElem a) -> m ())  -- ^ Method for pushing a single element
-        -> m ()
-             -- Note:
-             --
-             -- 1. This is `PushSeq` with `m` exposed. It needs to be exposed
-             --    for the instances for monads to work.
-             -- 2. We don't want to use `PushSeq` here (even if `m` was
-             --    exposed), because linearizing structures with embedded
-             --    effects would lead to a `PushSeq` with embedded effects,
-             --    which is not a valid `PushSeq`.
-
-instance Linearizable m (Data a)
-  where
-    type LinearElem (Data a) = a
-    linearPush = flip ($)
-
-instance Linearizable m ()
-  where
-    type LinearElem () = Internal ()
-    linearPush a put = linearPush (desugar a) put
-
-instance (Syntax (a,b), Monad m) => Linearizable m (a,b)
-  where
-    type LinearElem (a,b) = Internal (a,b)
-    linearPush a put = linearPush (desugar a) put
-
-instance (Syntax (a,b,c), Monad m) => Linearizable m (a,b,c)
-  where
-    type LinearElem (a,b,c) = Internal (a,b,c)
-    linearPush a put = linearPush (desugar a) put
-
-instance (Syntax (a,b,c,d), Monad m) => Linearizable m (a,b,c,d)
-  where
-    type LinearElem (a,b,c,d) = Internal (a,b,c,d)
-    linearPush a put = linearPush (desugar a) put
+instance MonadComp m => Linearizable m (Data a)  where type LinearElem (Data a)  = Data a
+instance MonadComp m => Linearizable m ()        where type LinearElem ()        = ()
+instance MonadComp m => Linearizable m (a,b)     where type LinearElem (a,b)     = (a,b)
+instance MonadComp m => Linearizable m (a,b,c)   where type LinearElem (a,b,c)   = (a,b,c)
+instance MonadComp m => Linearizable m (a,b,c,d) where type LinearElem (a,b,c,d) = (a,b,c,d)
   -- TODO Larger tuples
 
-instance (Linearizable m a, MonadComp m) => Linearizable m (Comp a)
+instance Linearizable m a => Linearizable m (Comp a)
   where
     type LinearElem (Comp a) = LinearElem a
-    linearPush m put = liftComp m >>= flip linearPush put
+    linearPush = linearPush <=< lift . liftComp
 
 instance Linearizable Run a => Linearizable Run (Run a)
   where
     type LinearElem (Run a) = LinearElem a
-    linearPush m put = m >>= flip linearPush put
+    linearPush = linearPush <=< lift
 
 instance (Type a, MonadComp m) => Linearizable m (Fin (IArr a))
   where
-    type LinearElem (Fin (IArr a)) = a
-    linearPush (Fin len arr) put =
+    type LinearElem (Fin (IArr a)) = Data a
+    linearPush (Fin len arr) = PushSeqM $ \put ->
         for (0,1,Excl len) $ \i ->
           put (arr!i)
 
 instance (Type a, MonadComp m) => Linearizable m (Fin (Arr a))
   where
-    type LinearElem (Fin (Arr a)) = a
-    linearPush (Fin len arr) put = do
-        iarr <- unsafeFreezeArr arr
-        linearPush (Fin len iarr) put
+    type LinearElem (Fin (Arr a)) = Data a
+    linearPush (Fin len arr) = do
+        iarr <- lift $ unsafeFreezeArr arr
+        linearPush (Fin len iarr)
 
-instance (Syntax a, MonadComp m) => Linearizable m (Manifest a)
+instance (Linearizable m a, Syntax a) => Linearizable m (Manifest a)
   where
-    type LinearElem (Manifest a) = Internal a
-    linearPush = linearPush . toPushSeq . fmap desugar . toPull
+    type LinearElem (Manifest a) = LinearElem a
+    linearPush = linearPush . toPushSeq . toPull
 
-instance (Linearizable m a, MonadComp m) => Linearizable m (Pull a)
+instance Linearizable m a => Linearizable m (Pull a)
   where
     type LinearElem (Pull a) = LinearElem a
     linearPush = linearPush . toPushSeq
 
-instance (Linearizable m a, MonadComp m) => Linearizable m (PushSeq a)
+instance Linearizable m a => Linearizable m (PushSeq a)
   where
     type LinearElem (PushSeq a) = LinearElem a
-    linearPush (PushSeq dump) = dump . flip linearPush
+    linearPush v = PushSeqM $ \put ->
+        dumpPushSeq v $ \a ->
+          dumpPushSeqM (linearPush a) put
 
 -- | Fold the content of a 'Linearizable' data structure
 linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
-    (a -> Data (LinearElem lin) -> m a) -> a -> lin -> m a
+    (a -> LinearElem lin -> m a) -> a -> lin -> m a
 linearFold step init lin = do
-    let dump = linearPush lin
     r <- initRef init
     let put a = do
           s <- unsafeFreezeRef r
           setRef r =<< step s a
-    dump put
+    dumpPushSeqM (linearPush lin) put
     unsafeFreezeRef r
 
 -- | Map a monadic function over the content of a 'Linearizable' data structure
 linearMapM :: (Linearizable m lin, MonadComp m) =>
-    (Data (LinearElem lin) -> m ()) -> lin -> m ()
+    (LinearElem lin -> m ()) -> lin -> m ()
 linearMapM f = linearFold (\_ -> f) ()
 
 -- | Write the content of a 'Linearizable' data structure to an array
-linearWriteArr :: (Linearizable m a, Type (LinearElem a), MonadComp m)
-    => Arr (LinearElem a)  -- ^ Where to put the result
-    -> a                   -- ^ Value to linearize
-    -> m (Data Length)     -- ^ Number of elements written
-linearWriteArr arr a = do
-    linearFold (\i b -> setArr i b arr >> return (i+1)) 0 a
+linearWriteArr :: (Linearizable m a, Syntax (LinearElem a), MonadComp m)
+    => Arr (Internal (LinearElem a))  -- ^ Where to put the result
+    -> a                              -- ^ Value to linearize
+    -> m (Data Length)                -- ^ Number of elements written
+linearWriteArr arr a = linearFold (\i b -> setArr i b arr >> return (i+1)) 0 a
 
 
 
