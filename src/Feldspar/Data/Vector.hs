@@ -433,20 +433,18 @@ matMul a b = forEach a $ \a' ->
 --
 -- The function that dumps the content of the vector is not allowed to perform
 -- any side effects except through the \"write\" method
--- (@`Data` `Index` -> a -> m ()@) that is passed to it.
+-- (@`Data` `Index` -> a -> m ()@) that is passed to it. That is, it must hold
+-- that @`dumpPush` v (\_ _ -> `return` ())@ has the same behavior as
+-- @`return` ()@.
+--
+-- This condition ensures that `Push` behaves as pure data with the denotation
+-- of a finite list.
 data Push a
   where
     Push
         :: Data Length
         -> (forall m . MonadComp m => (Data Index -> a -> m ()) -> m ())
         -> Push a
-  -- The no-side-effects condition ensures that `Push` behaves as pure data with
-  -- the denotation of a finite list.
-  --
-  -- TODO If there was an appropriate `store` function, it should be possible to
-  -- formulate a law that `v :: Push a` should be equivalent to `store v`. If
-  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
-  -- `store v ++ store v`.
 
 -- | 'Push' vector specialized to 'Data' elements
 type DPush a = Push (Data a)
@@ -475,6 +473,13 @@ class Pushy vec
     toPush :: vec a -> Push a
 
 instance Pushy Push where toPush = id
+
+-- | Dump the contents of a 'Push' vector
+dumpPush :: MonadComp  m
+    => Push a                     -- ^ Vector to dump
+    -> (Data Index -> a -> m ())  -- ^ Function that dumps one element
+    -> m ()
+dumpPush (Push len dump) = dump
 
 -- | Convert a 'Pully' structure to 'Push'
 --
@@ -536,20 +541,16 @@ flattenPush n f = concatPush n . fmap (listPush . f) . toPush
 --
 -- The function that dumps the content of the vector is not allowed to perform
 -- any side effects except through the \"put\" method (@a -> m ()@) that is
--- passed to it.
+-- passed to it. That is, it must hold that
+-- @`dumpPushSeq` v (\_ -> `return` ())@ has the same behavior as @`return` ()@.
+--
+-- This condition ensures that `PushSeq` behaves as pure data with the
+-- denotation of a (possibly infinite) list.
 data PushSeq a
   where
     PushSeq
-        :: { dumpSeq :: forall m . MonadComp m => (a -> m ()) -> m () }
+        :: { dumpPushSeq :: forall m . MonadComp m => (a -> m ()) -> m () }
         -> PushSeq a
-  -- The no-side-effects condition ensures that `PushSeq` behaves as pure data
-  -- with the denotation of a (possibly infinite) list. It also ensures that the
-  -- `Folding` instance is sound.
-  --
-  -- TODO If there was an appropriate `store` function, it should be possible to
-  -- formulate a law that `v :: PushSeq a` should be equivalent to `store v`. If
-  -- `v` has embedded effects, then e.g. `v++v` is not equivalent to
-  -- `store v ++ store v`.
 
 -- | 'PushSeq' vector specialized to 'Data' elements
 type DPushSeq a = PushSeq (Data a)
@@ -570,12 +571,14 @@ instance PushySeq PushSeq where toPushSeq = id
 instance Folding PushSeq
   where
     fold step init = unsafePerform . foldM (\s -> return . step s) init
+      -- `unsafePerform` is safe because of the no-side-effects condition on
+      -- `PushSeq`.
     foldM step init vec = do
         r <- initRef init
         let put a = do
               s <- unsafeFreezeRef r
               setRef r =<< step s a
-        dumpSeq vec put
+        dumpPushSeq vec put
         unsafeFreezeRef r
 
 
@@ -591,7 +594,7 @@ listPushSeq as = PushSeq $ \put -> mapM_ put as
 -- | Append two vectors to a 'PushSeq' vector
 (++) :: (PushySeq vec1, PushySeq vec2) => vec1 a -> vec2 a -> PushSeq a
 (++) v1 v2 = PushSeq $ \put ->
-    dumpSeq (toPushSeq v1) put >> dumpSeq (toPushSeq v2) put
+    dumpPushSeq (toPushSeq v1) put >> dumpPushSeq (toPushSeq v2) put
 
 -- Concatenate nested vectors to a 'PushSeq' vector
 concat :: (PushySeq vec1, PushySeq vec2, Functor vec1) =>
@@ -613,7 +616,7 @@ flatten f = concat . fmap (listPushSeq . f) . toPushSeq
 filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
 filter pred v = PushSeq $ \put -> do
     let put' a = iff (pred a) (put a) (return ())
-    dumpSeq (toPushSeq v) put'
+    dumpPushSeq (toPushSeq v) put'
 
 unfoldPushSeq :: Syntax a => (a -> (b,a)) -> a -> PushSeq b
 unfoldPushSeq step init = PushSeq $ \put -> do
