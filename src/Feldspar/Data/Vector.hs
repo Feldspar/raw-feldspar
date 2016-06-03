@@ -1,12 +1,15 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 module Feldspar.Data.Vector where
 
 
 
 import qualified Prelude
 
+import Control.Monad.Trans
 import Data.Proxy
 
 import Feldspar
@@ -559,6 +562,18 @@ instance Functor PushSeq
   where
     fmap f (PushSeq dump) = PushSeq $ \put -> dump (put . f)
 
+instance Applicative PushSeq
+  where
+    pure  = return
+    (<*>) = ap
+
+instance Monad PushSeq
+  where
+    return a = PushSeq $ \put -> put a
+    PushSeq dumpa >>= k = PushSeq $ \put -> dumpa $ \a ->
+        let PushSeq dumpb = k a
+        in  dumpb put
+
 -- No instance `Syntax a => Forcible (PushSeq a)` because `PushSeq` doesn't have
 -- known length.
 
@@ -627,6 +642,36 @@ unfoldPushSeq step init = PushSeq $ \put -> do
       put a
       setRef r s'
   -- TODO Make finite
+
+
+
+--------------------------------------------------------------------------------
+-- * Sequential monadic push vectors
+--------------------------------------------------------------------------------
+
+-- | A version of 'PushSeq' that allows embedded effects
+data PushSeqM m a = PushSeqM
+    { dumpPushSeqM :: (a -> m ()) -> m () }
+
+instance Functor (PushSeqM m)
+  where
+    fmap f (PushSeqM dump) = PushSeqM $ \put -> dump (put . f)
+
+instance Applicative (PushSeqM m)
+  where
+    pure  = return
+    (<*>) = ap
+
+instance Monad (PushSeqM m)
+  where
+    return = PushSeqM . flip ($)
+    PushSeqM dumpa >>= k = PushSeqM $ \put -> dumpa $ \a ->
+        let PushSeqM dumpb = k a
+        in  dumpb put
+
+instance MonadTrans PushSeqM
+  where
+    lift m = PushSeqM $ \put -> m >>= put
 
 
 
