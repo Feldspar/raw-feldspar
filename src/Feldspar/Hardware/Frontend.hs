@@ -21,10 +21,13 @@ import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
 import Data.TypedStruct
+import Feldspar.Frontend (newNamedRef, setRef)
 import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
 import Feldspar.Hardware.Representation
+
+import GHC.TypeLits (KnownNat)
 
 --------------------------------------------------------------------------------
 -- * Frontend for hardware specific operations.
@@ -66,6 +69,22 @@ unsafeFreezeSig :: HPrimType a => Signal a -> Hardware (HData a)
 unsafeFreezeSig = Hardware . Hard.unsafeFreezeSignal
 
 --------------------------------------------------------------------------------
+-- Ports.
+
+initNamedPort :: HPrimType a => String -> Hard.Mode -> HData a -> Hardware (Signal a)
+initNamedPort s m = Hardware . Hard.initNamedPort s m
+
+initPort :: HPrimType a => Hard.Mode -> HData a -> Hardware (Signal a)
+initPort m = Hardware . Hard.initPort m
+
+newNamedPort :: HPrimType a => String -> Hard.Mode -> Hardware (Signal a)
+newNamedPort s = Hardware . Hard.newNamedPort s
+
+newPort :: HPrimType a => Hard.Mode -> Hardware (Signal a)
+newPort = Hardware . Hard.newPort 
+
+--------------------------------------------------------------------------------
+-- Short-hands.
 
 signal :: HPrimType a => String -> Hardware (Signal a)
 signal = Hardware . Hard.signal
@@ -80,6 +99,23 @@ signal = Hardware . Hard.signal
 (<==) = setSig
 
 --------------------------------------------------------------------------------
+-- * Variables.
+
+-- VHDL's variables are implemented using the 'Ref' type from the general
+-- frontend.
+
+type Variable = Ref HData
+
+--------------------------------------------------------------------------------
+-- Short-hands.
+
+variable :: HType a => String -> Hardware (Variable a)
+variable = newNamedRef
+
+(==:) :: HType a => Variable a -> HData a -> Hardware ()
+(==:) = setRef
+
+--------------------------------------------------------------------------------
 -- ** Constants.
 
 initNamedConst :: HPrimType a => String -> HData a -> Hardware (Constant a)
@@ -92,6 +128,7 @@ getConst :: HPrimType a => Constant a -> Hardware (HData a)
 getConst = Hardware . Hard.getConstant
 
 --------------------------------------------------------------------------------
+-- Short-hands.
 
 constant :: HPrimType a => String -> HData a -> Hardware (Constant a)
 constant name = Hardware . Hard.constant name
@@ -99,13 +136,61 @@ constant name = Hardware . Hard.constant name
 --------------------------------------------------------------------------------
 -- ** Arrays.
 
-getSignalRange :: (HPrimType a, Integral a, Ix a)
-  => HData a -> HData a -> Signal (Hard.Bits n) -> Hardware (HData Hard.UBits)
-getSignalRange low high = Hardware . Hard.getSignalRange low high
+getArray :: (HPrimType i, Integral i, Ix i) => HData i -> Signal (Hard.Bits n) -> Hardware (HData Hard.Bit)
+getArray ix = Hardware . Hard.getArray ix
 
-setSignalRange :: (HPrimType a, Integral a, Ix a)
-  => HData a -> HData a -> Signal (Hard.Bits n) -> HData Hard.UBits -> Hardware ()
-setSignalRange low high s = Hardware . Hard.setSignalRange low high s
+getSignalRange
+  :: (HPrimType i, Integral i, Ix i)
+  => HData i
+  -> (HData i, HData i)
+  -> Signal (Hard.Bits n)
+  -> Hardware (HData Hard.UBits)
+getSignalRange size range = Hardware . Hard.getSignalRange size range
+
+setSignalRange
+  :: (HPrimType i, Integral i, Ix i)
+  => (HData i, HData i)
+  -> Signal (Hard.Bits n)
+  -> (HData i, HData i)
+  -> Signal (Hard.Bits m)
+  -> Hardware ()
+setSignalRange range1 s1 range2 s2 = Hardware $ Hard.setSignalRange range1 s1 range2 s2
+
+asSigned :: KnownNat n => Signal (Hard.Bits n) -> Hardware (HData Integer)
+asSigned = Hardware . Hard.asSigned
+
+--------------------------------------------------------------------------------
+-- ** Virtual arrays.
+
+-- Virtual arrays, or variables of array type, are represented using 'Arr' from
+-- the general frontend.
+
+type Array = Arr HData
+
+--------------------------------------------------------------------------------
+-- ** Looping.
+
+-- Looping is also covered by the general frontend.
+
+--------------------------------------------------------------------------------
+-- ** Conditional statements.
+
+-- Conditional statements are also (mostly) covered by the general frontend.
+-- Some constructs, like case statements, are not yet supported by the C side.
+
+type Case a = Hard.When a (Oper.ProgramT HardwareCMD (Oper.Param2 HData HPrimType') (Oper.Program CompCMD (Oper.Param2 HData HPrimType')))
+
+switched :: (HPrimType a, Eq a, Ord a) => HData a -> [Case a] -> Hardware () -> Hardware ()
+switched c cs = Hardware . Hard.switched c cs . unHardware
+
+switch :: (HPrimType a, Eq a, Ord a) => HData a -> [Case a] -> Hardware ()
+switch c = Hardware . Hard.switch c
+
+is :: HPrimType a => a -> Hardware () -> Case a
+is c = Hard.is c . unHardware
+
+to :: HPrimType a => a -> a -> Hardware () -> Case a
+to l u = Hard.to l u . unHardware
 
 --------------------------------------------------------------------------------
 -- ** Components.
@@ -133,11 +218,17 @@ portmap comp = Hardware . Hard.portmap comp
 
 --------------------------------------------------------------------------------
 
-uniqueInput  :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
-uniqueInput  = Hard.exactInput
+uniqueInput :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
+uniqueInput = Hard.exactInput
+
+input :: HPrimType a => (Signal a -> Signature b) -> Signature (Signal a -> b)
+input = Hard.input
 
 uniqueOutput :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
 uniqueOutput = Hard.exactOutput
+
+output :: HPrimType a => (Signal a -> Signature b) -> Signature (Signal a -> b)
+output = Hard.output
 
 ret :: Hardware () -> Signature ()
 ret = Hard.ret . unHardware
@@ -147,8 +238,5 @@ ret = Hard.ret . unHardware
 
 process :: [Ident] -> Hardware () -> Hardware ()
 process is = Hardware . Hard.process is . unHardware
-
-risingEdge :: Signal Bool -> Hardware () -> Hardware ()
-risingEdge s = Hardware . Hard.risingEdge s . unHardware
 
 --------------------------------------------------------------------------------
