@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-import Data.List (genericIndex)
+import qualified Prelude
+
+import Data.List (genericIndex, genericLength)
 
 import qualified Test.QuickCheck.Monadic as QC
 
@@ -51,10 +53,35 @@ property_nestIndex f =
     forAll genLenIx $ \(l1,i1) ->
     forAll genLenIx $ \(l2,i2) ->
     forAll genLenIx $ \(l3,i3) ->
-      let l = fromIntegral (l1*l2*l3)
+      let l = Prelude.fromIntegral (l1*l2*l3)
       in  forAll (vector l) $ \(as :: [Int32]) -> QC.monadicIO $ do
             a <- QC.run $ f (as,(l1,l2,l3),(i1,i2,i3))
             QC.assert (a Prelude.== genericIndex as (i1*l2*l3 + i2*l3 + i3))
+  where
+    genLenIx = do
+        l <- choose (1,5)
+        i <- choose (0,l-1)
+        return (l,i)
+
+-- | Indexing in a 3-dimensional structure
+nestIndexLength
+    :: ( Fin (IArr Int32)
+       , (Data Length, Data Length, Data Length)
+       , (Data Index, Data Index)
+       )
+    -> Run (Fin (IArr Int32))
+nestIndexLength (arr,(l1,l2,l3),(i1,i2)) = return $ nestedArr ! i1 ! i2
+  where
+    nestedArr = multiNest (l1 :> l2 :> l3 :> ZE) arr
+
+property_nestIndexLength f =
+    forAll genLenIx $ \(l1,i1) ->
+    forAll genLenIx $ \(l2,i2) ->
+    forAll (choose (1,5)) $ \l3 ->
+      let l = Prelude.fromIntegral (l1*l2*l3)
+      in  forAll (vector l) $ \(as :: [Int32]) -> QC.monadicIO $ do
+            bs <- QC.run $ f (as,(l1,l2,l3),(i1,i2))
+            QC.assert (genericLength bs Prelude.== l3)
   where
     genLenIx = do
         l <- choose (1,5)
@@ -81,7 +108,8 @@ main =
     marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
     marshalled (return :: Pass (Fin (IArr Double), (Data Int8, Fin (Arr (Complex Float))))) $ \f_Nested ->
 
-    marshalled nestIndex $ \nestIndex_c ->
+    marshalled nestIndex       $ \nestIndex_c ->
+    marshalled nestIndexLength $ \nestIndexLength_c ->
 
       defaultMain $ testGroup "tests"
         [ $testGroupGenerator
@@ -104,7 +132,8 @@ main =
             , testProperty "marshalFeld Nested"         $ property_marshalFeld f_Nested
             ]
         , testGroup "misc"
-            [ testProperty "nestIndex" $ property_nestIndex nestIndex_c
+            [ testProperty "nestIndex"       $ property_nestIndex nestIndex_c
+            , testProperty "nestIndexLength" $ property_nestIndexLength nestIndexLength_c
             ]
         ]
 
