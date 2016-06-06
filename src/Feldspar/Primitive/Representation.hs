@@ -12,6 +12,7 @@ import Data.Array
 import Data.Int
 import Data.Typeable
 import Data.Word
+import Data.Bits (Bits)
 
 import Data.Constraint (Dict (..))
 
@@ -295,6 +296,13 @@ data HPrimitive sig
     HNot :: HPrimitive (Bool :-> Full Bool)
     HAnd :: HPrimitive (Bool :-> Bool :-> Full Bool)
     HOr  :: HPrimitive (Bool :-> Bool :-> Full Bool)
+    
+    HBAnd  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBOr   :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBXor  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBXnor :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBNand :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBNor  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
     
     HEq  :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)
     HNEq :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)

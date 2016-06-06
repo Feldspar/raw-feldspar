@@ -6,6 +6,7 @@ module Feldspar.Frontend where
 import Control.Monad.Identity
 import Data.Int
 import Data.Proxy
+import Data.Bits (Bits)
 
 import Language.Syntactic (Syntactic, Internal, Domain, (:&:), (:<:))
 import Language.Syntactic.Functional
@@ -307,6 +308,34 @@ instance ArrIx HData where
     where
       ix :: HPrimType' b => Imp.IArr Index b -> HData b
       ix arr = sugarSymExpPrim (Proxy::Proxy HData) (HArrIx arr) i
+
+--------------------------------------------------------------------------------
+-- ** Bits.
+
+class BIT (exp :: * -> *) where
+  band :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  bor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  xor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  xnor :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  nand :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  nor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+
+instance BIT HData where
+  band = sugarSymExp (Proxy::Proxy HData) HBAnd
+  bor  = sugarSymExp (Proxy::Proxy HData) HBOr
+  xor  = undefined
+  xnor = undefined
+  nand = undefined
+  nor  = undefined
+
+infixr 3 .&&.
+infixr 2 .||.
+
+(.&&.) :: (BIT exp, PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+(.&&.) = band
+
+(.||.) :: (BIT exp, PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+(.||.) = bor
 
 --------------------------------------------------------------------------------
 -- * Programs with computational effects

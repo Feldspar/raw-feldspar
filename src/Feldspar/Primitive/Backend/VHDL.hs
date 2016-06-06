@@ -73,6 +73,20 @@ compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
       -> VHDL Kind
     compDomain _ HAnd (a :* b :* Nil) = compExp V.and a b
     compDomain _ HOr  (a :* b :* Nil) = compExp V.or  a b
+
+    compDomain _ HBAnd  (a :* b :* Nil) = compExp V.and  a b
+    compDomain _ HBOr   (a :* b :* Nil) = compExp V.or   a b
+    compDomain _ HBXor  (a :* b :* Nil) = compExp V.xor  a b
+    compDomain _ HBXnor (a :* b :* Nil) = compExp V.xnor a b
+    compDomain _ HBNand (a :* b :* Nil) = do
+      x <- Hoist.lift <$> compLoop a
+      y <- Hoist.lift <$> compLoop b
+      return $ Hoist.E $ V.nand x y
+    compDomain _ HBNor  (a :* b :* Nil) = do
+      x <- Hoist.lift <$> compLoop a
+      y <- Hoist.lift <$> compLoop b
+      return $ Hoist.E $ V.nor x y
+    
     
     compDomain _ HEq  (a :* b :* Nil) = compRel V.eq  a b
     compDomain _ HNEq (a :* b :* Nil) = compRel V.neq a b
