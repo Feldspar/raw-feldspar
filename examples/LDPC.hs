@@ -83,6 +83,20 @@ instance ( Syntax exp a
 
 type Mat exp a = Matrix exp (exp a)
 
+decode :: MonadComp Data m => Mat Data Bit -> Arr Data Float -> m (Data Bool)
+decode h y = do
+  done <- initRef (false :: Data Bool)
+  (dec, lr, pr) <- init h y
+  for (value 10 :: Data Word32) $ \_ -> do
+    b <- check h dec
+    when b $ do
+      setRef done (true :: Data Bool) -- We did it!
+      break
+    iter h lr pr y dec
+  getRef done
+
+--------------------------------------------------------------------------------
+
 check :: ( MonadComp exp m
           , Syntax exp (exp Bit)
           , NUM exp
