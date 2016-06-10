@@ -58,6 +58,46 @@ setMat
   => exp Index -> exp Index -> a -> Matrix exp a -> m ()
 setMat i j v (Matrix rows cols array) = setArr ((rows `times` i) `plus` j) v array
 
+----------------------------------------
+
+getCol
+  :: forall m exp a.
+     ( MonadComp exp m
+     , Syntax exp (exp a)
+     , NUM exp
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp a) ~ a)
+  => exp Index -> Mat exp a -> m (Arr exp a)
+getCol col m@(Matrix rows cols array) = do
+  v <- newArr rows
+  for rows $ \i -> do
+    x :: exp a <- getMat i col m
+    setArr i x v
+  return v
+
+getRow
+  :: forall m exp a.
+     ( MonadComp exp m
+     , Syntax exp (exp a)
+     , NUM exp
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp a) ~ a)
+  => exp Index -> Mat exp a -> m (Arr exp a)
+getRow row m@(Matrix rows cols array) = do
+  v <- newArr cols
+  for cols $ \j -> do
+    x :: exp a <- getMat row j m
+    setArr j x v
+  return v
+
 --------------------------------------------------------------------------------
 
 vecmul
@@ -231,7 +271,7 @@ iter h@(Matrix rows cols _) lr pr vec dec = do
 --------------------------------------------------------------------------------
 -- Software decode.
 
-decode 
+decode
   :: forall m. MonadComp Data m
   => Mat Data Bit
   -> Arr Data Float
@@ -248,14 +288,143 @@ decode h vec = do
   getRef done
 
 --------------------------------------------------------------------------------
--- * Hardware
+-- * LDPC Hardware
 --------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
 
+-- or andy's version on check
+cardinatlity
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Bit)
+     , Syntax exp (exp Float)
+     , VAL exp
+     , NUM exp
+     , ORD exp
+     , BOOL exp
+     , PrimTypeOf exp Float
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Bit) ~ Bit
+     , Internal (exp Float) ~ Float)
+  => Mat exp Bit
+  -> Arr exp Float
+  -> m (exp Bool)
+cardinatlity h@(Matrix rows cols array) vec = do
+    c  <- c_hat cols vec
+    a  <- ans h c
+    ok <- initRef (true :: exp Bool)
+    for rows $ \i -> do
+      b <- getArr i a
+      when b $
+        setRef ok (false :: exp Bool)
+    getRef ok
+  where
+    c_hat :: exp Length -> Arr exp Float -> m (Arr exp Bit)
+    c_hat len arr = do
+      v <- newArr len
+      for len $ \i -> do
+        c <- getArr i arr
+        setArr i (c `gte` (value 0 :: exp Float)) v
+      return v
+
+    ans :: Mat exp Bit -> Arr exp Bit -> m (Arr exp Bit)
+    ans h@(Matrix rows cols array) vec = do
+      v <- newArr rows
+      for rows $ \i -> do
+        setArr i (false :: exp Bit) v
+      for cols $ \j -> do
+        b <- getArr j vec
+        when b $
+          for rows $ \i -> do
+            x <- getArr i v
+            y <- getMat i j h
+            setArr i ((not x && y) || (x && not y)) v
+      return v
 
 --------------------------------------------------------------------------------
 
+ne'
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Float)
+     , Syntax exp (exp Bit)
+     , VAL exp
+     , NUM exp
+     , EQ exp
+     , BOOL exp
+     , PrimTypeOf exp Float
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Float) ~ Float)
+  => Mat exp Bit   -- parity-check matrix.
+  -> exp Index     -- current n
+  -> Mat exp Float -- ne
+  -> Arr exp Float -- lam
+  -> m (Mat exp Float)
+ne' h@(Matrix rows cols _) n ne lam = do
+  nea :: Arr exp Float <- newArr (rows `times` cols)
+  vr  :: Ref exp Float <- newRef
+  let ne' = (Matrix rows cols nea)
+  for cols $ \j ->
+    for rows $ \i -> do
+      setRef vr (value 1 :: exp Float)
+      b <- getMat i j h
+      when b $ do        
+        for cols $ \j' -> 
+          when (n `neq` j') $ do
+            l :: exp Float <- getArr j' lam
+            n :: exp Float <- getMat i j' ne
+            modifyRef vr (metric (n `minus` l))
+        v :: exp Float <- getRef vr
+        setMat i j ((value 0.75 :: exp Float) `times` v) ne'
+  return ne'
 
+metric :: exp Float -> exp Float -> exp Float
+metric x y = x
+
+--------------------------------------------------------------------------------
+
+lam'
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Float)
+     , Syntax exp (exp Bit)
+     , VAL exp
+     , NUM exp
+     , TypeOf exp Float
+     , PrimTypeOf exp Float
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , PrimTypeOf exp Length
+     , Internal (exp Float) ~ Float)
+  => Mat exp Bit       -- parity-check matrix
+  -> Mat exp Float     -- ne'
+  -> Arr exp Float     -- orig_lam
+  -> m (Arr exp Float) -- lam'
+lam' h@(Matrix rows cols _) ne' orig = do
+  l'  :: Arr exp Float <- newArr cols
+  sum :: Ref exp Float <- newRef
+  for cols $ \j -> do
+    setRef sum (value 0 :: exp Float)
+    for rows $ \i -> do
+      b <- getMat i j h
+      when b $ do
+        v :: exp Float <- getMat i j ne'
+        modifyRef sum (plus v)
+    old :: exp Float <- getArr j orig
+    v   :: exp Float <- getRef sum
+    setArr j (old `plus` v) l'
+  return l'
 
 --------------------------------------------------------------------------------
 -- * Tests
