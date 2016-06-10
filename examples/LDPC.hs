@@ -28,11 +28,304 @@ import GHC.TypeLits
 import qualified Prelude as P
 
 --------------------------------------------------------------------------------
--- * LDPC hardware implementation.
+-- * LDPC Software.
+--------------------------------------------------------------------------------
+
+data Matrix exp a = Matrix (exp Length) (exp Length) (Arr exp (Internal a))
+
+type Mat exp a = Matrix exp (exp a)
+
+--------------------------------------------------------------------------------
+
+getMat
+  :: ( MonadComp exp m
+     , Syntax exp a
+     , NUM exp
+     , PrimTypeOf exp Index
+     , FreeExp exp
+     , FreeDict exp)
+  => exp Index -> exp Index -> Matrix exp a -> m a
+getMat i j (Matrix rows cols array) = getArr ((rows `times` i) `plus` j) array
+
+setMat
+  :: ( MonadComp exp m
+     , Syntax exp a
+     , NUM exp
+     , PrimTypeOf exp Index
+     , FreeExp exp
+     , FreeDict exp
+     )
+  => exp Index -> exp Index -> a -> Matrix exp a -> m ()
+setMat i j v (Matrix rows cols array) = setArr ((rows `times` i) `plus` j) v array
+
+--------------------------------------------------------------------------------
+
+vecmul
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Bit)
+     , BOOL exp
+     , NUM exp
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Bit) ~ Bit
+     ) 
+  => Mat exp Bit     -- M x N
+  -> Arr exp Bit     -- N x 1
+  -> m (Arr exp Bit) -- M x 1
+vecmul h@(Matrix rows cols array) vec = do
+  v <- newArr rows
+  for rows $ \i ->
+    setArr i (false :: exp Bit) v
+  for cols $ \j -> do
+    b <- getArr j vec
+    when b $
+      for rows $ \i -> do
+        x <- getArr i v
+        y <- getMat i j h
+        setArr i ((not x && y) || (x && not y)) v
+  return v
+
+--------------------------------------------------------------------------------
+
+check
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Bit)
+     , BOOL exp
+     , NUM exp
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Bit) ~ Bit
+     )
+  => Mat exp Bit -> Arr exp Bit -> m (exp Bool)
+check h@(Matrix rows cols array) vec = do
+  v  <- vecmul h vec
+  ok <- initRef (true :: exp Bit)
+  for rows $ \i -> do
+    b <- getArr i v
+    when b $
+      setRef ok (false :: exp Bit)
+  getRef ok
+
+--------------------------------------------------------------------------------
+
+init
+  :: forall exp m.
+     ( MonadComp exp m
+     , Syntax exp (exp Bit)
+     , Syntax exp (exp Float)
+     , VAL exp
+     , NUM exp
+     , ORD exp
+     , PrimTypeOf exp Float
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Bit) ~ Bit
+     , Internal (exp Float) ~ Float)
+  => Mat exp Bit        -- parity-check matrix
+  -> Arr exp Float      -- likelihood ratios for bits
+  -> m ( Arr exp Bit    -- decoded word
+       , Mat exp Float  -- likelihoods
+       , Mat exp Float) -- probabilities
+init h@(Matrix rows cols _) vec = do
+  lra :: Arr exp Float <- newArr (rows `times` cols)
+  pra :: Arr exp Float <- newArr (rows `times` cols)
+  dec :: Arr exp Bit   <- newArr cols
+  let lr = Matrix rows cols lra :: Mat exp Float
+      pr = Matrix rows cols pra :: Mat exp Float
+  for cols $ \j -> do
+    v :: exp Float <- getArr j vec
+    for rows $ \i -> do
+      b <- getMat i j h
+      when b $ do
+        setMat i j v pr
+        setMat i j (value 1 :: exp Float) lr
+    setArr j (v `gte` (value 1 :: exp Float)) dec
+  return (dec, lr, pr)
+
+--------------------------------------------------------------------------------
+
+iter 
+  :: forall m exp.
+     ( MonadComp exp m
+     , Syntax exp (exp Bit)
+     , Syntax exp (exp Float)
+     , VAL exp
+     , NUM exp
+     , FRAC exp
+     , ORD exp
+     , PrimTypeOf exp Float
+     , PrimTypeOf exp Length
+     , FreeDict exp
+     , FreeExp exp
+     , FreePred exp Length
+     , FreePred exp ~ PredOf exp
+     , Internal (exp Bit) ~ Bit
+     , Internal (exp Float) ~ Float)
+  => Mat exp Bit   -- parity-check matrix.
+  -> Mat exp Float -- likelihoods.
+  -> Mat exp Float -- probabilities.
+  -> Arr exp Float -- likelihood ratios for codeword.
+  -> Arr exp Bit   -- decoded word.
+  -> m ()
+iter h@(Matrix rows cols _) lr pr vec dec = do
+  dl :: Ref exp Float <- newRef
+  dr :: Ref exp Float <- newRef
+
+  -- Recompute lr.
+  for rows $ \j -> do
+    setRef dl (value 1 :: exp Float)
+    for cols $ \i -> do
+      b <- getMat i j h
+      when b $ do
+        v <- getRef dl
+        x <- getMat i j pr
+        setMat i j v lr
+        setRef dl (v `times` (value 2 `divide` ((value 1 `plus` x) `minus` value 1)))
+    setRef dl (value 1 :: exp Float)
+    for cols $ \i -> do
+      let i' = rows `minus` i
+      b <- getMat i' j h
+      when b $ do
+        v <- getRef dl
+        x <- getMat i' j lr
+        y <- getMat i' j pr
+        let t = x `times` v
+        setMat i' j ((value 1 `minus` t) `divide` (value 1 `plus` t)) lr
+        setRef dl (v `times` (value 2 `divide` ((value 1 `plus` y) `minus` value 1)))
+
+  -- Recompute pr.
+  for cols $ \j -> do
+    t :: exp Float <- getArr j vec
+    setRef dr t
+    for rows $ \i -> do
+      b <- getMat i j h
+      when b $ do
+        v <- getRef dr
+        x <- getMat i j lr
+        setMat i j v pr
+        setRef dr (v `times` x)
+    p :: exp Float <- getRef dr
+    setArr j (p `gte` value 1) dec
+    setRef dr (value 1 :: exp Float)
+    for rows $ \i -> do
+      let i' = rows `minus` i
+      b <- getMat i' j h
+      when b $ do
+        v <- getRef dr
+        x <- getMat i' j pr
+        y <- getMat i' j lr
+        setMat i' j (x `times` v) pr
+        setRef dr (v `times` y)
+
+--------------------------------------------------------------------------------
+-- Software decode.
+
+decode 
+  :: forall m. MonadComp Data m
+  => Mat Data Bit
+  -> Arr Data Float
+  -> m (Data Bool)
+decode h vec = do
+  done <- initRef (false :: Data Bool)
+  (dec, lr, pr) <- init h vec
+  for (value 10 :: Data Word32) $ \_ -> do
+    b <- check h dec
+    when b $ do
+      setRef done (true :: Data Bool)
+      break
+    iter h lr pr vec dec
+  getRef done
+
+--------------------------------------------------------------------------------
+-- * Hardware
+--------------------------------------------------------------------------------
+
 
 
 --------------------------------------------------------------------------------
 
+
+
+--------------------------------------------------------------------------------
+-- * Tests
+--------------------------------------------------------------------------------
+{-
+testCheck = SW.icompile prog
+  where
+    prog :: Run ()
+    prog = do
+      r :: Ref Data Length <- initRef (value 3 :: Data Length)
+      c :: Ref Data Length <- initRef (value 6 :: Data Length)
+      a :: Arr Data Bit    <- initArr [
+          one,  one, zero, one, zero, zero,
+          zero, one, one,  zero, one,  zero,
+          one,  one, one,  zero, zero, one
+        ]
+      h :: Mat Data Bit <- readStoreRep (r, c, a)
+      y :: Arr Data Bit <- initArr [
+          zero, one, zero, one,  zero, zero
+        ]
+      b :: Data Bool <- check h y
+      printf "OK? %d" (b2i b :: Data Word32)
+
+testInit = SW.icompile prog
+  where
+    prog :: Run ()
+    prog = do
+      r :: Ref Data Length <- initRef (value 3 :: Data Length)
+      c :: Ref Data Length <- initRef (value 6 :: Data Length)
+      a :: Arr Data Bit    <- initArr [
+          one,  one, zero, one, zero, zero,
+          zero, one, one,  zero, one,  zero,
+          one,  one, one,  zero, zero, one
+        ]
+      h :: Mat Data Bit   <- readStoreRep (r, c, a)
+      y :: Arr Data Float <- initArr [
+          0, 5.2, 0, 4.2, -5.2, -5.4
+        ]
+      init h y
+      return ()
+
+testIter = SW.icompile prog
+  where
+    prog :: Run ()
+    prog = do
+      r :: Ref Data Length <- initRef (value 3 :: Data Length)
+      c :: Ref Data Length <- initRef (value 6 :: Data Length)
+      a :: Arr Data Bit    <- initArr [
+          one,  one, zero, one, zero, zero,
+          zero, one, one,  zero, one,  zero,
+          one,  one, one,  zero, zero, one
+        ]
+      h :: Mat Data Bit   <- readStoreRep (r, c, a)
+      y :: Arr Data Float <- initArr [
+          0, 5.2, 0, 4.2, -5.2, -5.4
+        ]
+      (dec, lr, pr) <- init h y
+      iter h lr pr y dec
+
+one  :: Bit
+one  = True
+
+zero :: Bit
+zero = False
+-}
+
+--------------------------------------------------------------------------------
+-- * Old
+--------------------------------------------------------------------------------
+{-
 data Matrix exp a = Matrix (exp Length) (exp Length) (exp Index -> exp Index -> a)
 
 type instance ExprOf (Matrix exp a) = exp
@@ -78,281 +371,7 @@ instance ( Syntax exp a
           setArr ((i `times` offset) `plus` j) (ixf i j) array
     unsafeFreezeStoreRep = P.error "storable-matrix: unsafeFreezeStoreRep"
     copyStoreRep         = P.error "storable-matrix: copyStoreRep"
-
---------------------------------------------------------------------------------
-
-type Mat exp a = Matrix exp (exp a)
-
-decode :: MonadComp Data m => Mat Data Bit -> Arr Data Float -> m (Data Bool)
-decode h y = do
-  done <- initRef (false :: Data Bool)
-  (dec, lr, pr) <- init h y
-  for (value 10 :: Data Word32) $ \_ -> do
-    b <- check h dec
-    when b $ do
-      setRef done (true :: Data Bool) -- We did it!
-      break
-    iter h lr pr y dec
-  getRef done
-
---------------------------------------------------------------------------------
-
-check :: ( MonadComp exp m
-          , Syntax exp (exp Bit)
-          , NUM exp
-          , BOOL exp
-          , TypeOf exp Bit
-          , PrimTypeOf exp Bit
-          , PrimTypeOf exp Length
-          , FreeDict exp
-          , FreeExp exp
-          , FreePred exp Length
-          , Internal (exp Bit) ~ Bit
-          , FreePred exp ~ PredOf exp
-          )
-  => Mat exp Bit -> Arr exp Bit -> m (exp Bool)
-check h@(Matrix rows _ _) array = do
-  v  :: Arr exp Bit <- vecmul h array
-  ok :: Ref exp Bit <- initRef (true :: exp Bit)
-  for rows $ \i -> do
-    b <- getArr i v
-    when b $ 
-      setRef ok (false :: exp Bit)
-  getRef ok
-
-----------------------------------------
-
-testCheck = SW.icompile prog
-  where
-    prog :: Run ()
-    prog = do
-      r :: Ref Data Length <- initRef (value 3 :: Data Length)
-      c :: Ref Data Length <- initRef (value 6 :: Data Length)
-      a :: Arr Data Bit    <- initArr [
-          one,  one, zero, one, zero, zero,
-          zero, one, one,  zero, one,  zero,
-          one,  one, one,  zero, zero, one
-        ]
-      h :: Mat Data Bit <- readStoreRep (r, c, a)
-      y :: Arr Data Bit <- initArr [
-          zero, one, zero, one,  zero, zero
-        ]
-      b :: Data Bool <- check h y
-      printf "OK? %d" (b2i b :: Data Word32)
-   
-    one  :: Bit
-    one  = True
-
-    zero :: Bit
-    zero = False
-
---------------------------------------------------------------------------------
-
-init :: ( MonadComp exp m
-        , Syntax exp (exp Bit)
-        , Syntax exp (exp Float)
-        , Syntax exp (exp Length)
-        , VAL exp
-        , NUM exp
-        , ORD exp
-        , ArrIx exp
-        , TypeOf exp Bit
-        , TypeOf exp Float
-        , PrimTypeOf exp Float
-        , PrimTypeOf exp Length
-        , FreeDict exp
-        , FreeExp exp
-        , FreePred exp Length
-        , Internal (exp Bit) ~ Bit
-        , Internal (exp Float) ~ Float
-        , Internal (exp Length) ~ Length
-        , FreePred exp ~ PredOf exp
-        )
-  => Mat exp Bit   -- parity-check matrix
-  -> Arr exp Float -- likelihood ratios for bits
-  -> m ( Arr exp Bit   -- decoded word
-       , Mat exp Float -- likelihoods
-       , Mat exp Float -- probabilities
-       )
-init h@(Matrix rows cols ixf) array = do
-  let len = rows `times` cols
-  lr  :: Arr exp Float <- newArr len
-  pr  :: Arr exp Float <- newArr len
-  dec :: Arr exp Bit   <- newArr cols
-  for cols $ \j -> do
-    v :: exp Float <- getArr j array
-    for rows $ \i -> do
-      when (ixf i j) $ do
-        let ix = (i `times` cols) `plus` j
-        setArr ix v pr
-        setArr ix (value 1 :: exp Float) lr
-    setArr j (v `gte` (value 1 :: exp Float)) dec
-  -- make matrices.
-  r   :: Ref exp Length <- initRef rows
-  c   :: Ref exp Length <- initRef cols
-  pr' :: Mat exp Float  <- readStoreRep (r, c, pr)
-  lr' :: Mat exp Float  <- readStoreRep (r, c, lr)
-  return (dec, lr', pr')
-
-----------------------------------------
-
-testInit = SW.icompile prog
-  where
-    prog :: Run ()
-    prog = do
-      r :: Ref Data Length <- initRef (value 3 :: Data Length)
-      c :: Ref Data Length <- initRef (value 6 :: Data Length)
-      a :: Arr Data Bit    <- initArr [
-          one,  one, zero, one, zero, zero,
-          zero, one, one,  zero, one,  zero,
-          one,  one, one,  zero, zero, one
-        ]
-      h :: Mat Data Bit   <- readStoreRep (r, c, a)
-      y :: Arr Data Float <- initArr [
-          0, 5.2, 0, 4.2, -5.2, -5.4
-        ]
-      init h y
-      return ()
-
-    one  :: Bit
-    one  = True
-
-    zero :: Bit
-    zero = False
-
---------------------------------------------------------------------------------
-
-iter :: ( MonadComp exp m
-        , Syntax exp (exp Bit)
-        , Syntax exp (exp Float)
-        , Syntax exp (exp Length)
-        , VAL exp
-        , NUM exp
-        , ORD exp 
-        , FRAC exp
-        , ArrIx exp
-        , TypeOf exp Float
-        , PrimTypeOf exp Float
-        , PrimTypeOf exp Length
-        , FreeDict exp
-        , FreeExp exp
-        , FreePred exp Length
-        , FreePred exp ~ PredOf exp
-        , Internal (exp Bit) ~ Bit
-        , Internal (exp Float) ~ Float
-        , Internal (exp Length) ~ Length
-        )
-     => Mat exp Bit   -- parity-check matrix
-     -> Mat exp Float -- likelihoods
-     -> Mat exp Float -- probabilities
-     -> Arr exp Float -- likelihood ratios for bits
-     -> Arr exp Bit   -- decoded word
-     -> m ()
-iter (Matrix rows cols ixf) lrm prm array dec = do
-  lr'@(_, _, lr) <- initStoreRep lrm
-  pr'@(_, _, pr) <- initStoreRep prm
-  dl :: Ref exp Float <- newRef
-  dr :: Ref exp Float <- newRef
-  -- recompute lr.
-  for rows $ \i -> do
-    setRef dl (value 0 :: exp Float)
-    for cols $ \j ->
-      let ix = (i `times` cols) `plus` j
-      in when (ixf i j) $ do
-        v :: exp Float <- getRef dl
-        x :: exp Float <- getArr ix pr
-        setArr ix v lr
-        setRef dl (v `times` (value 2 `divide` ((value 1 `plus` x) `minus` value 1)))
-    setRef dl (value 0 :: exp Float)
-    for cols $ \j ->
-      let ix = ((rows `minus` i) `times` cols) `plus` j
-      in when (ixf (rows `minus` i) j) $ do
-        v :: exp Float <- getRef dl
-        x :: exp Float <- getArr ix lr
-        y :: exp Float <- getArr ix pr
-        let t = (x `times` v)
-        setArr ix ((value 1 `minus` t) `divide` (value 1 `plus` t)) lr
-        setRef dl (v `times` (value 2 `divide` ((value 1 `plus` y) `minus` value 1)))
-  -- recompute pr.
-  for cols $ \j -> do
-    t :: exp Float <- getArr j array
-    setRef dr t
-    for rows $ \i ->
-      let ix = (i `times` cols) `plus` j
-      in when (ixf i j) $ do
-        v :: exp Float <- getRef dr
-        x :: exp Float <- getArr ix lr
-        setArr ix v pr
-        setRef dr (v `times` x)
-    t' :: exp Float <- getRef dr
-    setArr j (t' `gte` value 1) dec
-    setRef dr (value 1 :: exp Float) 
-    for rows $ \i ->
-      let ix = ((rows `minus` i) `times` cols) `plus` j
-      in when (ixf (rows `minus` i) j) $ do
-        v :: exp Float <- getRef dr
-        x :: exp Float <- getArr ix pr
-        y :: exp Float <- getArr ix lr
-        setArr ix (x `times` v) pr
-        setRef dr (v `times` y)
-
-----------------------------------------
-
-testIter = SW.icompile prog
-  where
-    prog :: Run ()
-    prog = do
-      r :: Ref Data Length <- initRef (value 3 :: Data Length)
-      c :: Ref Data Length <- initRef (value 6 :: Data Length)
-      a :: Arr Data Bit    <- initArr [
-          one,  one, zero, one, zero, zero,
-          zero, one, one,  zero, one,  zero,
-          one,  one, one,  zero, zero, one
-        ]
-      h :: Mat Data Bit   <- readStoreRep (r, c, a)
-      y :: Arr Data Float <- initArr [
-          0, 5.2, 0, 4.2, -5.2, -5.4
-        ]
-      (dec, lr, pr) <- init h y
-      iter h lr pr y dec
-
-    one  :: Bit
-    one  = True
-
-    zero :: Bit
-    zero = False      
-
---------------------------------------------------------------------------------
-
--- | Vector multiplication (modulo two).
-vecmul :: ( MonadComp exp m
-          , Syntax exp (exp Bit)
-          , NUM exp
-          , BOOL exp
-          , TypeOf exp Bit
-          , PrimTypeOf exp Bit
-          , PrimTypeOf exp Length
-          , FreeDict exp
-          , FreeExp exp
-          , FreePred exp Length
-          , Internal (exp Bit) ~ Bit
-          , FreePred exp ~ PredOf exp
-          ) 
-  => Mat exp Bit     -- M x N
-  -> Arr exp Bit     -- N x 1
-  -> m (Arr exp Bit) -- M x 1
-vecmul (Matrix rows cols ixf) array = do
-  v :: Arr exp Bit <- newArr (rows `times` cols)
-  for rows $ \i ->
-    setArr i (false :: exp Bit) v
-  for cols $ \j -> do
-    b <- getArr j array
-    when b $ for rows $ \i -> do
-      old :: exp Bit <- getArr i v
-      let x = ixf i j
-      setArr i ((not old && x) || (old && not x)) v
-  return v
-
+-}
 --------------------------------------------------------------------------------
 -- ** Psi lookup table.
 --
