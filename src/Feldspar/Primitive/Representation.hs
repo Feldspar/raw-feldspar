@@ -555,6 +555,12 @@ instance Render HPrimitive
     renderSym HGe          = "(>=)"
     renderSym (HArrIx (IArrComp arr)) = "ArrIx " ++ arr
     renderSym (HArrIx _)              = "ArrIx ..."
+    renderSym HBAnd        = "(.&&.)"
+    renderSym HBOr         = "(.||.)"
+    renderSym HBXor        = "Xor"
+    renderSym HBXnor       = "Xnor"
+    renderSym HBNand       = "Nand"
+    renderSym HBNor        = "Nor"
 
     renderArgs = renderArgsSmart
 

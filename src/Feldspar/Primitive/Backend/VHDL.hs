@@ -87,7 +87,6 @@ compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
       y <- Hoist.lift <$> compLoop b
       return $ Hoist.E $ V.nor x y
     
-    
     compDomain _ HEq  (a :* b :* Nil) = compRel V.eq  a b
     compDomain _ HNEq (a :* b :* Nil) = compRel V.neq a b
     compDomain _ HLt  (a :* b :* Nil) = compRel V.lt  a b

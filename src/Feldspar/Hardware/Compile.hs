@@ -178,6 +178,13 @@ translateExp = goAST {-. optimize-} . unHData
       | Just HGt  <- prj op = liftStruct2 (sugarSymHPrim HGt)  <$> goAST a <*> goAST b
       | Just HLe  <- prj op = liftStruct2 (sugarSymHPrim HLe)  <$> goAST a <*> goAST b
       | Just HGe  <- prj op = liftStruct2 (sugarSymHPrim HGe)  <$> goAST a <*> goAST b
+--
+      | Just HBAnd  <- prj op = liftStruct2 (sugarSymHPrim HBAnd)  <$> goAST a <*> goAST b
+      | Just HBOr   <- prj op = liftStruct2 (sugarSymHPrim HBOr)   <$> goAST a <*> goAST b
+      | Just HBXor  <- prj op = liftStruct2 (sugarSymHPrim HBXor)  <$> goAST a <*> goAST b
+      | Just HBXnor <- prj op = liftStruct2 (sugarSymHPrim HBXnor) <$> goAST a <*> goAST b
+      | Just HBNand <- prj op = liftStruct2 (sugarSymHPrim HBNand) <$> goAST a <*> goAST b
+      | Just HBNor  <- prj op = liftStruct2 (sugarSymHPrim HBNor)  <$> goAST a <*> goAST b
     go (Single _) arrIx (i :* Nil)
       | Just (HArrIx arr) <- prj arrIx
       = do i' <- goSmallAST i

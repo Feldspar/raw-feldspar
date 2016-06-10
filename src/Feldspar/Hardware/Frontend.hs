@@ -4,12 +4,12 @@ module Feldspar.Hardware.Frontend
 
   , Signal
   , Constant
-  , Ident, ToIdent, (.:)
+  , Ident, ToIdent, (.:), (.>)
     
   , module Feldspar.Hardware.Frontend
   ) where
 
-import Language.Embedded.Hardware (Signal, Constant, Ident, ToIdent, (.:))
+import Language.Embedded.Hardware (Signal, Constant, Ident, ToIdent, (.:), (.>))
 import qualified Language.Embedded.Hardware as Hard
 
 import Data.Ix (Ix)
@@ -139,6 +139,11 @@ constant name = Hardware . Hard.constant name
 getArray :: (HPrimType i, Integral i, Ix i) => HData i -> Signal (Hard.Bits n) -> Hardware (HData Hard.Bit)
 getArray ix = Hardware . Hard.getArray ix
 
+setArray :: (HPrimType i, Integral i, Ix i) => HData i -> HData (Hard.Bit) -> Signal (Hard.Bits n) -> Hardware ()
+setArray ix e = Hardware . Hard.setArray ix e
+
+----
+
 getSignalRange
   :: (HPrimType i, Integral i, Ix i)
   => HData i
@@ -155,6 +160,8 @@ setSignalRange
   -> Signal (Hard.Bits m)
   -> Hardware ()
 setSignalRange range1 s1 range2 s2 = Hardware $ Hard.setSignalRange range1 s1 range2 s2
+
+----
 
 asSigned :: KnownNat n => Signal (Hard.Bits n) -> Hardware (HData Integer)
 asSigned = Hardware . Hard.asSigned
@@ -215,6 +222,9 @@ component = namedComponent "comp"
 -- | Maps some inputs to an component.
 portmap :: Component a -> Arguments a -> Hardware ()
 portmap comp = Hardware . Hard.portmap comp
+
+nill :: Hard.Arg ()
+nill = Hard.Nill
 
 --------------------------------------------------------------------------------
 

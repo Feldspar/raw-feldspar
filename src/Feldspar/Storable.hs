@@ -51,6 +51,12 @@ instance Type a => Forcible (Data a)
     toValue   = unsafeFreezeRef <=< initRef
     fromValue = sugar
 
+instance HType a => Forcible (HData a)
+  where
+    type ValueRep (HData a) = HData a
+    toValue   = unsafeFreezeRef <=< initRef
+    fromValue = sugar
+
 instance ( Forcible a
          , Forcible b
          , ExprOf a ~ ExprOf b)
@@ -160,6 +166,18 @@ instance Type a => Storable (Data a)
     writeStoreRep        = setRef
     copyStoreRep _ dst src =
         setRef src . (id :: Data a -> Data a) =<< unsafeFreezeRef dst
+
+instance HType a => Storable (HData a)
+  where
+    type StoreRep (HData a)  = Ref HData a
+    type StoreSize (HData a) = ()
+    newStoreRep _ _      = newRef
+    initStoreRep         = initRef
+    readStoreRep         = getRef
+    unsafeFreezeStoreRep = unsafeFreezeRef
+    writeStoreRep        = setRef
+    copyStoreRep _ dst src =
+        setRef src . (id :: HData a -> HData a) =<< unsafeFreezeRef dst
 
 instance ( Storable a
          , Storable b

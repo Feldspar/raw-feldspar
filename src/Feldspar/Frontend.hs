@@ -323,10 +323,10 @@ class BIT (exp :: * -> *) where
 instance BIT HData where
   band = sugarSymExp (Proxy::Proxy HData) HBAnd
   bor  = sugarSymExp (Proxy::Proxy HData) HBOr
-  xor  = undefined
-  xnor = undefined
-  nand = undefined
-  nor  = undefined
+  xor  = sugarSymExp (Proxy::Proxy HData) HBXor
+  xnor = sugarSymExp (Proxy::Proxy HData) HBXnor
+  nand = sugarSymExp (Proxy::Proxy HData) HBNand
+  nor  = sugarSymExp (Proxy::Proxy HData) HBNor
 
 infixr 3 .&&.
 infixr 2 .||.
@@ -350,7 +350,7 @@ class Monad m => MonadComp exp m | m -> exp
     -- | Conditional statement
     iff :: exp Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: ( Imp.FreeExp exp, Imp.FreePred exp n, Integral n, PrimType n
+    for :: ( Imp.FreeExp exp, Imp.FreePred exp n, Integral n, PrimTypeOf exp n
            --, PredOf exp n
            , PredOf exp ~ Imp.FreePred exp -- Meh.
            )
@@ -415,8 +415,8 @@ initRef = initNamedRef "r"
 -- collisions.
 newNamedRef :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
-     , TypedRep exp
+     , TypeOf    exp a
+     , TypedRep  exp
      , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
   => String    -- ^ Base name.
   -> m (Ref exp a)
@@ -429,8 +429,8 @@ newNamedRef base =
 -- | Create an uninitialized reference
 newRef
   :: ( MonadComp exp m
-     , TypeOf exp a
-     , TypedRep exp
+     , TypeOf    exp a
+     , TypedRep  exp
      , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
   => m (Ref exp a)
 newRef = newNamedRef "r"
@@ -524,9 +524,9 @@ initArr = initNamedArr "a"
 -- collisions.
 newNamedArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
-     , TypedRep exp
-     , TypeRepOf exp ~ Struct (PredOf exp) exp)  -- *** <----
+     , TypeOf    exp a
+     , TypedRep  exp
+     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
   => String     -- ^ Base name.
   -> exp Length -- ^ Size.
   -> m (Arr exp a)
@@ -539,9 +539,9 @@ newNamedArr base l
 -- | Create an uninitialized array.
 newArr ::
      ( MonadComp exp m
-     , TypeOf exp a
-     , TypedRep exp
-     , TypeRepOf exp ~ Struct (PredOf exp) exp) -- *** <----
+     , TypeOf    exp a
+     , TypedRep  exp
+     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
   => exp Length -- ^ Size.
   -> m (Arr exp a)
 newArr = newNamedArr "a"
