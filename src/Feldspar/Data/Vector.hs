@@ -3,7 +3,10 @@
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Feldspar.Data.Vector where
+module Feldspar.Data.Vector
+  ( module Feldspar.Data.Array
+  , module Feldspar.Data.Vector
+  ) where
 
 
 
@@ -475,6 +478,9 @@ instance Applicative Push
           dump1 $ \i1 f ->
             write (i1*len2 + i2) (f a)
 
+-- No instance `Monad Push`, because it's not possible to determine the length
+-- of the result of `>>=`.
+
 instance Finite (Push a)
   where
     length (Push len _) = len
@@ -496,11 +502,11 @@ class Pushy vec
 instance Pushy Push where toPush = id
 
 -- | Dump the contents of a 'Push' vector
-dumpPush :: MonadComp  m
+dumpPush :: MonadComp m
     => Push a                     -- ^ Vector to dump
-    -> (Data Index -> a -> m ())  -- ^ Function that dumps one element
+    -> (Data Index -> a -> m ())  -- ^ Function that writes one element
     -> m ()
-dumpPush (Push len dump) = dump
+dumpPush (Push _ dump) = dump
 
 -- | Convert a 'Pully' structure to 'Push'
 --
@@ -552,6 +558,68 @@ flattenPush
     -> vec a
     -> Push b
 flattenPush n f = concat n . fmap (listPush . f) . toPush
+
+
+
+--------------------------------------------------------------------------------
+-- * Monadic push vectors
+--------------------------------------------------------------------------------
+
+-- | Push vector with embedded effects
+data PushM m a
+  where
+    PushM :: Data Length -> ((Data Index -> a -> m ()) -> m ()) -> PushM m a
+
+instance Functor (PushM m)
+  where
+    fmap f (PushM len dump) = PushM len $ \write -> dump $ \i -> write i . f
+
+-- | This instance behaves like the list instance:
+--
+-- > pure x    = [x]
+-- > fs <*> xs = [f x | f <- fs, x <- xs]
+instance Applicative (PushM m)
+  where
+    pure a  = PushM 1 $ \write -> write 0 a
+    PushM len1 dump1 <*> PushM len2 dump2 = PushM (len1*len2) $ \write -> do
+        dump2 $ \i2 a ->
+          dump1 $ \i1 f ->
+            write (i1*len2 + i2) (f a)
+
+-- No instance `Monad Push`, because it's not possible to determine the length
+-- of the result of `>>=`.
+
+-- | Dump the contents of a 'PushM' vector
+dumpPushM
+    :: PushM m a                  -- ^ Vector to dump
+    -> (Data Index -> a -> m ())  -- ^ Function that writes one element
+    -> m ()
+dumpPushM (PushM _ dump) = dump
+
+-- | Convert a 'PushySeq' vector to 'PushSeqM'
+--
+-- See 'toFlatPush' for converting all levels of a nested structure to 'PushM'.
+toPushM :: MonadComp m => Pushy vec => vec a -> PushM m a
+toPushM vec =
+    let Push len dump = toPush vec
+    in  PushM len dump
+
+-- Concatenate nested 'PushM' vectors
+concatPushM
+    :: Data Length  -- ^ Length of inner vectors
+    -> PushM m (PushM m a)
+    -> PushM m a
+concatPushM il (PushM l dump1) = PushM (l*il) $ \write ->
+      dump1 $ \i (PushM l2 dump2) ->
+        dump2 $ \j a ->
+          write (i*l2+j) a
+  -- TODO Assert il==l2
+
+-- | Join the effect in an element with the internal effect in a 'PushM'
+joinElemPush :: Monad m => PushM m (m a) -> PushM m a
+joinElemPush (PushM len dump) = PushM len $ \write ->
+    dump $ \i m ->
+      m >>= write i
 
 
 
@@ -662,7 +730,7 @@ unfoldPushSeq step init = PushSeq $ \put -> do
 -- * Sequential monadic push vectors
 --------------------------------------------------------------------------------
 
--- | A version of 'PushSeq' that allows embedded effects
+-- | A version of 'PushSeq' with embedded effects
 data PushSeqM m a = PushSeqM
     { dumpPushSeqM :: (a -> m ()) -> m () }
 
@@ -686,72 +754,306 @@ instance MonadTrans PushSeqM
   where
     lift m = PushSeqM $ \put -> m >>= put
 
+-- | Convert a 'PushySeq' vector to 'PushSeqM'
+--
+-- See 'linearPush' for converting all levels of a nested structure to
+-- 'PushSeqM'.
+toPushSeqM :: MonadComp m => PushySeq vec => vec a -> PushSeqM m a
+toPushSeqM = PushSeqM . dumpPushSeq . toPushSeq
+
+-- Concatenate nested 'PushSeqM' vectors
+concatPushSeqM :: PushSeqM m (PushSeqM m a) -> PushSeqM m a
+concatPushSeqM (PushSeqM dump1) = PushSeqM $ \put ->
+      dump1 $ \(PushSeqM dump2) ->
+        dump2 put
+
+-- | Join the effect in an element with the internal effect in a 'PushSeqM'
+joinElemPushSeq :: Monad m => PushSeqM m (m a) -> PushSeqM m a
+joinElemPushSeq (PushSeqM dump) = PushSeqM $ \put ->
+    dump $ \ m ->
+      m >>= put
+
 
 
 --------------------------------------------------------------------------------
--- * Linearization
+-- * Materializing nested structures
+--------------------------------------------------------------------------------
+
+-- | Returns the dimensionality of a nested structure
+--
+-- For example:
+--
+-- @
+-- `Dimensions` (`Pull` (`Manifest` (`Data` `Int32`))) = Dim` (`Dim` ())
+-- @
+type family Dimensions a
+  where
+    Dimensions (Comp a)       = Dimensions a
+    Dimensions (Run a)        = Dimensions a
+    Dimensions (Nest a)       = Dim (Dimensions a)
+    Dimensions (Manifest a)   = Dim (Dimensions a)
+    Dimensions (Pull a)       = Dim (Dimensions a)
+    Dimensions (Push a)       = Dim (Dimensions a)
+    Dimensions (PushM m a)    = Dim (Dimensions a)
+    Dimensions (PushSeq a)    = Dim (Dimensions a)
+    Dimensions (PushSeqM m a) = Dim (Dimensions a)
+    Dimensions a              = ()
+
+class DirectMaterializable a
+  where
+    -- | Convert a structure directly to a flat 'Manifest' without copying. This
+    -- method is only supported by types that simply are views of 'Manifest'
+    -- vectors; e.g. @`Nest` (`Manifest` a)@.
+    maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
+    maybeToFlatManifest = Nothing
+  -- This class is kept separate from `Materializable` to avoid resolving the
+  -- `m` parameter.
+
+-- | Nested structures that can be written to memory
+class
+    ( DirectMaterializable a
+    , Syntax (InnerElem a)
+    , MonadComp m
+    ) =>
+      Materializable m a
+  where
+    -- | The inner element type of a nested structure
+    type InnerElem a
+
+    -- | Convert a nested structure to a flat 'PushM' vector
+    toFlatPush
+        :: Extent (Dimensions a)  -- ^ Extent of the structure
+        -> a                      -- ^ Structure to convert
+        -> PushM m (InnerElem a)
+    default toFlatPush :: Extent () -> a -> PushM m a
+    toFlatPush ZE = pure
+
+
+instance DirectMaterializable (Data a)
+instance DirectMaterializable ()
+instance DirectMaterializable (a,b)
+instance DirectMaterializable (a,b,c)
+instance DirectMaterializable (a,b,c,d)
+
+instance (Type a, MonadComp m)           => Materializable m (Data a)  where type InnerElem (Data a)  = Data a
+instance MonadComp m                     => Materializable m ()        where type InnerElem ()        = ()
+instance (Syntax (a,b), MonadComp m)     => Materializable m (a,b)     where type InnerElem (a,b)     = (a,b)
+instance (Syntax (a,b,c), MonadComp m)   => Materializable m (a,b,c)   where type InnerElem (a,b,c)   = (a,b,c)
+instance (Syntax (a,b,c,d), MonadComp m) => Materializable m (a,b,c,d) where type InnerElem (a,b,c,d) = (a,b,c,d)
+
+instance DirectMaterializable (Comp a)
+
+instance Materializable m a => Materializable m (Comp a)
+  where
+    type InnerElem (Comp a) = InnerElem a
+    toFlatPush e m = PushM len $ \write -> do
+        a <- liftComp m
+        dumpPushM (toFlatPush e a) write
+      where
+        len = Prelude.product $ listExtent e
+
+instance DirectMaterializable (Run a)
+
+instance Materializable Run a => Materializable Run (Run a)
+  where
+    type InnerElem (Run a) = InnerElem a
+    toFlatPush e m = PushM len $ \write -> do
+        a <- m
+        dumpPushM (toFlatPush e a) write
+      where
+        len = Prelude.product $ listExtent e
+
+instance DirectMaterializable (Fin (IArr a))
+  where
+    maybeToFlatManifest = Just $ \(Fin len arr) -> Manifest len arr
+
+instance (Type a, MonadComp m) => Materializable m (Fin (IArr a))
+  where
+    type InnerElem (Fin (IArr a)) = Data a
+    toFlatPush e = toPushM . toPull
+
+instance DirectMaterializable a => DirectMaterializable (Nest a)
+  where
+    maybeToFlatManifest = do
+        f <- maybeToFlatManifest
+        return (f . unnest)
+
+instance (Materializable m a, Slicable a) => Materializable m (Nest a)
+  where
+    type InnerElem (Nest a) = InnerElem a
+    toFlatPush e = toFlatPush e . pullyToPush
+
+instance DirectMaterializable (Manifest a)
+  where
+    maybeToFlatManifest = Just id
+
+instance (Syntax a, MonadComp m) => Materializable m (Manifest a)
+  where
+    type InnerElem (Manifest a) = a
+    toFlatPush e = toPushM . toPull
+
+instance DirectMaterializable (Pull a)
+
+instance Materializable m a => Materializable m (Pull a)
+  where
+    type InnerElem (Pull a) = InnerElem a
+    toFlatPush e = toFlatPush e . toPush
+
+instance DirectMaterializable (Push a)
+
+instance Materializable m a => Materializable m (Push a)
+  where
+    type InnerElem (Push a) = InnerElem a
+    toFlatPush e = toFlatPush e . (id :: PushM m a -> PushM m a) . toPushM
+
+instance DirectMaterializable (PushM m a)
+
+instance Materializable m a => Materializable m (PushM m a)
+  where
+    type InnerElem (PushM m a) = InnerElem a
+    toFlatPush (l :> ls) = concatPushM innerLen . fmap (toFlatPush ls)
+      where
+        innerLen = Prelude.product $ listExtent ls
+      -- TODO Assert l == length of argument vector
+
+instance DirectMaterializable (PushSeq a)
+
+instance Materializable m a => Materializable m (PushSeq a)
+  where
+    type InnerElem (PushSeq a) = InnerElem a
+    toFlatPush e
+        = toFlatPush e
+        . (id :: PushSeqM m a -> PushSeqM m a)
+        . toPushSeqM
+
+instance DirectMaterializable (PushSeqM m a)
+
+instance Materializable m a => Materializable m (PushSeqM m a)
+  where
+    type InnerElem (PushSeqM m a) = InnerElem a
+    toFlatPush (l :> ls) (PushSeqM dump) = PushM l $ \write -> do
+        r <- initRef (0 :: Data Index)
+        dump $ \a -> do
+          i <- unsafeFreezeRef r
+          dumpPushM (toFlatPush ls a) $ \j b ->
+              write (i*innerLen + j) b
+          setRef r (i+1)
+      where
+        innerLen = Prelude.product $ listExtent ls
+
+-- | Convert a nested structure to a flat 'Manifest' vector
+--
+-- Some example types after supplying the first two arguments (@arr@ is of type
+-- @`Arr` `Double`@):
+--
+-- @
+-- `materialize` arr (10 `:>` `ZE`) :: `DPull` `Double` -> `Comp` (`Manifest` (`Data` `Double`))
+--   -- 1-dimensional Pull to 1-dimensional Manifest
+--
+-- `materialize` arr (10 `:>` 20 `:>` 30 `:>` `ZE`) :: `Pull` (`Pull` (`DPush` `Double`)) -> `Comp` (`Manifest` (`Data` `Double`))
+--   -- 3-dimensional Pull-Pull-Push to 1-dimensional Manifest
+--
+-- `materialize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Manifest` (`Data` `Double`))
+--   -- 2-dimensional Pull-Push *with interleaved effects* to 1-dimensional Manifest
+-- @
+--
+-- Note the interleaved 'Comp' effect in the last example. In general effects
+-- ('Comp' or 'Run') are allowed at any level when materializing a nested
+-- structure.
+materialize :: forall a m . Materializable m a
+    => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
+    -> Extent (Dimensions a)         -- ^ Extent of the structure
+    -> a                             -- ^ Structure to materialize
+    -> m (Manifest (InnerElem a))    -- ^ Flat result
+materialize arr e a
+    | Just f <- maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
+    = return (f a)
+materialize arr e a = do
+    dump $ \i a -> setArr i (desugar a) arr
+    iarr <- unsafeFreezeArr arr
+    return $ Manifest len iarr
+  where
+    PushM len dump = toFlatPush e a
+
+-- | Convert a nested structure to a corresponding nested 'Manifest' vector.
+-- Memorization can be used to get a structure that supports cheap indexing
+-- (i.e. operations overloaded by 'Pully').
+--
+-- Some example types after supplying the first two arguments (@arr@ is of type
+-- @`Arr` `Double`@):
+--
+-- @
+-- `memorize` arr (10 `:>` `ZE`) :: `DPull` `Double` -> `Comp` (`Manifest` (`Data` `Double`))
+--   -- 1-dimensional Pull to 1-dimensional Manifest
+--
+-- `memorize` arr (10 `:>` 20 `:>` 30 `:>` `ZE`) :: `Pull` (`Pull` (`DPush` `Double`)) -> `Comp` (`Nest` (`Nest` (`Manifest` (`Data` `Double`))))
+--   -- 3-dimensional Pull-Pull-Push to 3-dimensional Manifest
+--
+-- `memorize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Nest` (`Manifest` (`Data` `Double`)))
+--   -- 2-dimensional Pull-Push *with interleaved effects* to 2-dimensional Manifest
+-- @
+--
+-- Note the interleaved 'Comp' effect in the last example. In general effects
+-- ('Comp' or 'Run') are allowed at any level when memorizing a nested
+-- structure.
+memorize :: forall a d m . (Materializable m a, Dimensions a ~ Dim d)
+    => Arr (Internal (InnerElem a))
+    -> Extent (Dimensions a)
+    -> a
+    -> m (MultiNest (Dimensions a) (Manifest (InnerElem a)))
+memorize arr e = fmap (multiNest e) . materialize arr e
+
+
+
+--------------------------------------------------------------------------------
+-- * Linearizing nested structures
 --------------------------------------------------------------------------------
 
 -- Linearizable data structures
 class MonadComp m => Linearizable m a
   where
-    type LinearElem a
     -- | Convert a structure to a 'PushSeqM' vector
-    linearPush :: a -> PushSeqM m (LinearElem a)
+    linearPush :: a -> PushSeqM m (InnerElem a)
     default linearPush :: a -> PushSeqM m a
     linearPush = return
 
-instance MonadComp m => Linearizable m (Data a)  where type LinearElem (Data a)  = Data a
-instance MonadComp m => Linearizable m ()        where type LinearElem ()        = ()
-instance MonadComp m => Linearizable m (a,b)     where type LinearElem (a,b)     = (a,b)
-instance MonadComp m => Linearizable m (a,b,c)   where type LinearElem (a,b,c)   = (a,b,c)
-instance MonadComp m => Linearizable m (a,b,c,d) where type LinearElem (a,b,c,d) = (a,b,c,d)
+instance MonadComp m => Linearizable m (Data a)
+instance MonadComp m => Linearizable m ()
+instance MonadComp m => Linearizable m (a,b)
+instance MonadComp m => Linearizable m (a,b,c)
+instance MonadComp m => Linearizable m (a,b,c,d)
   -- TODO Larger tuples
 
 instance Linearizable m a => Linearizable m (Comp a)
   where
-    type LinearElem (Comp a) = LinearElem a
     linearPush = linearPush <=< lift . liftComp
 
 instance Linearizable Run a => Linearizable Run (Run a)
   where
-    type LinearElem (Run a) = LinearElem a
     linearPush = linearPush <=< lift
 
 instance (Type a, MonadComp m) => Linearizable m (Fin (IArr a))
   where
-    type LinearElem (Fin (IArr a)) = Data a
-    linearPush (Fin len arr) = PushSeqM $ \put ->
-        for (0,1,Excl len) $ \i ->
-          put (arr!i)
+    linearPush = linearPush . toPushSeq . toPull
 
-instance (Type a, MonadComp m) => Linearizable m (Fin (Arr a))
+instance (Linearizable m a, InnerElem a ~ a, Syntax a) =>
+    Linearizable m (Manifest a)
   where
-    type LinearElem (Fin (Arr a)) = Data a
-    linearPush (Fin len arr) = do
-        iarr <- lift $ unsafeFreezeArr arr
-        linearPush (Fin len iarr)
-
-instance (Linearizable m a, Syntax a) => Linearizable m (Manifest a)
-  where
-    type LinearElem (Manifest a) = LinearElem a
     linearPush = linearPush . toPushSeq . toPull
 
 instance Linearizable m a => Linearizable m (Pull a)
   where
-    type LinearElem (Pull a) = LinearElem a
     linearPush = linearPush . toPushSeq
 
 instance Linearizable m a => Linearizable m (PushSeq a)
   where
-    type LinearElem (PushSeq a) = LinearElem a
     linearPush v = PushSeqM $ \put ->
         dumpPushSeq v $ \a ->
           dumpPushSeqM (linearPush a) put
 
 -- | Fold the content of a 'Linearizable' data structure
 linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
-    (a -> LinearElem lin -> m a) -> a -> lin -> m a
+    (a -> InnerElem lin -> m a) -> a -> lin -> m a
 linearFold step init lin = do
     r <- initRef init
     let put a = do
@@ -762,15 +1064,8 @@ linearFold step init lin = do
 
 -- | Map a monadic function over the content of a 'Linearizable' data structure
 linearMapM :: (Linearizable m lin, MonadComp m) =>
-    (LinearElem lin -> m ()) -> lin -> m ()
+    (InnerElem lin -> m ()) -> lin -> m ()
 linearMapM f = linearFold (\_ -> f) ()
-
--- | Write the content of a 'Linearizable' data structure to an array
-linearWriteArr :: (Linearizable m a, Syntax (LinearElem a), MonadComp m)
-    => Arr (Internal (LinearElem a))  -- ^ Where to put the result
-    -> a                              -- ^ Value to linearize
-    -> m (Data Length)                -- ^ Number of elements written
-linearWriteArr arr a = linearFold (\i b -> setArr i b arr >> return (i+1)) 0 a
 
 
 
