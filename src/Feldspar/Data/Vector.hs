@@ -562,26 +562,26 @@ flattenPush n f = concat n . fmap (listPush . f) . toPush
 
 
 --------------------------------------------------------------------------------
--- * Monadic push vectors
+-- * Push vectors with embedded effects
 --------------------------------------------------------------------------------
 
 -- | Push vector with embedded effects
-data PushM m a
+data PushE m a
   where
-    PushM :: Data Length -> ((Data Index -> a -> m ()) -> m ()) -> PushM m a
+    PushE :: Data Length -> ((Data Index -> a -> m ()) -> m ()) -> PushE m a
 
-instance Functor (PushM m)
+instance Functor (PushE m)
   where
-    fmap f (PushM len dump) = PushM len $ \write -> dump $ \i -> write i . f
+    fmap f (PushE len dump) = PushE len $ \write -> dump $ \i -> write i . f
 
 -- | This instance behaves like the list instance:
 --
 -- > pure x    = [x]
 -- > fs <*> xs = [f x | f <- fs, x <- xs]
-instance Applicative (PushM m)
+instance Applicative (PushE m)
   where
-    pure a  = PushM 1 $ \write -> write 0 a
-    PushM len1 dump1 <*> PushM len2 dump2 = PushM (len1*len2) $ \write -> do
+    pure a  = PushE 1 $ \write -> write 0 a
+    PushE len1 dump1 <*> PushE len2 dump2 = PushE (len1*len2) $ \write -> do
         dump2 $ \i2 a ->
           dump1 $ \i1 f ->
             write (i1*len2 + i2) (f a)
@@ -589,35 +589,35 @@ instance Applicative (PushM m)
 -- No instance `Monad Push`, because it's not possible to determine the length
 -- of the result of `>>=`.
 
--- | Dump the contents of a 'PushM' vector
-dumpPushM
-    :: PushM m a                  -- ^ Vector to dump
+-- | Dump the contents of a 'PushE' vector
+dumpPushE
+    :: PushE m a                  -- ^ Vector to dump
     -> (Data Index -> a -> m ())  -- ^ Function that writes one element
     -> m ()
-dumpPushM (PushM _ dump) = dump
+dumpPushE (PushE _ dump) = dump
 
--- | Convert a 'PushySeq' vector to 'PushSeqM'
+-- | Convert a 'PushySeq' vector to 'PushSeqE'
 --
--- See 'toFlatPush' for converting all levels of a nested structure to 'PushM'.
-toPushM :: MonadComp m => Pushy vec => vec a -> PushM m a
-toPushM vec =
+-- See 'toFlatPush' for converting all levels of a nested structure to 'PushE'.
+toPushE :: MonadComp m => Pushy vec => vec a -> PushE m a
+toPushE vec =
     let Push len dump = toPush vec
-    in  PushM len dump
+    in  PushE len dump
 
--- Concatenate nested 'PushM' vectors
-concatPushM
+-- Concatenate nested 'PushE' vectors
+concatPushE
     :: Data Length  -- ^ Length of inner vectors
-    -> PushM m (PushM m a)
-    -> PushM m a
-concatPushM il (PushM l dump1) = PushM (l*il) $ \write ->
-      dump1 $ \i (PushM l2 dump2) ->
+    -> PushE m (PushE m a)
+    -> PushE m a
+concatPushE il (PushE l dump1) = PushE (l*il) $ \write ->
+      dump1 $ \i (PushE l2 dump2) ->
         dump2 $ \j a ->
           write (i*l2+j) a
   -- TODO Assert il==l2
 
--- | Join the effect in an element with the internal effect in a 'PushM'
-joinElemPush :: Monad m => PushM m (m a) -> PushM m a
-joinElemPush (PushM len dump) = PushM len $ \write ->
+-- | Join the effect in an element with the internal effect in a 'PushE'
+joinElemPush :: Monad m => PushE m (m a) -> PushE m a
+joinElemPush (PushE len dump) = PushE len $ \write ->
     dump $ \i m ->
       m >>= write i
 
@@ -727,49 +727,49 @@ unfoldPushSeq step init = PushSeq $ \put -> do
 
 
 --------------------------------------------------------------------------------
--- * Sequential monadic push vectors
+-- * Sequential push vectors with embedded effects
 --------------------------------------------------------------------------------
 
 -- | A version of 'PushSeq' with embedded effects
-data PushSeqM m a = PushSeqM
-    { dumpPushSeqM :: (a -> m ()) -> m () }
+data PushSeqE m a = PushSeqE
+    { dumpPushSeqE :: (a -> m ()) -> m () }
 
-instance Functor (PushSeqM m)
+instance Functor (PushSeqE m)
   where
-    fmap f (PushSeqM dump) = PushSeqM $ \put -> dump (put . f)
+    fmap f (PushSeqE dump) = PushSeqE $ \put -> dump (put . f)
 
-instance Applicative (PushSeqM m)
+instance Applicative (PushSeqE m)
   where
     pure  = return
     (<*>) = ap
 
-instance Monad (PushSeqM m)
+instance Monad (PushSeqE m)
   where
-    return  = PushSeqM . flip ($)
-    m >>= k = PushSeqM $ \put ->
-        dumpPushSeqM m $ \a ->
-          dumpPushSeqM (k a) put
+    return  = PushSeqE . flip ($)
+    m >>= k = PushSeqE $ \put ->
+        dumpPushSeqE m $ \a ->
+          dumpPushSeqE (k a) put
 
-instance MonadTrans PushSeqM
+instance MonadTrans PushSeqE
   where
-    lift m = PushSeqM $ \put -> m >>= put
+    lift m = PushSeqE $ \put -> m >>= put
 
--- | Convert a 'PushySeq' vector to 'PushSeqM'
+-- | Convert a 'PushySeq' vector to 'PushSeqE'
 --
 -- See 'linearPush' for converting all levels of a nested structure to
--- 'PushSeqM'.
-toPushSeqM :: MonadComp m => PushySeq vec => vec a -> PushSeqM m a
-toPushSeqM = PushSeqM . dumpPushSeq . toPushSeq
+-- 'PushSeqE'.
+toPushSeqE :: MonadComp m => PushySeq vec => vec a -> PushSeqE m a
+toPushSeqE = PushSeqE . dumpPushSeq . toPushSeq
 
--- Concatenate nested 'PushSeqM' vectors
-concatPushSeqM :: PushSeqM m (PushSeqM m a) -> PushSeqM m a
-concatPushSeqM (PushSeqM dump1) = PushSeqM $ \put ->
-      dump1 $ \(PushSeqM dump2) ->
+-- Concatenate nested 'PushSeqE' vectors
+concatPushSeqE :: PushSeqE m (PushSeqE m a) -> PushSeqE m a
+concatPushSeqE (PushSeqE dump1) = PushSeqE $ \put ->
+      dump1 $ \(PushSeqE dump2) ->
         dump2 put
 
--- | Join the effect in an element with the internal effect in a 'PushSeqM'
-joinElemPushSeq :: Monad m => PushSeqM m (m a) -> PushSeqM m a
-joinElemPushSeq (PushSeqM dump) = PushSeqM $ \put ->
+-- | Join the effect in an element with the internal effect in a 'PushSeqE'
+joinElemPushSeq :: Monad m => PushSeqE m (m a) -> PushSeqE m a
+joinElemPushSeq (PushSeqE dump) = PushSeqE $ \put ->
     dump $ \ m ->
       m >>= put
 
@@ -794,9 +794,9 @@ type family Dimensions a
     Dimensions (Manifest a)   = Dim (Dimensions a)
     Dimensions (Pull a)       = Dim (Dimensions a)
     Dimensions (Push a)       = Dim (Dimensions a)
-    Dimensions (PushM m a)    = Dim (Dimensions a)
+    Dimensions (PushE m a)    = Dim (Dimensions a)
     Dimensions (PushSeq a)    = Dim (Dimensions a)
-    Dimensions (PushSeqM m a) = Dim (Dimensions a)
+    Dimensions (PushSeqE m a) = Dim (Dimensions a)
     Dimensions a              = ()
 
 class DirectMaterializable a
@@ -820,12 +820,12 @@ class
     -- | The inner element type of a nested structure
     type InnerElem a
 
-    -- | Convert a nested structure to a flat 'PushM' vector
+    -- | Convert a nested structure to a flat 'PushE' vector
     toFlatPush
         :: Extent (Dimensions a)  -- ^ Extent of the structure
         -> a                      -- ^ Structure to convert
-        -> PushM m (InnerElem a)
-    default toFlatPush :: Extent () -> a -> PushM m a
+        -> PushE m (InnerElem a)
+    default toFlatPush :: Extent () -> a -> PushE m a
     toFlatPush ZE = pure
 
 
@@ -846,9 +846,9 @@ instance DirectMaterializable (Comp a)
 instance Materializable m a => Materializable m (Comp a)
   where
     type InnerElem (Comp a) = InnerElem a
-    toFlatPush e m = PushM len $ \write -> do
+    toFlatPush e m = PushE len $ \write -> do
         a <- liftComp m
-        dumpPushM (toFlatPush e a) write
+        dumpPushE (toFlatPush e a) write
       where
         len = Prelude.product $ listExtent e
 
@@ -857,9 +857,9 @@ instance DirectMaterializable (Run a)
 instance Materializable Run a => Materializable Run (Run a)
   where
     type InnerElem (Run a) = InnerElem a
-    toFlatPush e m = PushM len $ \write -> do
+    toFlatPush e m = PushE len $ \write -> do
         a <- m
-        dumpPushM (toFlatPush e a) write
+        dumpPushE (toFlatPush e a) write
       where
         len = Prelude.product $ listExtent e
 
@@ -870,7 +870,7 @@ instance DirectMaterializable (Fin (IArr a))
 instance (Type a, MonadComp m) => Materializable m (Fin (IArr a))
   where
     type InnerElem (Fin (IArr a)) = Data a
-    toFlatPush e = toPushM . toPull
+    toFlatPush e = toPushE . toPull
 
 instance DirectMaterializable a => DirectMaterializable (Nest a)
   where
@@ -890,7 +890,7 @@ instance DirectMaterializable (Manifest a)
 instance (Syntax a, MonadComp m) => Materializable m (Manifest a)
   where
     type InnerElem (Manifest a) = a
-    toFlatPush e = toPushM . toPull
+    toFlatPush e = toPushE . toPull
 
 instance DirectMaterializable (Pull a)
 
@@ -904,14 +904,14 @@ instance DirectMaterializable (Push a)
 instance Materializable m a => Materializable m (Push a)
   where
     type InnerElem (Push a) = InnerElem a
-    toFlatPush e = toFlatPush e . (id :: PushM m a -> PushM m a) . toPushM
+    toFlatPush e = toFlatPush e . (id :: PushE m a -> PushE m a) . toPushE
 
-instance DirectMaterializable (PushM m a)
+instance DirectMaterializable (PushE m a)
 
-instance Materializable m a => Materializable m (PushM m a)
+instance Materializable m a => Materializable m (PushE m a)
   where
-    type InnerElem (PushM m a) = InnerElem a
-    toFlatPush (l :> ls) = concatPushM innerLen . fmap (toFlatPush ls)
+    type InnerElem (PushE m a) = InnerElem a
+    toFlatPush (l :> ls) = concatPushE innerLen . fmap (toFlatPush ls)
       where
         innerLen = Prelude.product $ listExtent ls
       -- TODO Assert l == length of argument vector
@@ -923,19 +923,19 @@ instance Materializable m a => Materializable m (PushSeq a)
     type InnerElem (PushSeq a) = InnerElem a
     toFlatPush e
         = toFlatPush e
-        . (id :: PushSeqM m a -> PushSeqM m a)
-        . toPushSeqM
+        . (id :: PushSeqE m a -> PushSeqE m a)
+        . toPushSeqE
 
-instance DirectMaterializable (PushSeqM m a)
+instance DirectMaterializable (PushSeqE m a)
 
-instance Materializable m a => Materializable m (PushSeqM m a)
+instance Materializable m a => Materializable m (PushSeqE m a)
   where
-    type InnerElem (PushSeqM m a) = InnerElem a
-    toFlatPush (l :> ls) (PushSeqM dump) = PushM l $ \write -> do
+    type InnerElem (PushSeqE m a) = InnerElem a
+    toFlatPush (l :> ls) (PushSeqE dump) = PushE l $ \write -> do
         r <- initRef (0 :: Data Index)
         dump $ \a -> do
           i <- unsafeFreezeRef r
-          dumpPushM (toFlatPush ls a) $ \j b ->
+          dumpPushE (toFlatPush ls a) $ \j b ->
               write (i*innerLen + j) b
           setRef r (i+1)
       where
@@ -973,7 +973,7 @@ materialize arr e a = do
     iarr <- unsafeFreezeArr arr
     return $ Manifest len iarr
   where
-    PushM len dump = toFlatPush e a
+    PushE len dump = toFlatPush e a
 
 -- | Convert a nested structure to a corresponding nested 'Manifest' vector.
 -- Memorization can be used to get a structure that supports cheap indexing
@@ -1012,9 +1012,9 @@ memorize arr e = fmap (multiNest e) . materialize arr e
 -- Linearizable data structures
 class MonadComp m => Linearizable m a
   where
-    -- | Convert a structure to a 'PushSeqM' vector
-    linearPush :: a -> PushSeqM m (InnerElem a)
-    default linearPush :: a -> PushSeqM m a
+    -- | Convert a structure to a 'PushSeqE' vector
+    linearPush :: a -> PushSeqE m (InnerElem a)
+    default linearPush :: a -> PushSeqE m a
     linearPush = return
 
 instance MonadComp m => Linearizable m (Data a)
@@ -1047,9 +1047,9 @@ instance Linearizable m a => Linearizable m (Pull a)
 
 instance Linearizable m a => Linearizable m (PushSeq a)
   where
-    linearPush v = PushSeqM $ \put ->
+    linearPush v = PushSeqE $ \put ->
         dumpPushSeq v $ \a ->
-          dumpPushSeqM (linearPush a) put
+          dumpPushSeqE (linearPush a) put
 
 -- | Fold the content of a 'Linearizable' data structure
 linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
@@ -1059,7 +1059,7 @@ linearFold step init lin = do
     let put a = do
           s <- unsafeFreezeRef r
           setRef r =<< step s a
-    dumpPushSeqM (linearPush lin) put
+    dumpPushSeqE (linearPush lin) put
     unsafeFreezeRef r
 
 -- | Map a monadic function over the content of a 'Linearizable' data structure
