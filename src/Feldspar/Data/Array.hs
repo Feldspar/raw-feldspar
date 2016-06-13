@@ -94,7 +94,7 @@ data Nest a = Nest
 instance Slicable a => Indexed (Nest a)
   where
     type IndexedElem (Nest a) = a
-    Nest _ w a ! i = slice (w*i) (w*i+w) a
+    Nest _ w a ! i = slice (w*i) w a
 
 instance Finite (Nest a)
   where
