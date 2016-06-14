@@ -802,7 +802,7 @@ type family Dimensions a
 class DirectMaterializable a
   where
     -- | Convert a structure directly to a flat 'Manifest' without copying. This
-    -- method is only supported by types that simply are views of 'Manifest'
+    -- method is only supported for types that simply are views of 'Manifest'
     -- vectors; e.g. @`Nest` (`Manifest` a)@.
     maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
     maybeToFlatManifest = Nothing
@@ -941,7 +941,8 @@ instance Materializable m a => Materializable m (PushSeqE m a)
       where
         innerLen = Prelude.product $ listExtent ls
 
--- | Convert a nested structure to a flat 'Manifest' vector
+-- | Convert a nested structure to a flat 'Manifest' vector. The provided
+-- storage may or may not be used to hold the result.
 --
 -- Some example types after supplying the first two arguments (@arr@ is of type
 -- @`Arr` `Double`@):
@@ -965,7 +966,7 @@ materialize :: forall a m . Materializable m a
     -> Extent (Dimensions a)         -- ^ Extent of the structure
     -> a                             -- ^ Structure to materialize
     -> m (Manifest (InnerElem a))    -- ^ Flat result
-materialize arr e a
+materialize _ _ a
     | Just f <- maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
     = return (f a)
 materialize arr e a = do
@@ -977,7 +978,8 @@ materialize arr e a = do
 
 -- | Convert a nested structure to a corresponding nested 'Manifest' vector.
 -- Memorization can be used to get a structure that supports cheap indexing
--- (i.e. operations overloaded by 'Pully').
+-- (i.e. operations overloaded by 'Pully'). The provided storage may or may not
+-- be used to hold the result.
 --
 -- Some example types after supplying the first two arguments (@arr@ is of type
 -- @`Arr` `Double`@):
@@ -1002,6 +1004,16 @@ memorize :: forall a d m . (Materializable m a, Dimensions a ~ Dim d)
     -> a
     -> m (MultiNest (Dimensions a) (Manifest (InnerElem a)))
 memorize arr e = fmap (multiNest e) . materialize arr e
+
+-- | A version of 'memorize' that only stores the structure to the provided
+-- array. ('memorize' is not guaranteed to store the structure.)
+memorizeStore :: forall a m . Materializable m a
+    => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
+    -> Extent (Dimensions a)         -- ^ Extent of the structure
+    -> a                             -- ^ Structure to materialize
+    -> m ()
+memorizeStore arr e a = dumpPushE (toFlatPush e a) $ \i a ->
+    setArr i (desugar a) arr
 
 
 
