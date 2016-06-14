@@ -125,6 +125,8 @@ sequenceVec = foldM (const id) ()
 --   needs to be copied into a memory array.
 data Manifest a = Manifest (Data Length) (IArr (Internal a))
 
+type DManifest a = Manifest (Data a)
+
 instance Syntax a => Indexed (Manifest a)
   where
     type IndexedElem (Manifest a) = a
