@@ -109,7 +109,7 @@ sequenceVec = foldM (const id) ()
 --
 -- -- 10*20 matrix of Double
 -- mat :: `Nest` (`Manifest` (`Data` `Double`))
--- mat = `multiNest` (10 :> 20 :> ZE) vec
+-- mat = `multiNest` (10 `:>` 20 `:>` `ZE`) vec
 -- @
 --
 -- In general, a vector of type @`Nest` ... (`Nest` (`Manifest` a))@ is
@@ -118,7 +118,7 @@ sequenceVec = foldM (const id) ()
 -- * The former can be converted to the latter (using combinations of `toPull`
 --   and `fmap`)
 --
--- * The former can be flattened cheaply without using division and modulus
+-- * The former can be flattened cheaply without using division and modulus (using 'materialize')
 --
 -- * The former can be used directly (after flattening) in cases where a memory
 --   array is needed (e.g. when calling an external procedure). The latter first
@@ -197,7 +197,8 @@ instance
 -- * Pull vectors
 --------------------------------------------------------------------------------
 
--- | Pull vector
+-- | Pull vector: a vector representation that supports random access and fusion
+-- of operations
 data Pull a where
     Pull
         :: Data Length        -- Length of vector
@@ -413,7 +414,7 @@ pullMatrix
     :: Data Length  -- ^ Number of rows
     -> Data Length  -- ^ Number of columns
     -> (Data Index -> Data Index -> a)
-         -- ^ @row index -> column index -> element@
+         -- ^ Index function: @rowIndex -> columnIndex -> element@
     -> Pull (Pull a)
 pullMatrix r c ixf = Pull r $ \k -> Pull c $ \l -> ixf k l
 
@@ -443,12 +444,13 @@ matMul a b = forEach a $ \a' ->
 -- * Push vectors
 --------------------------------------------------------------------------------
 
--- | Push vector
+-- | Push vector: a vector representation that supports nested write patterns
+-- (e.g. resulting from concatenation) and fusion of operations
 --
 -- The function that dumps the content of the vector is not allowed to perform
 -- any side effects except through the \"write\" method
 -- (@`Data` `Index` -> a -> m ()@) that is passed to it. That is, it must hold
--- that @`dumpPush` v (\_ _ -> `return` ())@ has the same behavior as
+-- that @`dumpPush` v (\\_ _ -> `return` ())@ has the same behavior as
 -- @`return` ()@.
 --
 -- This condition ensures that `Push` behaves as pure data with the denotation
@@ -531,7 +533,7 @@ listPush :: [a] -> Push a
 listPush as = Push 2 $ \write ->
     sequence_ [write (value i) a | (i,a) <- Prelude.zip [0..] as]
 
--- | Append two vectors to a 'Push' vector
+-- | Append two vectors to make a 'Push' vector
 (++!) :: (Pushy vec1, Pushy vec2) => vec1 a -> vec2 a -> Push a
 (++!) v1 v2 =
     let Push len1 dump1 = toPush v1
@@ -637,7 +639,8 @@ joinElemPush (PushE len dump) = PushE len $ \write ->
 -- The function that dumps the content of the vector is not allowed to perform
 -- any side effects except through the \"put\" method (@a -> m ()@) that is
 -- passed to it. That is, it must hold that
--- @`dumpPushSeq` v (\_ -> `return` ())@ has the same behavior as @`return` ()@.
+-- @`dumpPushSeq` v (\\_ -> `return` ())@ has the same behavior as
+-- @`return` ()@.
 --
 -- This condition ensures that `PushSeq` behaves as pure data with the
 -- denotation of a (possibly infinite) list.
@@ -786,7 +789,7 @@ joinElemPushSeq (PushSeqE dump) = PushSeqE $ \put ->
 -- For example:
 --
 -- @
--- `Dimensions` (`Pull` (`Manifest` (`Data` `Int32`))) = Dim` (`Dim` ())
+-- `Dimensions` (`Pull` (`Manifest` (`Data` `Int32`))) = `Dim` (`Dim` ())
 -- @
 type family Dimensions a
   where
@@ -957,11 +960,11 @@ instance Materializable m a => Materializable m (PushSeqE m a)
 --   -- 3-dimensional Pull-Pull-Push to 1-dimensional Manifest
 --
 -- `materialize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Manifest` (`Data` `Double`))
---   -- 2-dimensional Pull-Push *with interleaved effects* to 1-dimensional Manifest
+--   -- 2-dimensional Pull-Push /with interleaved effects/ to 1-dimensional Manifest
 -- @
 --
 -- Note the interleaved 'Comp' effect in the last example. In general effects
--- ('Comp' or 'Run') are allowed at any level when materializing a nested
+-- (e.g. 'Comp' or 'Run') are allowed at any level when materializing a nested
 -- structure.
 materialize :: forall a m . Materializable m a
     => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
@@ -994,11 +997,11 @@ materialize arr e a = do
 --   -- 3-dimensional Pull-Pull-Push to 3-dimensional Manifest
 --
 -- `memorize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Nest` (`Manifest` (`Data` `Double`)))
---   -- 2-dimensional Pull-Push *with interleaved effects* to 2-dimensional Manifest
+--   -- 2-dimensional Pull-Push /with interleaved effects/ to 2-dimensional Manifest
 -- @
 --
 -- Note the interleaved 'Comp' effect in the last example. In general effects
--- ('Comp' or 'Run') are allowed at any level when memorizing a nested
+-- (e.g. 'Comp' or 'Run') are allowed at any level when memorizing a nested
 -- structure.
 memorize :: forall a d m . (Materializable m a, Dimensions a ~ Dim d)
     => Arr (Internal (InnerElem a))
