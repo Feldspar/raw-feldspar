@@ -44,7 +44,7 @@ viewLit lit
     | Just (Lit a) <- prj lit = Just a
 viewLit _ = Nothing
 
-pattern LitP :: (Eq a, Ord a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern LitP :: (Eq a, Ord a, Show a) => TypeRep Prim a -> a -> ASTF FeldDomain a
 pattern LitP t a <- Sym ((prj -> Just (Lit a)) :&: ValT t)
   where
     LitP t a = Sym (inj (Lit a) :&: ValT t)
@@ -65,13 +65,13 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
 
 -- There type signatures are needed in order to use `simplifyUp` in the
 -- constructor
-pattern AddP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern AddP :: (Num a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP :: (Num a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP :: (Num a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP :: (Num a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
-pattern QuotP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern RemP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP :: (Integral a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP  :: (Integral a, PrimType' Prim a) => TypeRep Prim a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 
 pattern AddP t a b <- SymP t Add :$ a :$ b where AddP t a b = simplifyUp $ SymP t Add :$ a :$ b
 pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP t Sub :$ a :$ b

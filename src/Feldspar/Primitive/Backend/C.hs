@@ -23,9 +23,9 @@ import Feldspar.Primitive.Representation
 
 
 
-instance CompTypeClass PrimType'
+instance CompTypeClass (PrimType' Prim)
   where
-    compType _ (_ :: proxy a) = case primTypeRep :: PrimTypeRep a of
+    compType _ (_ :: proxy a) = case primTypeRep (Proxy::Proxy Prim) :: PrimTypeRep a of
       BoolT   -> addSystemInclude "stdbool.h" >> return [cty| typename bool     |]
       Int8T   -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
       Int16T  -> addSystemInclude "stdint.h"  >> return [cty| typename int32_t  |]
@@ -37,8 +37,9 @@ instance CompTypeClass PrimType'
       Word64T -> addSystemInclude "stdint.h"  >> return [cty| typename uint32_t |]
       FloatT  -> addSystemInclude "stdint.h"  >> return [cty| float |]
       DoubleT -> addSystemInclude "stdint.h"  >> return [cty| double |]
+      _       -> error "compType-prim: invalid symbol"
 
-    compLit _ a = case primTypeOf a of
+    compLit _ a = case primTypeOf (Proxy::Proxy Prim) a of
       BoolT   -> do addSystemInclude "stdbool.h"
                     return $ if a then [cexp| true |] else [cexp| false |]
       Int8T   -> return [cexp| $a |]
@@ -51,6 +52,7 @@ instance CompTypeClass PrimType'
       Word64T -> return [cexp| $a |]
       FloatT  -> return [cexp| $a |]
       DoubleT -> return [cexp| $a |]
+      _       -> error "compType-prim: invalid symbol"
 
 -- | Compile a unary operator
 compUnOp :: MonadC m => C.UnOp -> ASTF PrimDomain a -> m C.Exp
@@ -76,7 +78,7 @@ compFun fun args = do
 compCast :: MonadC m => PrimTypeRep a -> ASTF PrimDomain b -> m C.Exp
 compCast t a
     | Dict <- witPrimType t = do
-        t' <- compType (Proxy :: Proxy PrimType') t
+        t' <- compType (Proxy :: Proxy (PrimType' Prim)) t
         a' <- compPrim $ Prim a
         return [cexp|($ty:t') $a'|]
 
@@ -92,7 +94,7 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
     go _ (FreeVar v) Nil = touchVar v >> return [cexp| $id:v |]
     go t (Lit a) Nil
         | Dict <- witPrimType t
-        = compLit (Proxy :: Proxy PrimType') a
+        = compLit (Proxy :: Proxy (PrimType' Prim)) a
     go _ Pi Nil = addGlobal pi_def >> return [cexp| FELD_PI |]
       where pi_def = [cedecl|$esc:("#define FELD_PI 3.141592653589793")|]
               -- This is the value of `pi :: Double`.
@@ -134,7 +136,7 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
         f' <- compPrim $ Prim f
         return $ C.Cond c' t' f' mempty
 
-    go _ s _ = error $ "compPrim: no handling of symbol " ++ renderSym s
+    --go _ s _ = error $ "compPrim: no handling of symbol " ++ renderSym s
       -- Should not occur, but the completeness checker doesn't know that
 
 instance CompExp Prim where compExp = compPrim

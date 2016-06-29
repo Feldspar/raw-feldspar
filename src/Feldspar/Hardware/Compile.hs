@@ -4,15 +4,12 @@
 
 module Feldspar.Hardware.Compile where
 
-
-
 import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Constraint (Dict (..))
 import Data.Map (Map)
 import qualified Data.Map   as Map
 import qualified Data.IORef as IORef 
-
 
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
@@ -34,35 +31,33 @@ import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.VHDL ()
 import Feldspar.Representation
 import Feldspar.Hardware.Representation
-import Feldspar.Optimize
-
-
+--import Feldspar.Optimize
 
 --------------------------------------------------------------------------------
 -- * Struct expressions and variables
 --------------------------------------------------------------------------------
 
 -- | Struct expression.
-type VExp = Struct HPrimType' HPrim
+type VExp = Struct (PrimType' HPrim) HPrim
 
 -- | Struct expression with hidden result type.
 data VExp'
   where
-    VExp' :: Struct HPrimType' HPrim a -> VExp'
+    VExp' :: Struct (PrimType' HPrim) HPrim a -> VExp'
 
-newRefV :: Monad m => HTypeRep a -> String -> TargetT m (Struct HPrimType' Hard.Variable a)
+newRefV :: Monad m => TypeRep HPrim a -> String -> TargetT m (Struct (PrimType' HPrim) Hard.Variable a)
 newRefV t base = lift $ mapStructA (const (Hard.newNamedVariable base)) t
 
-initRefV :: Monad m => String -> VExp a -> TargetT m (Struct HPrimType' Hard.Variable a)
+initRefV :: Monad m => String -> VExp a -> TargetT m (Struct (PrimType' HPrim) Hard.Variable a)
 initRefV base = lift . mapStructA (Hard.initNamedVariable base)
 
-getRefV :: Monad m => Struct HPrimType' Hard.Variable a -> TargetT m (VExp a)
+getRefV :: Monad m => Struct (PrimType' HPrim) Hard.Variable a -> TargetT m (VExp a)
 getRefV = lift . mapStructA Hard.getVariable
 
-setRefV :: Monad m => Struct HPrimType' Hard.Variable a -> VExp a -> TargetT m ()
+setRefV :: Monad m => Struct (PrimType' HPrim) Hard.Variable a -> VExp a -> TargetT m ()
 setRefV r = lift . sequence_ . zipListStruct Hard.setVariable r
 
-unsafeFreezeRefV :: Monad m => Struct HPrimType' Hard.Variable a -> TargetT m (VExp a)
+unsafeFreezeRefV :: Monad m => Struct (PrimType' HPrim) Hard.Variable a -> TargetT m (VExp a)
 unsafeFreezeRefV = lift . mapStructA Hard.unsafeFreezeVariable
 
 --------------------------------------------------------------------------------
@@ -81,12 +76,12 @@ localAlias :: MonadReader Env m
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment.
-lookAlias :: MonadReader Env m => HTypeRep a -> Name -> m (VExp a)
+lookAlias :: MonadReader Env m => TypeRep HPrim a -> Name -> m (VExp a)
 lookAlias t v = do
     env <- ask
     return $ case Map.lookup v env of
       Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
-      Just (VExp' e) -> case typeHEq t (toHTypeRep e) of
+      Just (VExp' e) -> case typeEq t (toTypeRep e) of
         Just Dict -> e
 
 --------------------------------------------------------------------------------
@@ -109,21 +104,21 @@ type TargetCMD
     :+: Soft.ControlCMD
 
 -- | Target monad during translation.
-type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 HPrim HPrimType') m)
+type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 HPrim (PrimType' HPrim)) m)
 
 -- | Monad for intermediate programs.
-type ProgI = Program TargetCMD (Param2 HPrim HPrimType')
+type ProgI = Program TargetCMD (Param2 HPrim (PrimType' HPrim))
 
 translateExp :: forall m a. Monad m => HData a -> TargetT m (VExp a)
 translateExp = goAST {-. optimize-} . unHData
   where
     goAST :: ASTF HFeldDomain b -> TargetT m (VExp b)
-    goAST = simpleMatch (\(s :&: ValHT t) -> go t s)
+    goAST = simpleMatch (\(s :&: ValT t) -> go t s)
 
-    goSmallAST :: HPrimType' b => ASTF HFeldDomain b -> TargetT m (HPrim b)
+    goSmallAST :: PrimType' HPrim b => ASTF HFeldDomain b -> TargetT m (HPrim b)
     goSmallAST = fmap extractSingle . goAST
 
-    go :: HTypeRep (DenResult sig)
+    go :: TypeRep HPrim (DenResult sig)
        -> HFeldConstructs sig
        -> Args (AST HFeldDomain) sig
        -> TargetT m (VExp (DenResult sig))
@@ -259,14 +254,14 @@ type FinalCMD
     :+: Hard.ComponentCMD
 
 -- | Target monad during translation.
-type FinalT m = ReaderT Env (ProgramT FinalCMD (Param2 HPrim HPrimType') m)
+type FinalT m = ReaderT Env (ProgramT FinalCMD (Param2 HPrim (PrimType' HPrim)) m)
 
 -- | Monad for intermediate programs.
-type ProgH = Program FinalCMD (Param2 HPrim HPrimType')
+type ProgH = Program FinalCMD (Param2 HPrim (PrimType' HPrim))
 
 class Lower instr
   where
-    lowerInstr :: instr (Param3 ProgH HPrim HPrimType') a -> ProgH a
+    lowerInstr :: instr (Param3 ProgH HPrim (PrimType' HPrim)) a -> ProgH a
 
 instance (Lower i, Lower j) => Lower (i :+: j)
   where
@@ -287,7 +282,7 @@ instance Lower Soft.ArrCMD
     lowerInstr (Soft.InitArr n es)  = fmap softenArr $ Oper.singleInj $ Hard.InitVArray (Hard.Base n) es
     lowerInstr (Soft.GetArr i a)    = fmap softenVal $ Oper.singleInj $ Hard.GetVArray i (hardenArr a)
     lowerInstr (Soft.SetArr i e a)  = Oper.singleInj $ Hard.SetVArray i e (hardenArr a)
-    lowerInstr (Soft.CopyArr a b l) = Oper.singleInj $ Hard.CopyVArray (hardenArr a) (hardenArr b) l
+    --lowerInstr (Soft.CopyArr a b l) = Oper.singleInj $ Hard.CopyVArray (hardenArr a) (hardenArr b) l
     lowerInstr (Soft.UnsafeFreezeArr a) = fmap softenIArr $ Oper.singleInj $ Hard.UnsafeFreezeVArray (hardenArr a)
     lowerInstr (Soft.UnsafeThawArr ia)  = fmap softenArr $ Oper.singleInj $ Hard.UnsafeThawVArray (hardenIArr ia)
 

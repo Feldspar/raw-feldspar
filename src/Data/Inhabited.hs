@@ -1,10 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
 
 -- | Inhabited types
-
 module Data.Inhabited where
-
-
 
 import Data.Int
 import Data.Word
@@ -38,6 +36,8 @@ instance Inhabited Word16 where example = 0
 instance Inhabited Word32 where example = 0
 instance Inhabited Word64 where example = 0
 
+instance Inhabited Integer where example = 0
+instance Inhabited Hard.UBits where example = Hard.forgetBits (Hard.bitFromInteger 0 :: Hard.Bits 1)
 instance (KnownNat n) => Inhabited (Hard.Bits n) where example = Hard.bitFromInteger 0
 
 inhabitedTupleInstances 15

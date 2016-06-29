@@ -22,34 +22,35 @@ import Feldspar.Primitive.Representation
 -- * ...
 --------------------------------------------------------------------------------
 
-instance CompileType HPrimType'
+instance CompileType HPType'
   where
-    compileType _ (_ :: proxy a) = case primHTypeRep :: HPrimTypeRep a of
-      BoolHT   -> compT (Proxy::Proxy a)
-      Int8HT   -> compT (Proxy::Proxy a)
-      Int16HT  -> compT (Proxy::Proxy a)
-      Int32HT  -> compT (Proxy::Proxy a)
-      Int64HT  -> compT (Proxy::Proxy a)
-      Word8HT  -> compT (Proxy::Proxy a)
-      Word16HT -> compT (Proxy::Proxy a)
-      Word32HT -> compT (Proxy::Proxy a)
-      Word64HT -> compT (Proxy::Proxy a)
-      BitsHT   -> compT (Proxy::Proxy a)
-      UBitsHT  -> compT (Proxy::Proxy a)
-      IntHT    -> compT (Proxy::Proxy a)
-    compileLit  _ a = case primHTypeOf a of
-      BoolHT   -> literal a
-      Int8HT   -> literal a
-      Int16HT  -> literal a
-      Int32HT  -> literal a
-      Int64HT  -> literal a
-      Word8HT  -> literal a
-      Word16HT -> literal a
-      Word32HT -> literal a
-      Word64HT -> literal a
-      BitsHT   -> literal a
-      UBitsHT  -> literal a
-      IntHT    -> literal a
+    compileType _ (_ :: proxy a) = case primTypeRep (Proxy::Proxy HPrim) :: PrimTypeRep a of
+      BoolT   -> compT (Proxy::Proxy a)
+      Int8T   -> compT (Proxy::Proxy a)
+      Int16T  -> compT (Proxy::Proxy a)
+      Int32T  -> compT (Proxy::Proxy a)
+      Int64T  -> compT (Proxy::Proxy a)
+      Word8T  -> compT (Proxy::Proxy a)
+      Word16T -> compT (Proxy::Proxy a)
+      Word32T -> compT (Proxy::Proxy a)
+      Word64T -> compT (Proxy::Proxy a)
+      IntT    -> compT (Proxy::Proxy a)
+      BitsT   -> compT (Proxy::Proxy a)
+      UBitsT  -> compT (Proxy::Proxy a)
+
+    compileLit  _ a = case primTypeOf (Proxy::Proxy HPrim) a of
+      BoolT   -> literal a
+      Int8T   -> literal a
+      Int16T  -> literal a
+      Int32T  -> literal a
+      Int64T  -> literal a
+      Word8T  -> literal a
+      Word16T -> literal a
+      Word32T -> literal a
+      Word64T -> literal a
+      IntT    -> literal a
+      BitsT   -> literal a
+      UBitsT  -> literal a
 
 --------------------------------------------------------------------------------
 
@@ -67,7 +68,7 @@ compSimple :: HPrim a -> VHDL Kind
 compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
   where
     compDomain :: forall m sig.
-         HPrimTypeRep (DenResult sig)
+         PrimTypeRep (DenResult sig)
       -> HPrimitive sig
       -> Args (AST HPrimDomain) sig
       -> VHDL Kind
@@ -114,8 +115,8 @@ compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
 
     compDomain _ (HFreeVar v) (Nil) =
       return $ Hoist.P $ V.name $ V.NSimple $ V.Ident v
-    compDomain t (HLit a)     (Nil) | Dict <- witPrimHType t =
-      Hoist.E <$> compileLit (Proxy::Proxy HPrimType') a
+    compDomain t (HLit a)     (Nil) | Dict <- witHPrimType t =
+      Hoist.E <$> compileLit (Proxy::Proxy (PrimType' HPrim)) a
 
     compDomain _ HI2N (a :* Nil) = error "todo: hcompile I2N"
     compDomain _ HI2B (a :* Nil) = error "todo: hcompile I2B"
@@ -124,7 +125,7 @@ compSimple = simpleMatch (\(s :&: t) -> compDomain t s) . unHPrim
     compDomain _ (HArrIx arr) (i :* Nil) = error "todo: hcompile ArrIx"
     
     compDomain _ HCond (c :* t :* f :* Nil) = error "todo: hcompile Cond"
-    
+
 -- | ...
 compExp
   :: ([V.Relation] -> V.Expression)

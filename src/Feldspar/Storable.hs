@@ -1,16 +1,13 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- | Storable types
-
 module Feldspar.Storable where
-
-
 
 import Control.Monad
 import Data.Proxy
 
 import Feldspar.Representation
 import Feldspar.Frontend
-
-
 
 --------------------------------------------------------------------------------
 -- * 'Forcible' class
@@ -45,13 +42,13 @@ class Forcible a
 --     guarantee for `desugar` of the `Syntactic` class.
 --   * We can use data structures such as `IArr` as the representation of values
 
-instance Type a => Forcible (Data a)
+instance Type Data a => Forcible (Data a)
   where
     type ValueRep (Data a) = Data a
     toValue   = unsafeFreezeRef <=< initRef
     fromValue = sugar
 
-instance HType a => Forcible (HData a)
+instance Type HData a => Forcible (HData a)
   where
     type ValueRep (HData a) = HData a
     toValue   = unsafeFreezeRef <=< initRef
@@ -155,9 +152,9 @@ class Storable a
         -> StoreRep a  -- ^ Source
         -> m ()
 
-instance Type a => Storable (Data a)
+instance Type Data a => Storable (Data a)
   where
-    type StoreRep (Data a)  = Ref Data a
+    type StoreRep  (Data a)  = Ref Data a
     type StoreSize (Data a) = ()
     newStoreRep _ _      = newRef
     initStoreRep         = initRef
@@ -167,9 +164,9 @@ instance Type a => Storable (Data a)
     copyStoreRep _ dst src =
         setRef src . (id :: Data a -> Data a) =<< unsafeFreezeRef dst
 
-instance HType a => Storable (HData a)
+instance Type HData a => Storable (HData a)
   where
-    type StoreRep (HData a)  = Ref HData a
+    type StoreRep  (HData a)  = Ref HData a
     type StoreSize (HData a) = ()
     newStoreRep _ _      = newRef
     initStoreRep         = initRef
@@ -184,7 +181,7 @@ instance ( Storable a
          , ExprOf a ~ ExprOf b)
     => Storable (a,b)
   where
-    type StoreRep (a,b)  = (StoreRep a, StoreRep b)
+    type StoreRep  (a,b)  = (StoreRep a, StoreRep b)
     type StoreSize (a,b) = (StoreSize a, StoreSize b)
     newStoreRep _ (a,b)          = (,) <$> newStoreRep (Proxy :: Proxy a) a <*> newStoreRep (Proxy :: Proxy b) b
     initStoreRep (a,b)           = (,) <$> initStoreRep a <*> initStoreRep b

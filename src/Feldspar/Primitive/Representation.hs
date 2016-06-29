@@ -1,18 +1,17 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 -- | Primitive Feldspar expressions
-
 module Feldspar.Primitive.Representation where
-
-
 
 import Data.Array
 import Data.Int
 import Data.Typeable
 import Data.Word
 import Data.Bits (Bits)
+import qualified Data.Bits as Bits
 
 import Data.Constraint (Dict (..))
 
@@ -35,46 +34,43 @@ import Data.Type.Equality ((:~:))
 type Length = Word32
 type Index  = Word32
 
+-- | ...
+class (Eq a, Ord a, Show a, Typeable a) => PrimType' (prim :: * -> *) (a :: *)
+  where
+    primTypeRep :: proxy prim -> PrimTypeRep a
+
 -- | Representation of primitive supported types
 data PrimTypeRep a
   where
     BoolT   :: PrimTypeRep Bool
+    -- ^ fixed-size signed.
     Int8T   :: PrimTypeRep Int8
     Int16T  :: PrimTypeRep Int16
     Int32T  :: PrimTypeRep Int32
     Int64T  :: PrimTypeRep Int64
+    -- ^ fixed-size unsigned.
     Word8T  :: PrimTypeRep Word8
     Word16T :: PrimTypeRep Word16
     Word32T :: PrimTypeRep Word32
     Word64T :: PrimTypeRep Word64
+    -- ^ floating-point.
     FloatT  :: PrimTypeRep Float
     DoubleT :: PrimTypeRep Double
+    -- ^ variable length signed.
+    IntT    :: PrimTypeRep Integer
+    -- ^ variable length unsigned.
+    BitsT   :: (Typeable n, KnownNat n) => PrimTypeRep (Hard.Bits n)
+    UBitsT  :: PrimTypeRep (Hard.UBits)
 
--- | Primitive supported types
-class (Eq a, Ord a, Show a, Typeable a) => PrimType' a
-  where
-    -- | Reify a primitive type
-    primTypeRep :: PrimTypeRep a
-
-instance PrimType' Bool   where primTypeRep = BoolT
-instance PrimType' Int8   where primTypeRep = Int8T
-instance PrimType' Int16  where primTypeRep = Int16T
-instance PrimType' Int32  where primTypeRep = Int32T
-instance PrimType' Int64  where primTypeRep = Int64T
-instance PrimType' Word8  where primTypeRep = Word8T
-instance PrimType' Word16 where primTypeRep = Word16T
-instance PrimType' Word32 where primTypeRep = Word32T
-instance PrimType' Word64 where primTypeRep = Word64T
-instance PrimType' Float  where primTypeRep = FloatT
-instance PrimType' Double where primTypeRep = DoubleT
+--------------------------------------------------------------------------------
 
 -- | Convenience function; like 'primTypeRep' but with an extra argument to
 -- constrain the type parameter. The extra argument is ignored.
-primTypeOf :: PrimType' a => a -> PrimTypeRep a
-primTypeOf _ = primTypeRep
+primTypeOf :: PrimType' prim a => proxy prim -> a -> PrimTypeRep a
+primTypeOf p _ = primTypeRep p
 
 -- | Check whether two type representations are equal
-primTypeEq :: PrimTypeRep a -> PrimTypeRep b -> Maybe (Dict (a ~ b))
+primTypeEq :: forall a b. PrimTypeRep a -> PrimTypeRep b -> Maybe (Dict (a ~ b))
 primTypeEq BoolT   BoolT   = Just Dict
 primTypeEq Int8T   Int8T   = Just Dict
 primTypeEq Int16T  Int16T  = Just Dict
@@ -86,102 +82,16 @@ primTypeEq Word32T Word32T = Just Dict
 primTypeEq Word64T Word64T = Just Dict
 primTypeEq FloatT  FloatT  = Just Dict
 primTypeEq DoubleT DoubleT = Just Dict
-primTypeEq _       _       = Nothing
-
--- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint
-witPrimType :: PrimTypeRep a -> Dict (PrimType' a)
-witPrimType BoolT   = Dict
-witPrimType Int8T   = Dict
-witPrimType Int16T  = Dict
-witPrimType Int32T  = Dict
-witPrimType Int64T  = Dict
-witPrimType Word8T  = Dict
-witPrimType Word16T = Dict
-witPrimType Word32T = Dict
-witPrimType Word64T = Dict
-witPrimType FloatT  = Dict
-witPrimType DoubleT = Dict
-
---------------------------------------------------------------------------------
-
--- | Representation of primitive supported types.
-data HPrimTypeRep a
-  where
-    BoolHT   :: HPrimTypeRep Bool
-    Int8HT   :: HPrimTypeRep Int8
-    Int16HT  :: HPrimTypeRep Int16
-    Int32HT  :: HPrimTypeRep Int32
-    Int64HT  :: HPrimTypeRep Int64
-    Word8HT  :: HPrimTypeRep Word8
-    Word16HT :: HPrimTypeRep Word16
-    Word32HT :: HPrimTypeRep Word32
-    Word64HT :: HPrimTypeRep Word64
-    BitsHT   :: (Typeable n, KnownNat n) => HPrimTypeRep (Hard.Bits n)
-    UBitsHT  :: HPrimTypeRep Hard.UBits
-    IntHT    :: HPrimTypeRep Integer
-
--- | Primitive supported types.
-class (Eq a, Ord a, Show a, Typeable a) => HPrimType' a
-  where
-    -- | Reify a primitive type
-    primHTypeRep :: HPrimTypeRep a
-
-instance HPrimType' Bool   where primHTypeRep = BoolHT
-instance HPrimType' Int8   where primHTypeRep = Int8HT
-instance HPrimType' Int16  where primHTypeRep = Int16HT
-instance HPrimType' Int32  where primHTypeRep = Int32HT
-instance HPrimType' Int64  where primHTypeRep = Int64HT
-instance HPrimType' Word8  where primHTypeRep = Word8HT
-instance HPrimType' Word16 where primHTypeRep = Word16HT
-instance HPrimType' Word32 where primHTypeRep = Word32HT
-instance HPrimType' Word64 where primHTypeRep = Word64HT
-instance (Typeable n, KnownNat n) => HPrimType' (Hard.Bits n) where primHTypeRep = BitsHT
-instance HPrimType' Hard.UBits where primHTypeRep = UBitsHT
-instance HPrimType' Integer where primHTypeRep = IntHT
-
-                       -- $ fromIntegral $ natVal (Proxy::Proxy n)
-
--- | Convenience function; like 'primHTypeRep' but with an extra argument to
--- constrain the type parameter. The extra argument is ignored.
-primHTypeOf :: HPrimType' a => a -> HPrimTypeRep a
-primHTypeOf _ = primHTypeRep
-
--- | Check whether two type representations are equal
-primHTypeEq :: forall a b. HPrimTypeRep a -> HPrimTypeRep b -> Maybe (Dict (a ~ b))
-primHTypeEq BoolHT   BoolHT   = Just Dict
-primHTypeEq Int8HT   Int8HT   = Just Dict
-primHTypeEq Int16HT  Int16HT  = Just Dict
-primHTypeEq Int32HT  Int32HT  = Just Dict
-primHTypeEq Int64HT  Int64HT  = Just Dict
-primHTypeEq Word8HT  Word8HT  = Just Dict
-primHTypeEq Word16HT Word16HT = Just Dict
-primHTypeEq Word32HT Word32HT = Just Dict
-primHTypeEq Word64HT Word64HT = Just Dict
-primHTypeEq BitsHT   BitsHT   =
+primTypeEq IntT    IntT    = Just Dict
+primTypeEq BitsT   BitsT   =
   case sameNat (peelProxy (Proxy::Proxy a)) (peelProxy (Proxy::Proxy b)) of
     Just Refl -> Just Dict
     Nothing   -> Nothing
-primHTypeEq UBitsHT  UBitsHT  = Nothing -- ?
-primHTypeEq IntHT    IntHT    = Just Dict
-primHTypeEq _        _        = Nothing
-
-peelProxy :: KnownNat n => Proxy (Hard.Bits n) -> Proxy n
-peelProxy _ = Proxy
-
--- | Reflect a 'HPrimHTypeRep' to a 'HPrimHType'' constraint
-witPrimHType :: HPrimTypeRep a -> Dict (HPrimType' a)
-witPrimHType BoolHT   = Dict
-witPrimHType Int8HT   = Dict
-witPrimHType Int16HT  = Dict
-witPrimHType Int32HT  = Dict
-witPrimHType Int64HT  = Dict
-witPrimHType Word8HT  = Dict
-witPrimHType Word16HT = Dict
-witPrimHType Word32HT = Dict
-witPrimHType Word64HT = Dict
-witPrimHType BitsHT   = Dict
-witPrimHType UBitsHT  = Dict
-witPrimHType IntHT    = Dict
+  where
+    peelProxy :: KnownNat n => Proxy (Hard.Bits n) -> Proxy n
+    peelProxy _ = Proxy
+primTypeEq UBitsT  UBitsT  = Just Dict
+primTypeEq _       _       = Nothing
 
 --------------------------------------------------------------------------------
 -- * Expressions
@@ -192,35 +102,35 @@ data Primitive sig
   where
     FreeVar :: String -> Primitive (Full a)
     Lit     :: (Eq a, Ord a, Show a) => a -> Primitive (Full a)
-    Pi      :: (Floating a, PrimType' a) => Primitive (Full a)
+    Pi      :: (Floating a, PType' a) => Primitive (Full a)
 
-    Add :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Sub :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Mul :: (Num a, PrimType' a) => Primitive (a :-> a :-> Full a)
-    Neg :: (Num a, PrimType' a) => Primitive (a :-> Full a)
+    Add :: (Num a, PType' a) => Primitive (a :-> a :-> Full a)
+    Sub :: (Num a, PType' a) => Primitive (a :-> a :-> Full a)
+    Mul :: (Num a, PType' a) => Primitive (a :-> a :-> Full a)
+    Neg :: (Num a, PType' a) => Primitive (a :-> Full a)
 
-    Quot :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
-    Rem  :: (Integral a, PrimType' a)   => Primitive (a :-> a :-> Full a)
-    FDiv :: (Fractional a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Quot :: (Integral a, PType' a)   => Primitive (a :-> a :-> Full a)
+    Rem  :: (Integral a, PType' a)   => Primitive (a :-> a :-> Full a)
+    FDiv :: (Fractional a, PType' a) => Primitive (a :-> a :-> Full a)
 
-    Sin :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Cos :: (Floating a, PrimType' a) => Primitive (a :-> Full a)
-    Pow :: (Floating a, PrimType' a) => Primitive (a :-> a :-> Full a)
+    Sin :: (Floating a, PType' a) => Primitive (a :-> Full a)
+    Cos :: (Floating a, PType' a) => Primitive (a :-> Full a)
+    Pow :: (Floating a, PType' a) => Primitive (a :-> a :-> Full a)
 
-    I2N   :: (Integral a, Num b, PrimType' a, PrimType' b)      => Primitive (a :-> Full b)
-    I2B   :: (Integral a, PrimType' a)                          => Primitive (a :-> Full Bool)
-    B2I   :: (Integral a, PrimType' a)                          => Primitive (Bool :-> Full a)
-    Round :: (RealFrac a, Integral b, PrimType' a, PrimType' b) => Primitive (a :-> Full b)
+    I2N   :: (Integral a, Num b, PType' a, PType' b)      => Primitive (a :-> Full b)
+    I2B   :: (Integral a, PType' a)                       => Primitive (a :-> Full Bool)
+    B2I   :: (Integral a, PType' a)                       => Primitive (Bool :-> Full a)
+    Round :: (RealFrac a, Integral b, PType' a, PType' b) => Primitive (a :-> Full b)
 
     Not :: Primitive (Bool :-> Full Bool)
     And :: Primitive (Bool :-> Bool :-> Full Bool)
     Or  :: Primitive (Bool :-> Bool :-> Full Bool)
-    Eq  :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
-    NEq :: (Eq a, PrimType' a)  => Primitive (a :-> a :-> Full Bool)
-    Lt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Gt  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Le  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
-    Ge  :: (Ord a, PrimType' a) => Primitive (a :-> a :-> Full Bool)
+    Eq  :: (Eq a, PType' a)  => Primitive (a :-> a :-> Full Bool)
+    NEq :: (Eq a, PType' a)  => Primitive (a :-> a :-> Full Bool)
+    Lt  :: (Ord a, PType' a) => Primitive (a :-> a :-> Full Bool)
+    Gt  :: (Ord a, PType' a) => Primitive (a :-> a :-> Full Bool)
+    Le  :: (Ord a, PType' a) => Primitive (a :-> a :-> Full Bool)
+    Ge  :: (Ord a, PType' a) => Primitive (a :-> a :-> Full Bool)
 
     ArrIx :: IArr Index a -> Primitive (Index :-> Full a)
 
@@ -229,14 +139,18 @@ data Primitive sig
 --------------------------------------------------------------------------------
 -- ** ...
 
+-- | ...
 type PrimDomain = Primitive :&: PrimTypeRep
 
 -- | Primitive expressions
 newtype Prim a = Prim { unPrim :: ASTF PrimDomain a }
 
+-- | ...
+type PType' = PrimType' Prim
+
 instance Syntactic (Prim a)
   where
-    type Domain (Prim a)   = PrimDomain
+    type Domain   (Prim a) = PrimDomain
     type Internal (Prim a) = a
     desugar = unPrim
     sugar   = Prim
@@ -249,30 +163,64 @@ evalPrim = go . unPrim
     go (Sym (s :&: _)) = evalSym s
     go (f :$ a) = go f $ go a
 
+-- | ...
 sugarSymPrim
-    :: ( Signature sig
+    :: forall sig dom fi sub f prim.
+       ( Signature sig
        , fi  ~ SmartFun dom sig
        , sig ~ SmartSig fi
        , dom ~ SmartSym fi
        , dom ~ PrimDomain
        , SyntacticN f fi
        , sub :<: Primitive
-       , PrimType' (DenResult sig)
+       , PType' (DenResult sig)
        )
     => sub sig -> f
-sugarSymPrim = sugarSymDecor primTypeRep
+sugarSymPrim = sugarSymDecor $ primTypeRep (Proxy::Proxy Prim)
+
+--------------------------------------------------------------------------------
+-- ** Representable types for 'Prim'.
+
+instance PrimType' Prim Bool   where primTypeRep _ = BoolT
+instance PrimType' Prim Int8   where primTypeRep _ = Int8T
+instance PrimType' Prim Int16  where primTypeRep _ = Int16T
+instance PrimType' Prim Int32  where primTypeRep _ = Int32T
+instance PrimType' Prim Int64  where primTypeRep _ = Int64T
+instance PrimType' Prim Word8  where primTypeRep _ = Word8T
+instance PrimType' Prim Word16 where primTypeRep _ = Word16T
+instance PrimType' Prim Word32 where primTypeRep _ = Word32T
+instance PrimType' Prim Word64 where primTypeRep _ = Word64T
+instance PrimType' Prim Float  where primTypeRep _ = FloatT
+instance PrimType' Prim Double where primTypeRep _ = DoubleT
+
+-- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint over 'Prim'.
+witPrimType :: PrimTypeRep a -> Dict (PrimType' Prim a)
+witPrimType BoolT   = Dict
+witPrimType Int8T   = Dict
+witPrimType Int16T  = Dict
+witPrimType Int32T  = Dict
+witPrimType Int64T  = Dict
+witPrimType Word8T  = Dict
+witPrimType Word16T = Dict
+witPrimType Word32T = Dict
+witPrimType Word64T = Dict
+witPrimType FloatT  = Dict
+witPrimType DoubleT = Dict
+--witPrimType IntT    = error "witPrimType: add maybe?"
+--witPrimType BitsT   = error "witPrimType: add maybe?"
+--witPrimType UBitsT  = error "witPrimType: add maybe?"
 
 --------------------------------------------------------------------------------
 
 instance Imp.FreeExp Prim
   where
-    type FreePred Prim = PrimType'
+    type FreePred Prim = PType'
     constExp = sugarSymPrim . Lit
     varExp   = sugarSymPrim . FreeVar
 
 instance Hard.FreeExp Prim
   where
-    type PredicateExp Prim = PrimType'
+    type PredicateExp Prim = PType'
     litE = sugarSymPrim . Lit
     varE = sugarSymPrim . FreeVar
 
@@ -285,9 +233,10 @@ instance Hard.EvaluateExp Prim
     evalE = evalPrim
 
 --------------------------------------------------------------------------------
--- ** ...
+-- * ...
+--------------------------------------------------------------------------------
 
--- | Primitive operations
+-- | Primitive hardware operations.
 data HPrimitive sig
   where
     HFreeVar :: String -> HPrimitive (Full a)
@@ -297,50 +246,57 @@ data HPrimitive sig
     HAnd :: HPrimitive (Bool :-> Bool :-> Full Bool)
     HOr  :: HPrimitive (Bool :-> Bool :-> Full Bool)
     
-    HBAnd  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HBOr   :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HBXor  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HBXnor :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HBNand :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HBNor  :: (Bits a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
+    HBAnd  :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HBOr   :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HBXor  :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HBXnor :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HBNand :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HBNor  :: (Bits a, HPType' a) => HPrimitive (a :-> a :-> Full a)
     
-    HEq  :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)
-    HNEq :: (Eq a, HPrimType' a)  => HPrimitive (a :-> a :-> Full Bool)
-    HLt  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
-    HGt  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
-    HLe  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
-    HGe  :: (Ord a, HPrimType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HEq  :: (Eq a, HPType' a)  => HPrimitive (a :-> a :-> Full Bool)
+    HNEq :: (Eq a, HPType' a)  => HPrimitive (a :-> a :-> Full Bool)
+    HLt  :: (Ord a, HPType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HGt  :: (Ord a, HPType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HLe  :: (Ord a, HPType' a) => HPrimitive (a :-> a :-> Full Bool)
+    HGe  :: (Ord a, HPType' a) => HPrimitive (a :-> a :-> Full Bool)
 
-    HAdd :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HSub :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HMul :: (Num a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HNeg :: (Num a, HPrimType' a) => HPrimitive (a :-> Full a)
+    HAdd :: (Num a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HSub :: (Num a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HMul :: (Num a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HNeg :: (Num a, HPType' a) => HPrimitive (a :-> Full a)
 
-    HRem  :: (Integral a, HPrimType' a)   => HPrimitive (a :-> a :-> Full a)
-    HDiv  :: (Fractional a, HPrimType' a) => HPrimitive (a :-> a :-> Full a)
-    HPow  :: (Floating a, HPrimType' a)   => HPrimitive (a :-> a :-> Full a) 
+    HRem  :: (Integral a, HPType' a)   => HPrimitive (a :-> a :-> Full a)
+    HDiv  :: (Fractional a, HPType' a) => HPrimitive (a :-> a :-> Full a)
+    HPow  :: (Floating a, HPType' a)   => HPrimitive (a :-> a :-> Full a) 
 
-    HI2N   :: (Integral a, Num b, HPrimType' a, HPrimType' b) => HPrimitive (a :-> Full b)
-    HI2B   :: (Integral a, HPrimType' a) => HPrimitive (a :-> Full Bool)
-    HB2I   :: (Integral a, HPrimType' a) => HPrimitive (Bool :-> Full a)
+    HI2N   :: (Integral a, Num b, HPType' a, HPType' b) => HPrimitive (a :-> Full b)
+    HI2B   :: (Integral a, HPType' a) => HPrimitive (a :-> Full Bool)
+    HB2I   :: (Integral a, HPType' a) => HPrimitive (Bool :-> Full a)
 
     HArrIx :: IArr Index a -> HPrimitive (Index :-> Full a)
 
     HCond  :: HPrimitive (Bool :-> a :-> a :-> Full a)
 
 --------------------------------------------------------------------------------
+-- ** ...
 
-type HPrimDomain = HPrimitive :&: HPrimTypeRep
+-- | ...
+type HPrimDomain = HPrimitive :&: PrimTypeRep
 
+-- | ...
 newtype HPrim a = HPrim { unHPrim :: ASTF HPrimDomain a }
+
+-- | ...
+type HPType' = PrimType' HPrim
 
 instance Syntactic (HPrim a)
   where
-    type Domain (HPrim a) = HPrimDomain
+    type Domain   (HPrim a) = HPrimDomain
     type Internal (HPrim a) = a
     desugar = unHPrim
     sugar = HPrim
 
+-- | ...
 evalHPrim :: HPrim a -> a
 evalHPrim = go . unHPrim
   where
@@ -348,6 +304,7 @@ evalHPrim = go . unHPrim
     go (Sym (s :&: _)) = evalSym s
     go (f :$ a) = go f $ go a
 
+-- | ...
 sugarSymHPrim
     :: ( Signature sig
        , fi  ~ SmartFun dom sig
@@ -356,22 +313,58 @@ sugarSymHPrim
        , dom ~ HPrimDomain
        , SyntacticN f fi
        , sub :<: HPrimitive
-       , HPrimType' (DenResult sig)
+       , HPType' (DenResult sig)
        )
     => sub sig -> f
-sugarSymHPrim = sugarSymDecor primHTypeRep
+sugarSymHPrim = sugarSymDecor $ primTypeRep (Proxy::Proxy HPrim)
+
+--------------------------------------------------------------------------------
+-- | Representable types for 'HPrim'.
+
+instance PrimType' HPrim Bool       where primTypeRep _ = BoolT
+instance PrimType' HPrim Int8       where primTypeRep _ = Int8T
+instance PrimType' HPrim Int16      where primTypeRep _ = Int16T
+instance PrimType' HPrim Int32      where primTypeRep _ = Int32T
+instance PrimType' HPrim Int64      where primTypeRep _ = Int64T
+instance PrimType' HPrim Word8      where primTypeRep _ = Word8T
+instance PrimType' HPrim Word16     where primTypeRep _ = Word16T
+instance PrimType' HPrim Word32     where primTypeRep _ = Word32T
+instance PrimType' HPrim Word64     where primTypeRep _ = Word64T
+instance PrimType' HPrim Float      where primTypeRep _ = FloatT
+instance PrimType' HPrim Double     where primTypeRep _ = DoubleT
+instance PrimType' HPrim Integer    where primTypeRep _ = IntT
+instance PrimType' HPrim Hard.UBits where primTypeRep _ = UBitsT
+instance (Typeable n, KnownNat n) =>
+      PrimType' HPrim (Hard.Bits n) where primTypeRep _ = BitsT
+
+-- | Reflect a 'PrimTypeRep' to a 'PrimType'' constraint over 'HPrim'.
+witHPrimType :: PrimTypeRep a -> Dict (PrimType' HPrim a)
+witHPrimType BoolT   = Dict
+witHPrimType Int8T   = Dict
+witHPrimType Int16T  = Dict
+witHPrimType Int32T  = Dict
+witHPrimType Int64T  = Dict
+witHPrimType Word8T  = Dict
+witHPrimType Word16T = Dict
+witHPrimType Word32T = Dict
+witHPrimType Word64T = Dict
+witHPrimType FloatT  = Dict
+witHPrimType DoubleT = Dict
+witHPrimType IntT    = Dict
+witHPrimType BitsT   = Dict
+witHPrimType UBitsT  = Dict
 
 --------------------------------------------------------------------------------
 
 instance Imp.FreeExp HPrim
   where
-    type FreePred HPrim = HPrimType'
+    type FreePred HPrim = HPType'
     constExp = sugarSymHPrim . HLit
     varExp   = sugarSymHPrim . HFreeVar
 
 instance Hard.FreeExp HPrim
   where
-    type PredicateExp HPrim = HPrimType'
+    type PredicateExp HPrim = HPType'
     litE = sugarSymHPrim . HLit
     varE = sugarSymHPrim . HFreeVar
 
@@ -387,7 +380,7 @@ instance Hard.EvaluateExp HPrim
 -- * Interface.
 --------------------------------------------------------------------------------
 
-instance (Num a, PrimType' a) => Num (Prim a)
+instance (Num a, PrimType' Prim a) => Num (Prim a)
   where
     fromInteger = Imp.constExp . fromInteger
     (+)         = sugarSymPrim Add
@@ -397,7 +390,7 @@ instance (Num a, PrimType' a) => Num (Prim a)
     abs         = error "abs not implemented for Prim"
     signum      = error "signum not implemented for Prim"
 
-instance (Num a, HPrimType' a) => Num (HPrim a)
+instance (Num a, PrimType' HPrim a) => Num (HPrim a)
   where
     fromInteger = Imp.constExp . fromInteger
     (+)         = sugarSymHPrim HAdd
@@ -561,6 +554,7 @@ instance Render HPrimitive
     renderSym HBXnor       = "Xnor"
     renderSym HBNand       = "Nand"
     renderSym HBNor        = "Nor"
+    renderSym HCond        = error "renderSym-HCond"
 
     renderArgs = renderArgsSmart
 
@@ -599,6 +593,13 @@ instance Eval HPrimitive
       where
         (l,h) = bounds arr
     evalSym (HArrIx (IArrComp arr)) = error $ "evaluating symbolic array " ++ arr
+    evalSym HBAnd        = (Bits..&.)
+    evalSym HBOr         = (Bits..|.)
+    evalSym HBXor        = Bits.xor
+    evalSym HBXnor       = \a b -> Bits.complement $ Bits.xor a b
+    evalSym HBNand       = \a b -> Bits.complement $ (Bits..&.) a b
+    evalSym HBNor        = \a b -> Bits.complement $ (Bits..|.) a b
+    evalSym HCond        = error "evalSym-HCond"
 
 -- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
 instance EvalEnv HPrimitive env

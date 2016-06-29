@@ -76,10 +76,10 @@ library
     language-c-quote,
     language-vhdl,
     mtl,
-    open-typerep >= 0.6,
+    open-typerep >= 0.6.1,
     operational-alacarte >= 0.2.1,
     prelude-edsl,
-    syntactic >= 3.6,
+    syntactic >= 3.6.1,
     template-haskell
 
   hs-source-dirs: src

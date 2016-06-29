@@ -37,65 +37,65 @@ import GHC.TypeLits (KnownNat)
 -- ** Signals.
 
 -- | Create an uninitialized signal.
-newSig :: HPrimType a => Hardware (Signal a)
+newSig :: PrimType HData a => Hardware (Signal a)
 newSig = newNamedSig "s"
 
 -- | Create an uninitialized named signal.
-newNamedSig :: HPrimType a => String -> Hardware (Signal a)
+newNamedSig :: PrimType HData a => String -> Hardware (Signal a)
 newNamedSig name = Hardware $ Hard.newNamedSignal name
 
 -- | Create an initialized signal.
-initSig :: HPrimType a => HData a -> Hardware (Signal a)
+initSig :: PrimType HData a => HData a -> Hardware (Signal a)
 initSig = Hardware . Hard.initSignal
 
 -- | Create an initialized named signal.
-initNamedSig :: HPrimType a => String -> HData a -> Hardware (Signal a)
+initNamedSig :: PrimType HData a => String -> HData a -> Hardware (Signal a)
 initNamedSig name e = Hardware $ Hard.initNamedSignal name e
 
 -- | Get the contents of a signal.
-getSig :: HPrimType a => Signal a -> Hardware (HData a)
+getSig :: PrimType HData a => Signal a -> Hardware (HData a)
 getSig = Hardware . Hard.getSignal
 
 -- | Set the contents of a signal.
-setSig :: HPrimType a => Signal a -> HData a -> Hardware ()
+setSig :: PrimType HData a => Signal a -> HData a -> Hardware ()
 setSig s = Hardware . Hard.setSignal s
 
 -- | Modify the contents of a signal.
-modifySig :: HPrimType a => Signal a -> (HData a -> HData a) -> Hardware ()
+modifySig :: PrimType HData a => Signal a -> (HData a -> HData a) -> Hardware ()
 modifySig s f = setSig s . f =<< unsafeFreezeSig s
 
 -- | Freeze the contents of a signal.
-unsafeFreezeSig :: HPrimType a => Signal a -> Hardware (HData a)
+unsafeFreezeSig :: PrimType HData a => Signal a -> Hardware (HData a)
 unsafeFreezeSig = Hardware . Hard.unsafeFreezeSignal
 
 --------------------------------------------------------------------------------
 -- Ports.
 
-initNamedPort :: HPrimType a => String -> Hard.Mode -> HData a -> Hardware (Signal a)
+initNamedPort :: PrimType HData a => String -> Hard.Mode -> HData a -> Hardware (Signal a)
 initNamedPort s m = Hardware . Hard.initNamedPort s m
 
-initPort :: HPrimType a => Hard.Mode -> HData a -> Hardware (Signal a)
+initPort :: PrimType HData a => Hard.Mode -> HData a -> Hardware (Signal a)
 initPort m = Hardware . Hard.initPort m
 
-newNamedPort :: HPrimType a => String -> Hard.Mode -> Hardware (Signal a)
+newNamedPort :: PrimType HData a => String -> Hard.Mode -> Hardware (Signal a)
 newNamedPort s = Hardware . Hard.newNamedPort s
 
-newPort :: HPrimType a => Hard.Mode -> Hardware (Signal a)
+newPort :: PrimType HData a => Hard.Mode -> Hardware (Signal a)
 newPort = Hardware . Hard.newPort 
 
 --------------------------------------------------------------------------------
 -- Short-hands.
 
-signal :: HPrimType a => String -> Hardware (Signal a)
+signal :: PrimType HData a => String -> Hardware (Signal a)
 signal = Hardware . Hard.signal
 
-(<--) :: (Syntax HData a, HPrimType (Internal a)) => Signal (Internal a) -> a -> Hardware ()
+(<--) :: (Syntax HData a, PrimType HData (Internal a)) => Signal (Internal a) -> a -> Hardware ()
 (<--) s = setSig s . Syntactic.resugar
 
-(<=-) :: HPrimType a => Signal a -> Signal a -> Hardware ()
+(<=-) :: PrimType HData a => Signal a -> Signal a -> Hardware ()
 (<=-) s v = do v' <- unsafeFreezeSig v; setSig s v'
 
-(<==) :: HPrimType a => Signal a -> HData a -> Hardware ()
+(<==) :: PrimType HData a => Signal a -> HData a -> Hardware ()
 (<==) = setSig
 
 --------------------------------------------------------------------------------
@@ -109,43 +109,43 @@ type Variable = Ref HData
 --------------------------------------------------------------------------------
 -- Short-hands.
 
-variable :: HType a => String -> Hardware (Variable a)
+variable :: Type HData a => String -> Hardware (Variable a)
 variable = newNamedRef
 
-(==:) :: HType a => Variable a -> HData a -> Hardware ()
+(==:) :: Type HData a => Variable a -> HData a -> Hardware ()
 (==:) = setRef
 
 --------------------------------------------------------------------------------
 -- ** Constants.
 
-initNamedConst :: HPrimType a => String -> HData a -> Hardware (Constant a)
+initNamedConst :: PrimType HData a => String -> HData a -> Hardware (Constant a)
 initNamedConst name = Hardware . Hard.initNamedConstant name
 
-initConst :: HPrimType a => HData a -> Hardware (Constant a)
+initConst :: PrimType HData a => HData a -> Hardware (Constant a)
 initConst = Hardware . Hard.initConstant
 
-getConst :: HPrimType a => Constant a -> Hardware (HData a)
+getConst :: PrimType HData a => Constant a -> Hardware (HData a)
 getConst = Hardware . Hard.getConstant
 
 --------------------------------------------------------------------------------
 -- Short-hands.
 
-constant :: HPrimType a => String -> HData a -> Hardware (Constant a)
+constant :: PrimType HData a => String -> HData a -> Hardware (Constant a)
 constant name = Hardware . Hard.constant name
 
 --------------------------------------------------------------------------------
 -- ** Arrays.
 
-getArray :: (HPrimType i, Integral i, Ix i) => HData i -> Signal (Hard.Bits n) -> Hardware (HData Hard.Bit)
+getArray :: (PrimType HData i, Integral i, Ix i) => HData i -> Signal (Hard.Bits n) -> Hardware (HData Hard.Bit)
 getArray ix = Hardware . Hard.getArray ix
 
-setArray :: (HPrimType i, Integral i, Ix i) => HData i -> HData (Hard.Bit) -> Signal (Hard.Bits n) -> Hardware ()
+setArray :: (PrimType HData i, Integral i, Ix i) => HData i -> HData (Hard.Bit) -> Signal (Hard.Bits n) -> Hardware ()
 setArray ix e = Hardware . Hard.setArray ix e
 
 ----
 
 getSignalRange
-  :: (HPrimType i, Integral i, Ix i)
+  :: (PrimType HData i, Integral i, Ix i)
   => HData i
   -> (HData i, HData i)
   -> Signal (Hard.Bits n)
@@ -153,7 +153,7 @@ getSignalRange
 getSignalRange size range = Hardware . Hard.getSignalRange size range
 
 setSignalRange
-  :: (HPrimType i, Integral i, Ix i)
+  :: (PrimType HData i, Integral i, Ix i)
   => (HData i, HData i)
   -> Signal (Hard.Bits n)
   -> (HData i, HData i)
@@ -185,28 +185,28 @@ type Array = Arr HData
 -- Conditional statements are also (mostly) covered by the general frontend.
 -- Some constructs, like case statements, are not yet supported by the C side.
 
-type Case a = Hard.When a (Oper.ProgramT HardwareCMD (Oper.Param2 HData HPrimType') (Oper.Program CompCMD (Oper.Param2 HData HPrimType')))
+type Case a = Hard.When a (Oper.ProgramT HardwareCMD (Oper.Param2 HData (PrimType' HPrim)) (Oper.Program CompCMD (Oper.Param2 HData (PrimType' HPrim))))
 
-switched :: (HPrimType a, Eq a, Ord a) => HData a -> [Case a] -> Hardware () -> Hardware ()
+switched :: (PrimType HData a, Eq a, Ord a) => HData a -> [Case a] -> Hardware () -> Hardware ()
 switched c cs = Hardware . Hard.switched c cs . unHardware
 
-switch :: (HPrimType a, Eq a, Ord a) => HData a -> [Case a] -> Hardware ()
+switch :: (PrimType HData a, Eq a, Ord a) => HData a -> [Case a] -> Hardware ()
 switch c = Hardware . Hard.switch c
 
-is :: HPrimType a => a -> Hardware () -> Case a
+is :: PrimType HData a => a -> Hardware () -> Case a
 is c = Hard.is c . unHardware
 
-to :: HPrimType a => a -> a -> Hardware () -> Case a
+to :: PrimType HData a => a -> a -> Hardware () -> Case a
 to l u = Hard.to l u . unHardware
 
 --------------------------------------------------------------------------------
 -- ** Components.
 
 -- | Signature of a hardware component's interface, wrapping a hardware program.
-type Signature = Hard.Sig  HardwareCMD HData HPrimType' (Oper.Program CompCMD (Oper.Param2 HData HPrimType'))
+type Signature = Hard.Sig  HardwareCMD HData (PrimType' HPrim) (Oper.Program CompCMD (Oper.Param2 HData (PrimType' HPrim)))
 
 -- | Hardware componenets.
-type Component = Hard.Comp HardwareCMD HData HPrimType' (Oper.Program CompCMD (Oper.Param2 HData HPrimType'))
+type Component = Hard.Comp HardwareCMD HData (PrimType' HPrim) (Oper.Program CompCMD (Oper.Param2 HData (PrimType' HPrim)))
 
 -- | Typed list of arguments for a hardware component.
 type Arguments = Hard.Arg
@@ -228,16 +228,16 @@ nill = Hard.Nill
 
 --------------------------------------------------------------------------------
 
-uniqueInput :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
+uniqueInput :: PrimType HData a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
 uniqueInput = Hard.exactInput
 
-input :: HPrimType a => (Signal a -> Signature b) -> Signature (Signal a -> b)
+input :: PrimType HData a => (Signal a -> Signature b) -> Signature (Signal a -> b)
 input = Hard.input
 
-uniqueOutput :: HPrimType a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
+uniqueOutput :: PrimType HData a => String -> (Signal a -> Signature b) -> Signature (Signal a -> b)
 uniqueOutput = Hard.exactOutput
 
-output :: HPrimType a => (Signal a -> Signature b) -> Signature (Signal a -> b)
+output :: PrimType HData a => (Signal a -> Signature b) -> Signature (Signal a -> b)
 output = Hard.output
 
 ret :: Hardware () -> Signature ()

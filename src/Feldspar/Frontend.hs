@@ -32,7 +32,7 @@ import qualified Prelude
 --------------------------------------------------------------------------------
 
 class LET exp where
-  shareTag :: (TypeOf exp a, TypeOf exp b)
+  shareTag :: (Type exp a, Type exp b)
     => String -> exp a -> (exp a -> exp b) -> exp b
 
 instance LET Data where
@@ -45,8 +45,8 @@ instance LET HData where
 share
   :: ( LET exp
      , Syntax exp a
-     , TypeOf exp a
-     , TypeOf exp b)
+     , Type exp a
+     , Type exp b)
   => exp a             -- ^ Value to share
   -> (exp a -> exp b)  -- ^ Body in which to share the value
   -> exp b
@@ -116,11 +116,11 @@ example = value Inhabited.example
 -- ** Primitive functions
 
 class NUM (exp :: * -> *) where
-  integer :: (PrimTypeOf exp a, Prelude.Num a) => Prelude.Integer -> exp a
-  plus    :: (PrimTypeOf exp a, Prelude.Num a) => exp a -> exp a -> exp a
-  minus   :: (PrimTypeOf exp a, Prelude.Num a) => exp a -> exp a -> exp a
-  times   :: (PrimTypeOf exp a, Prelude.Num a) => exp a -> exp a -> exp a
-  negate  :: (PrimTypeOf exp a, Prelude.Num a) => exp a -> exp a
+  integer :: (Type exp a, Prelude.Num a) => Prelude.Integer -> exp a
+  plus    :: (PrimType exp a, Prelude.Num a) => exp a -> exp a -> exp a
+  minus   :: (PrimType exp a, Prelude.Num a) => exp a -> exp a -> exp a
+  times   :: (PrimType exp a, Prelude.Num a) => exp a -> exp a -> exp a
+  negate  :: (PrimType exp a, Prelude.Num a) => exp a -> exp a
 
 instance NUM Data where
   integer = value . fromInteger
@@ -139,8 +139,8 @@ instance NUM HData where
 --------------------------------------------------------------------------------
 
 class FRAC (exp :: * -> *) where
-  fractional :: (PrimTypeOf exp a, Prelude.Fractional a) => Prelude.Rational -> exp a
-  divide     :: (PrimTypeOf exp a, Prelude.Fractional a) => exp a -> exp a -> exp a
+  fractional :: (Type exp a, Prelude.Fractional a) => Prelude.Rational -> exp a
+  divide     :: (PrimType exp a, Prelude.Fractional a) => exp a -> exp a -> exp a
 
 instance FRAC Data where
   fractional = value . fromRational
@@ -153,10 +153,10 @@ instance FRAC HData where
 --------------------------------------------------------------------------------
 
 class FLOAT (exp :: * -> *) where
-  pi      :: (PrimTypeOf exp a, Prelude.Floating a) => exp a
-  power   :: (PrimTypeOf exp a, Prelude.Floating a) => exp a -> exp a -> exp a
-  sinus   :: (PrimTypeOf exp a, Prelude.Floating a) => exp a -> exp a
-  cosinus :: (PrimTypeOf exp a, Prelude.Floating a) => exp a -> exp a
+  pi      :: (PrimType exp a, Prelude.Floating a) => exp a
+  power   :: (PrimType exp a, Prelude.Floating a) => exp a -> exp a -> exp a
+  sinus   :: (PrimType exp a, Prelude.Floating a) => exp a -> exp a
+  cosinus :: (PrimType exp a, Prelude.Floating a) => exp a -> exp a
 
 instance FLOAT Data where
   pi      = sugarSymExp (Proxy::Proxy Data) Pi
@@ -173,12 +173,12 @@ instance FLOAT HData where
 --------------------------------------------------------------------------------
 
 class INTEG (exp :: * -> *) where
-  quotient :: (PrimTypeOf exp a, Prelude.Integral a) => exp a -> exp a -> exp a
-  reminder :: (PrimTypeOf exp a, Prelude.Integral a) => exp a -> exp a -> exp a
-  round    :: (PrimTypeOf exp a, Prelude.Integral a, PrimTypeOf exp n, Prelude.RealFrac n) => exp n -> exp a
-  i2n      :: (PrimTypeOf exp a, Prelude.Integral a, PrimTypeOf exp n, Prelude.Num n)      => exp a -> exp n
-  i2b      :: (PrimTypeOf exp a, Prelude.Integral a) => exp a -> exp Bool
-  b2i      :: (PrimTypeOf exp a, Prelude.Integral a) => exp Bool -> exp a
+  quotient :: (PrimType exp a, Prelude.Integral a) => exp a -> exp a -> exp a
+  reminder :: (PrimType exp a, Prelude.Integral a) => exp a -> exp a -> exp a
+  round    :: (PrimType exp a, Prelude.Integral a, PrimType exp n, Prelude.RealFrac n) => exp n -> exp a
+  i2n      :: (PrimType exp a, Prelude.Integral a, PrimType exp n, Prelude.Num n)      => exp a -> exp n
+  i2b      :: (PrimType exp a, Prelude.Integral a) => exp a -> exp Bool
+  b2i      :: (PrimType exp a, Prelude.Integral a) => exp Bool -> exp a
 
 instance INTEG Data where
   quotient = sugarSymExp (Proxy::Proxy Data) Quot
@@ -189,9 +189,9 @@ instance INTEG Data where
   b2i      = sugarSymExp (Proxy::Proxy Data) B2I
 
 instance INTEG HData where
-  quotient = error "!" --sugarSymExp (Proxy::Proxy HData) HQuot
+  quotient = error "INTEG-HData-round: todo!" --sugarSymExp (Proxy::Proxy HData) HQuot
   reminder = sugarSymExp (Proxy::Proxy HData) HRem
-  round    = error "!" --sugarSymExp (Proxy::Proxy HData) HRound
+  round    = error "INTEG-HData-round: todo!" --sugarSymExp (Proxy::Proxy HData) HRound
   i2n      = sugarSymExp (Proxy::Proxy HData) HI2N
   i2b      = sugarSymExp (Proxy::Proxy HData) HI2B
   b2i      = sugarSymExp (Proxy::Proxy HData) HB2I
@@ -200,7 +200,7 @@ instance INTEG HData where
 quotRem
   :: ( NUM exp
      , INTEG exp
-     , PrimTypeOf exp a
+     , PrimType exp a
      , Prelude.Integral a)
   => exp a -> exp a -> (exp a, exp a)
 quotRem a b = (q, r)
@@ -243,8 +243,8 @@ infixr 2 ||
 --------------------------------------------------------------------------------
 
 class EQ (exp :: * -> *) where
-  eq  :: (PrimTypeOf exp a, Prelude.Eq a) => exp a -> exp a -> exp Bool
-  neq :: (PrimTypeOf exp a, Prelude.Eq a) => exp a -> exp a -> exp Bool
+  eq  :: (PrimType exp a, Prelude.Eq a) => exp a -> exp a -> exp Bool
+  neq :: (PrimType exp a, Prelude.Eq a) => exp a -> exp a -> exp Bool
 
 instance EQ Data where
   eq  = sugarSymExp (Proxy::Proxy Data) Eq
@@ -257,10 +257,10 @@ instance EQ HData where
 --------------------------------------------------------------------------------
 
 class ORD (exp :: * -> *) where
-  lt  :: (PrimTypeOf exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
-  lte :: (PrimTypeOf exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
-  gt  :: (PrimTypeOf exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
-  gte :: (PrimTypeOf exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  lt  :: (PrimType exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  lte :: (PrimType exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  gt  :: (PrimType exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
+  gte :: (PrimType exp a, Prelude.Ord a) => exp a -> exp a -> exp Bool
 
 instance ORD Data where
   lt  = sugarSymExp (Proxy::Proxy Data) Lt
@@ -275,7 +275,7 @@ instance ORD HData where
   gte = sugarSymExp (Proxy::Proxy HData) HGe
 
 -- | Return the smallest of two values
-min :: (COND exp, ORD exp, Type a, PrimTypeOf exp a, Syntax exp (exp a))
+min :: (COND exp, ORD exp, PrimType exp a, Syntax exp (exp a))
     => exp a -> exp a -> exp a
 min a b = (a `lte` b) ? a $ b
   -- There's no standard definition of min/max in C:
@@ -287,7 +287,7 @@ min a b = (a `lte` b) ? a $ b
   -- <https://sourceware.org/git/?p=glibc.git;a=blob;f=math/s_fmin.c;hb=HEAD>)
 
 -- | Return the greatest of two values
-max :: (COND exp, ORD exp, Type a, PrimTypeOf exp a, Syntax exp (exp a))
+max :: (COND exp, ORD exp, PrimType exp a, Syntax exp (exp a))
     => exp a -> exp a -> exp a
 max a b = (a `gte` b) ? a $ b
 
@@ -300,25 +300,25 @@ class ArrIx (exp :: * -> *) where
 instance ArrIx Data where
   arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     where
-      ix :: PrimType' b => Imp.IArr Index b -> Data b
+      ix :: PrimType' Prim b => Imp.IArr Index b -> Data b
       ix arr = sugarSymExpPrim (Proxy::Proxy Data) (ArrIx arr) i
 
 instance ArrIx HData where
   arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     where
-      ix :: HPrimType' b => Imp.IArr Index b -> HData b
+      ix :: PrimType' HPrim b => Imp.IArr Index b -> HData b
       ix arr = sugarSymExpPrim (Proxy::Proxy HData) (HArrIx arr) i
 
 --------------------------------------------------------------------------------
 -- ** Bits.
 
 class BIT (exp :: * -> *) where
-  band :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
-  bor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
-  xor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
-  xnor :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
-  nand :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
-  nor  :: (PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+  band :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
+  bor  :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
+  xor  :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
+  xnor :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
+  nand :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
+  nor  :: (PrimType exp a, Bits a) => exp a -> exp a -> exp a
 
 instance BIT HData where
   band = sugarSymExp (Proxy::Proxy HData) HBAnd
@@ -331,10 +331,10 @@ instance BIT HData where
 infixr 3 .&&.
 infixr 2 .||.
 
-(.&&.) :: (BIT exp, PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+(.&&.) :: (BIT exp, PrimType exp a, Bits a) => exp a -> exp a -> exp a
 (.&&.) = band
 
-(.||.) :: (BIT exp, PrimTypeOf exp a, Bits a) => exp a -> exp a -> exp a
+(.||.) :: (BIT exp, PrimType exp a, Bits a) => exp a -> exp a -> exp a
 (.||.) = bor
 
 --------------------------------------------------------------------------------
@@ -350,10 +350,7 @@ class Monad m => MonadComp exp m | m -> exp
     -- | Conditional statement
     iff :: exp Bool -> m () -> m () -> m ()
     -- | For loop
-    for :: ( Imp.FreeExp exp, Imp.FreePred exp n, Integral n, PrimTypeOf exp n
-           --, PredOf exp n
-           , PredOf exp ~ Imp.FreePred exp -- Meh.
-           )
+    for :: (Imp.FreeExp exp, Imp.FreePred exp n, Integral n, PrimType exp n)
         => exp n -> (exp n -> m ()) -> m ()
     --for :: (Integral n, PrimType n) => exp n -> (exp n -> m ()) -> m ()
     --for :: (Integral n, PrimType n) => IxRange (exp n) -> (exp n -> m ()) -> m ()
@@ -400,7 +397,7 @@ initNamedRef :: forall exp m a. (MonadComp exp m, Syntax exp a)
 initNamedRef base a = 
     liftComp $ fmap Ref $ mapStructA (Comp . Imp.initNamedRef base) $ val
   where
-    val :: Struct (PredOf exp) exp (Internal a)
+    val :: Struct (PrimType' (PrimOf exp)) exp (Internal a)
     val = resugar a
 
 -- | Create an initialized named reference.
@@ -415,23 +412,25 @@ initRef = initNamedRef "r"
 -- collisions.
 newNamedRef :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf    exp a
-     , TypedRep  exp
-     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
+     , Type exp a
+--     , TypedRep  exp
+--     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
+     )
   => String    -- ^ Base name.
   -> m (Ref exp a)
 newNamedRef base =
     liftComp $ fmap Ref $ mapStructA (const $ Comp $ Imp.newNamedRef base) val
   where
-    val :: Struct (PredOf exp) (PrimTypeRepOf exp) a
-    val = represent (Proxy::Proxy exp)
+    val :: Struct (PrimType' (PrimOf exp)) PrimTypeRep a
+    val = typeRep (Proxy::Proxy exp)
 
 -- | Create an uninitialized reference
 newRef
   :: ( MonadComp exp m
-     , TypeOf    exp a
-     , TypedRep  exp
-     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
+     , Type exp a
+--     , TypedRep  exp
+--     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
+     )
   => m (Ref exp a)
 newRef = newNamedRef "r"
 
@@ -445,11 +444,11 @@ getRef :: forall proxy proxy2 exp m a.
 getRef r
     = liftComp
     $ fmap resugar
-    $ (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+    $ (\a -> a :: Comp exp (Struct (PrimType' (PrimOf exp)) exp (Internal a)))
     $ mapStructA getty
     $ unRef r
   where
-    getty :: forall b. PredOf exp b => Imp.Ref b -> Comp exp (exp b)
+    getty :: forall b. PrimType' (PrimOf exp) b => Imp.Ref b -> Comp exp (exp b)
     getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.getRef
 
 -- | Set the contents of a reference.
@@ -462,10 +461,10 @@ setRef r = liftComp
          . sequence_
          . (\a -> a :: [Comp exp ()])
          . zipListStruct setty (unRef r)
-         . (\a -> a :: Struct (PredOf exp) exp (Internal a))
+         . (\a -> a :: Struct (PrimType' (PrimOf exp)) exp (Internal a))
          . resugar
   where
-    setty :: forall b. PredOf exp b => Imp.Ref b -> exp b -> Comp exp ()
+    setty :: forall b. PrimType' (PrimOf exp) b => Imp.Ref b -> exp b -> Comp exp ()
     setty ref = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setRef ref)
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
@@ -478,19 +477,19 @@ unsafeFreezeRef :: forall exp m a.
   => Ref exp (Internal a) -> m a
 unsafeFreezeRef = liftComp
                 . fmap resugar
-                . (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+                . (\a -> a :: Comp exp (Struct (PrimType' (PrimOf exp)) exp (Internal a)))
                 . mapStructA getty
                 . unRef
   where
-    getty :: forall b. PredOf exp b => Imp.Ref b -> Comp exp (exp b)
+    getty :: forall b. PrimType' (PrimOf exp) b => Imp.Ref b -> Comp exp (exp b)
     getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeRef
-
 
 -- | Modify the contents of reference.
 modifyRef
   :: (MonadComp exp m, Syntax exp a, Imp.FreeExp exp, FreeDict exp)
   => Ref exp (Internal a) -> (a -> a) -> m ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
+
 {-
 -- | A version of 'modifyRef' that fixes the value type to @`Data` a@
 modifyRefD :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
@@ -503,7 +502,9 @@ modifyRefD r f = setRef r . f =<< unsafeFreezeRef r
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr :: (MonadComp exp m, PredOf exp a)
+--
+-- *** Chaneged 'PrimType'' to 'PrimType', not sure if OK yet.
+initNamedArr :: (MonadComp exp m, PrimType exp a)
   => String -- ^ Base name.
   -> [a]    -- ^ Initial contents.
   -> m (Arr exp a)
@@ -513,7 +514,7 @@ initNamedArr base = liftComp
                   . Imp.initNamedArr base
 
 -- | Create and initialize an array.
-initArr :: (MonadComp exp m, PredOf exp a)
+initArr :: (MonadComp exp m, PrimType exp a)
   => [a] -- ^ Initial contents.
   -> m (Arr exp a)
 initArr = initNamedArr "a"
@@ -524,9 +525,10 @@ initArr = initNamedArr "a"
 -- collisions.
 newNamedArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf    exp a
-     , TypedRep  exp
-     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
+     , Type exp a
+--     , TypedRep  exp
+--     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
+     )
   => String     -- ^ Base name.
   -> exp Length -- ^ Size.
   -> m (Arr exp a)
@@ -534,14 +536,15 @@ newNamedArr base l
     = liftComp
     $ fmap Arr
     $ mapStructA (const $ Comp $ Imp.newNamedArr base l)
-    $ represent (Proxy::Proxy exp)
+    $ typeRep (Proxy::Proxy exp)
 
 -- | Create an uninitialized array.
 newArr ::
      ( MonadComp exp m
-     , TypeOf    exp a
-     , TypedRep  exp
-     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp))
+     , Type exp a
+--     , TypedRep  exp
+--     , TypeRepOf exp ~ Struct (PredOf exp) (PrimTypeRepOf exp)
+     )
   => exp Length -- ^ Size.
   -> m (Arr exp a)
 newArr = newNamedArr "a"
@@ -555,11 +558,11 @@ getArr :: forall exp m a.
   => exp Index -> Arr exp (Internal a) -> m a
 getArr i = liftComp
          . fmap resugar
-         . (\a -> a :: Comp exp (Struct (PredOf exp) exp (Internal a)))
+         . (\a -> a :: Comp exp (Struct (PrimType' (PrimOf exp)) exp (Internal a)))
          . mapStructA getty
          . unArr
   where
-    getty :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (exp b)
+    getty :: forall b. PrimType' (PrimOf exp) b => Imp.Arr Length b -> Comp exp (exp b)
     getty = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.getArr i)
 
 -- | Set an element of an array.
@@ -571,11 +574,13 @@ setArr :: forall exp m a.
 setArr i a = liftComp
            . sequence_
            . (\a -> a :: [Comp exp ()])
-           . zipListStruct setty (resugar a :: Struct (PredOf exp) exp (Internal a))
+           . zipListStruct setty (resugar a :: Struct (PrimType' (PrimOf exp)) exp (Internal a))
            . unArr
   where
-    setty :: forall b. PredOf exp b => exp b -> Imp.Arr Index b -> Comp exp ()
+    setty :: forall b. PrimType' (PrimOf exp) b => exp b -> Imp.Arr Index b -> Comp exp ()
     setty a arr = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.setArr i a arr)
+
+{- *** Emil changed how Imp.copyArr, Imp.freezeArr and Imp.thawArr works. ***
 
 -- | Copy the contents of an array to another array. The number of elements to
 -- copy must not be greater than the number of allocated elements in either array.
@@ -589,14 +594,14 @@ copyArr arr1 arr2 len = liftComp
                       $ (\a -> a :: [Comp exp ()])
                       $ zipListStruct copy (unArr arr1) (unArr arr2)
   where
-    copy :: forall b. PredOf exp b => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
+    copy :: forall b. PrimType' (PrimOf exp) b => Imp.Arr Length b -> Imp.Arr Length b -> Comp exp ()
     copy a1 a2 = Comp $ Imp.copyArr a1 a2 len
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
 freezeArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
+     , Type exp a
      , FreeDict exp)
   => Arr exp a
   -> exp Length -- ^ Number of elements to copy.
@@ -606,15 +611,16 @@ freezeArr arr n = liftComp
                 $ mapStructA freeze
                 $ unArr arr
   where
-    freeze :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze :: forall b. PrimType' (PrimOf exp) b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
     freeze a = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.freezeArr a n)
+-}
 
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
 unsafeFreezeArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
+     , Type exp a
      , FreeDict exp)
   => Arr exp a
   -> m (IArr exp a)
@@ -623,14 +629,15 @@ unsafeFreezeArr = liftComp
                 . mapStructA freeze
                 . unArr
   where
-    freeze :: forall b. PredOf exp b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
+    freeze :: forall b. PrimType' (PrimOf exp) b => Imp.Arr Length b -> Comp exp (Imp.IArr Length b)
     freeze = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeFreezeArr
 
+{-
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
 thawArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
+     , Type exp a
      , FreeDict exp)
   => IArr exp a
   -> exp Length -- ^ Number of elements to copy.
@@ -640,15 +647,16 @@ thawArr arr n = liftComp
               $ mapStructA thaw
               $ unIArr arr
   where
-    thaw :: forall b. PredOf exp b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw :: forall b. PrimType' (PrimOf exp) b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
     thaw a = Comp $ witPrim (Proxy::Proxy exp) (Proxy::Proxy b) (Imp.thawArr a n)
+-}
 
 -- | Thaw an immutable array to a mutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
 unsafeThawArr :: forall exp m a.
      ( MonadComp exp m
-     , TypeOf exp a
+     , Type exp a
      , FreeDict exp)
   => IArr exp a
   -> m (Arr exp a)
@@ -657,11 +665,13 @@ unsafeThawArr = liftComp
               . mapStructA thaw
               . unIArr
   where
-    thaw :: forall b. PredOf exp b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
+    thaw :: forall b. PrimType' (PrimOf exp) b => Imp.IArr Length b -> Comp exp (Imp.Arr Length b)
     thaw = Comp . witPrim (Proxy::Proxy exp) (Proxy::Proxy b) Imp.unsafeThawArr
 
 -- | Create and initialize an immutable array.
-initIArr :: forall exp m a. (MonadComp exp m, PredOf exp a)
+--
+-- *** Chaneged 'PrimType'' to 'PrimType', not sure if OK yet.
+initIArr :: forall exp m a. (MonadComp exp m, PrimType exp a)
   => [a]
   -> m (IArr exp a)
 initIArr val = liftComp $ fmap (IArr . Single) $ Comp $ Imp.initIArr val

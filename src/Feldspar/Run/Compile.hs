@@ -29,7 +29,7 @@ import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
 import Feldspar.Run.Representation
-import Feldspar.Optimize
+--import Feldspar.Optimize
 
 
 
@@ -38,29 +38,27 @@ import Feldspar.Optimize
 --------------------------------------------------------------------------------
 
 -- | Struct expression
-type VExp = Struct PrimType' Prim
+type VExp = Struct (PrimType' Prim) Prim
 
 -- | Struct expression with hidden result type
 data VExp'
   where
-    VExp' :: Struct PrimType' Prim a -> VExp'
+    VExp' :: Struct (PrimType' Prim) Prim a -> VExp'
 
-newRefV :: Monad m => TypeRep a -> String -> TargetT m (Struct PrimType' Imp.Ref a)
+newRefV :: Monad m => TypeRep Prim a -> String -> TargetT m (Struct (PrimType' Prim) Imp.Ref a)
 newRefV t base = lift $ mapStructA (const (newNamedRef base)) t
 
-initRefV :: Monad m => String -> VExp a -> TargetT m (Struct PrimType' Imp.Ref a)
+initRefV :: Monad m => String -> VExp a -> TargetT m (Struct (PrimType' Prim) Imp.Ref a)
 initRefV base = lift . mapStructA (initNamedRef base)
 
-getRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
+getRefV :: Monad m => Struct (PrimType' Prim) Imp.Ref a -> TargetT m (VExp a)
 getRefV = lift . mapStructA getRef
 
-setRefV :: Monad m => Struct PrimType' Imp.Ref a -> VExp a -> TargetT m ()
+setRefV :: Monad m => Struct (PrimType' Prim) Imp.Ref a -> VExp a -> TargetT m ()
 setRefV r = lift . sequence_ . zipListStruct setRef r
 
-unsafeFreezeRefV :: Monad m => Struct PrimType' Imp.Ref a -> TargetT m (VExp a)
+unsafeFreezeRefV :: Monad m => Struct (PrimType' Prim) Imp.Ref a -> TargetT m (VExp a)
 unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
-
-
 
 --------------------------------------------------------------------------------
 -- * Translation environment
@@ -78,14 +76,12 @@ localAlias :: MonadReader Env m
 localAlias v e = local (Map.insert v (VExp' e))
 
 -- | Lookup an alias in the environment
-lookAlias :: MonadReader Env m => TypeRep a -> Name -> m (VExp a)
+lookAlias :: MonadReader Env m => TypeRep Prim a -> Name -> m (VExp a)
 lookAlias t v = do
     env <- ask
     return $ case Map.lookup v env of
         Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case typeEq t (toTypeRep e) of Just Dict -> e
-
-
 
 --------------------------------------------------------------------------------
 -- * Translation of expressions
@@ -102,23 +98,23 @@ type TargetCMD
     Imp.:+: C_CMD
 
 -- | Target monad during translation
-type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 Prim PrimType') m)
+type TargetT m = ReaderT Env (ProgramT TargetCMD (Param2 Prim (PrimType' Prim)) m)
 
 -- | Monad for translated program
-type ProgC = Program TargetCMD (Param2 Prim PrimType')
+type ProgC = Program TargetCMD (Param2 Prim (PrimType' Prim))
 
 -- | Translate an expression
 translateExp :: forall m a . Monad m => Data a -> TargetT m (VExp a)
-translateExp = goAST . optimize . unData
+translateExp = goAST . {-optimize .-} unData
   where
     -- Assumes that `b` is not a function type
     goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
     goAST = simpleMatch (\(s :&: ValT t) -> go t s)
 
-    goSmallAST :: PrimType' b => ASTF FeldDomain b -> TargetT m (Prim b)
+    goSmallAST :: PrimType' Prim b => ASTF FeldDomain b -> TargetT m (Prim b)
     goSmallAST = fmap extractSingle . goAST
 
-    go :: TypeRep (DenResult sig)
+    go :: TypeRep Prim (DenResult sig)
        -> FeldConstructs sig
        -> Args (AST FeldDomain) sig
        -> TargetT m (VExp (DenResult sig))

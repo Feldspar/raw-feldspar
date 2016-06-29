@@ -26,18 +26,18 @@ import Data.TypedStruct
 
 class TypedRepFun exp
   where
-    typeRepVal  :: TypeOf exp a => proxy exp -> TypeRepFunOf exp a
-    typeRepFun  :: TypeOf exp a => proxy exp -> TypeRepFunOf exp b -> TypeRepFunOf exp (a -> b)
-    typeRepDict :: TypeOf exp a => proxy exp -> Dict (Typeable a)
+    typeRepVal  :: Type exp a => proxy exp -> TypeRepFun (PrimOf exp) a
+    typeRepFun  :: Type exp a => proxy exp -> TypeRepFun (PrimOf exp) b -> TypeRepFun (PrimOf exp) (a -> b)
+    typeRepDict :: Type exp a => proxy exp -> Dict (Typeable a)
 
 instance TypedRepFun Data where
-  typeRepVal  _ = ValT typeRep
-  typeRepFun  _ = FunT typeRep
+  typeRepVal  _ = ValT $ typeRep (Proxy::Proxy Data)
+  typeRepFun  _ = FunT $ typeRep (Proxy::Proxy Data)
   typeRepDict _ = Dict
 
 instance TypedRepFun HData where
-  typeRepVal  _ = ValHT typeHRep
-  typeRepFun  _ = FunHT typeHRep
+  typeRepVal  _ = ValT $ typeRep (Proxy::Proxy HData)
+  typeRepFun  _ = FunT $ typeRep (Proxy::Proxy HData)
   typeRepDict _ = Dict
 
 --------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ instance forall sup exp a b.
     ( Syntax exp a
     , Syntactic b
     , Domain b ~ DomainOf exp
-    , Domain a ~ (sup :&: TypeRepFunOf exp)
+    , Domain a ~ (sup :&: TypeRepFun (PrimOf exp))
     , BindingT :<: sup
     , TypedRepFun exp
     )
@@ -68,7 +68,7 @@ instance forall sup exp a b.
     ( Syntax exp a
     , Syntax exp b
     , Domain b ~ DomainOf exp
-    , Domain a ~ (sup :&: TypeRepFunOf exp)
+    , Domain a ~ (sup :&: TypeRepFun (PrimOf exp))
     , Tuple :<: sup
       -- ...
     )

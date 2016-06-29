@@ -36,8 +36,8 @@ newtype Hardware a = Hardware
     { unHardware ::
         ProgramT
           HardwareCMD
-          (Param2 HData HPrimType')
-          (Program CompCMD (Param2 HData HPrimType'))
+          (Param2 HData (PrimType' HPrim))
+          (Program CompCMD (Param2 HData (PrimType' HPrim)))
           a
     }
   deriving (Functor, Applicative, Monad)

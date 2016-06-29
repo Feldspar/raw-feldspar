@@ -37,8 +37,6 @@ import Feldspar.Run.Representation
 unsafeSwap :: IsPointer a => a -> a -> Run ()
 unsafeSwap a b = Run $ Imp.unsafeSwap a b
 
-
-
 --------------------------------------------------------------------------------
 -- * File handling
 --------------------------------------------------------------------------------
@@ -63,7 +61,7 @@ instance (a ~ ()) => PrintfType (Run a)
   where
     fprf h form = Run . Oper.singleInj . Imp.FPrintf h form . reverse
 
-instance (Formattable a, PrimType a, PrintfType r) => PrintfType (Data a -> r)
+instance (Formattable a, PrimType Data a, PrintfType r) => PrintfType (Data a -> r)
   where
     fprf h form as = \a -> fprf h form (Imp.PrintfArg a : as)
 
@@ -72,7 +70,7 @@ fprintf :: PrintfType r => Handle -> String -> r
 fprintf h format = fprf h format []
 
 -- | Put a single value to a handle
-fput :: (Formattable a, PrimType a)
+fput :: (Formattable a, PrimType Data a)
     => Handle
     -> String  -- Prefix
     -> Data a  -- Expression to print
@@ -81,7 +79,7 @@ fput :: (Formattable a, PrimType a)
 fput h pre e post = Run $ Imp.fput h pre e post
 
 -- | Get a single value from a handle
-fget :: (Formattable a, PrimType a) => Handle -> Run (Data a)
+fget :: (Formattable a, PrimType Data a) => Handle -> Run (Data a)
 fget = Run . Imp.fget
 
 -- | Print to @stdout@. Accepts a variable number of arguments.
@@ -99,20 +97,20 @@ type CArr  = Arr Data
 type CIArr = IArr Data
 
 -- | Create a null pointer
-newPtr :: PrimType a => Run (Ptr a)
+newPtr :: PrimType Data a => Run (Ptr a)
 newPtr = newNamedPtr "p"
 
 -- | Create a named null pointer
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedPtr :: PrimType a
+newNamedPtr :: PrimType Data a
     => String  -- ^ Base name
     -> Run (Ptr a)
 newNamedPtr = Run . Imp.newNamedPtr
 
 -- | Cast a pointer to an array
-ptrToArr :: PrimType a => Ptr a -> Run (CArr a)
+ptrToArr :: PrimType Data a => Ptr a -> Run (CArr a)
 ptrToArr = fmap (Arr . Single) . Run . Imp.ptrToArr
 
 -- | Create a pointer to an abstract object. The only thing one can do with such
@@ -163,31 +161,31 @@ addDefinition :: Imp.Definition -> Run ()
 addDefinition = Run . Imp.addDefinition
 
 -- | Declare an external function
-addExternFun :: PrimType res
+addExternFun :: PrimType Data res
     => String                   -- ^ Function name
     -> proxy res                -- ^ Proxy for expression and result type
-    -> [FunArg Data PrimType']  -- ^ Arguments (only used to determine types)
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments (only used to determine types)
     -> Run ()
 addExternFun fun res args = Run $ Imp.addExternFun fun res args
 
 -- | Declare an external procedure
 addExternProc
     :: String                   -- ^ Procedure name
-    -> [FunArg Data PrimType']  -- ^ Arguments (only used to determine types)
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments (only used to determine types)
     -> Run ()
 addExternProc proc args = Run $ Imp.addExternProc proc args
 
 -- | Call a function
-callFun :: PrimType a
+callFun :: PrimType Data a
     => String                   -- ^ Function name
-    -> [FunArg Data PrimType']  -- ^ Arguments
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments
     -> Run (Data a)
 callFun fun as = Run $ Imp.callFun fun as
 
 -- | Call a procedure
 callProc
     :: String                   -- ^ Function name
-    -> [FunArg Data PrimType']  -- ^ Arguments
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments
     -> Run ()
 callProc fun as = Run $ Imp.callProc fun as
 
@@ -195,21 +193,21 @@ callProc fun as = Run $ Imp.callProc fun as
 callProcAssign :: Assignable obj
     => obj                      -- ^ Object to which the result should be assigned
     -> String                   -- ^ Procedure name
-    -> [FunArg Data PrimType']  -- ^ Arguments
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments
     -> Run ()
 callProcAssign obj fun as = Run $ Imp.callProcAssign obj fun as
 
 -- | Declare and call an external function
-externFun :: PrimType res
+externFun :: PrimType Data res
     => String                   -- ^ Procedure name
-    -> [FunArg Data PrimType']  -- ^ Arguments
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments
     -> Run (Data res)
 externFun fun args = Run $ Imp.externFun fun args
 
 -- | Declare and call an external procedure
 externProc
     :: String                   -- ^ Procedure name
-    -> [FunArg Data PrimType']  -- ^ Arguments
+    -> [FunArg Data (PrimType' Prim)]  -- ^ Arguments
     -> Run ()
 externProc proc args = Run $ Imp.externProc proc args
 
@@ -222,34 +220,34 @@ getTime :: Run (Data Double)
 getTime = Run Imp.getTime
 
 -- | Constant string argument
-strArg :: String -> FunArg Data PrimType'
+strArg :: String -> FunArg Data (PrimType' Prim)
 strArg = Imp.strArg
 
 -- | Value argument
-valArg :: PrimType a => Data a -> FunArg Data PrimType'
+valArg :: PrimType Data a => Data a -> FunArg Data (PrimType' Prim)
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: PrimType a => CRef a -> FunArg Data PrimType'
+refArg :: PrimType Data a => CRef a -> FunArg Data (PrimType' Prim)
 refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
-arrArg :: PrimType a => CArr a -> FunArg Data PrimType'
+arrArg :: PrimType Data a => CArr a -> FunArg Data (PrimType' Prim)
 arrArg (Arr a) = Imp.arrArg (extractSingle a)
 
 -- | Immutable array argument
-iarrArg :: PrimType a => CIArr a -> FunArg Data PrimType'
+iarrArg :: PrimType Data a => CIArr a -> FunArg Data (PrimType' Prim)
 iarrArg (IArr a) = Imp.iarrArg (extractSingle a)
 
 -- | Abstract object argument
-objArg :: Object -> FunArg Data PrimType'
+objArg :: Object -> FunArg Data (PrimType' Prim)
 objArg = Imp.objArg
 
 -- | Modifier that takes the address of another argument
-addr :: FunArg Data PrimType' -> FunArg Data PrimType'
+addr :: FunArg Data (PrimType' Prim) -> FunArg Data (PrimType' Prim)
 addr = Imp.addr
 
 -- | Modifier that dereferences another argument
-deref :: FunArg Data PrimType' -> FunArg Data PrimType'
+deref :: FunArg Data (PrimType' Prim) -> FunArg Data (PrimType' Prim)
 deref = Imp.deref
 

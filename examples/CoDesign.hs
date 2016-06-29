@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DataKinds   #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module CoDesign where
 
@@ -42,7 +43,7 @@ generic
      , Syntax exp (exp Int8)
      , Int8 ~ Internal (exp Int8)
        -- ...
-     , PrimTypeOf exp Int8
+     , PrimType exp Int8
      )
   => m ()
 generic =
@@ -73,5 +74,11 @@ hardware = generic
 testSoftware = SW.icompile software
 
 testHardware = HW.icompile hardware
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+
+
 
 --------------------------------------------------------------------------------

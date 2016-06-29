@@ -29,8 +29,8 @@ newtype Run a = Run
     { unRun ::
         ProgramT
           RunCMD
-          (Param2 Data PrimType')
-          (Program CompCMD (Param2 Data PrimType'))
+          (Param2 Data (PrimType' Prim))
+          (Program CompCMD (Param2 Data (PrimType' Prim)))
           a
     }
   deriving (Functor, Applicative, Monad)

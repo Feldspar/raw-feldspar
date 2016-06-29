@@ -31,7 +31,7 @@ module Feldspar
   , module Feldspar.Storable
   ) where
 
-import Prelude.EDSL hiding (negate)
+import Prelude.EDSL hiding (negate, pi)
 import Prelude hiding (pi)
 
 import Control.Monad hiding (when)
