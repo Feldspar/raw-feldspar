@@ -499,6 +499,17 @@ instance Syntax a => Forcible (Push a)
         return $ Manifest len iarr
     fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
 
+instance
+    ( MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    , Syntax a
+    ) =>
+      MarshalFeld (Push a)
+  where
+    type HaskellRep (Push a) = [Internal a]
+    fromFeld = fromFeld <=< toValue
+    toFeld   = fromValue <$> toFeld
+
 class Pushy vec
   where
     toPush :: vec a -> Push a
