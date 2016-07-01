@@ -4,6 +4,8 @@
 module Feldspar.Data.Array where
 
 
+import qualified Prelude
+import Prelude (Functor, Foldable, Traversable)
 
 import Data.Proxy
 
@@ -141,8 +143,8 @@ instance MarshalFeld a => MarshalFeld (Nest a)
   -- The reason for not using `HaskellRep (Nest a) = [HaskellRep a]` is that
   -- this representation makes it impossible to implement `toFeld`.
 
--- | Add a layer of nesting to a linear data structure by symbolically chopping
--- it up into segments. The nesting is symbolic in the sense that
+-- | Add a layer of nesting to a linear data structure by virtually chopping it
+-- up into segments. The nesting is virtual in the sense that
 -- @`unnest` (`nest` h w a)@ is syntactically identical to @a@.
 --
 -- In an expression @`nest` l w a@, it must be the case that
@@ -151,12 +153,27 @@ instance MarshalFeld a => MarshalFeld (Nest a)
 -- 'multiNest' may be a more convenient alternative to 'nest', expecially for
 -- adding several levels of nesting.
 nest
-    :: Data Length  -- Number of segments
-    -> Data Length  -- Segment length
+    :: Data Length  -- ^ Number of segments
+    -> Data Length  -- ^ Segment length
     -> a
     -> Nest a
 nest = Nest
-  -- TODO Assert w == length a
+  -- TODO Add assertion
+
+-- | A version of 'nest' that only takes the segment length as argument. The
+-- total number of segments is computed by division.
+--
+-- In an expression @`nestEvery` n a@, it must be the case that
+-- @div (`length` a) n * n == `length` a@.
+--
+-- This assumption permits removing the division in many cases when the nested
+-- structure is later flattened in some way.
+nestEvery :: Finite a
+    => Data Length  -- ^ Segment length
+    -> a
+    -> Nest a
+nestEvery n a = Nest (length a `unsafeBalancedDiv` n) n a
+  -- TODO Add assertion
 
 -- | Remove a layer of nesting
 unnest :: Nest a -> a
