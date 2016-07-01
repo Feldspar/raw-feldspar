@@ -225,6 +225,9 @@ translateExp = goAST . optimize . unData
                               (flip runReaderT env . setRefV res =<< t')
                               (flip runReaderT env . setRefV res =<< f')
                           unsafeFreezeRefV res
+    go t divBal (a :* b :* Nil)
+        | Just DivBalanced <- prj divBal
+        = liftStruct2 (sugarSymPrim Quot) <$> goAST a <*> goAST b
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami

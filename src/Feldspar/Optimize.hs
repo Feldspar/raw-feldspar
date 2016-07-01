@@ -63,25 +63,27 @@ pattern LamP t v body <- Sym ((prj' -> Just (LamT v)) :&: t) :$ body
 -- There type signatures are needed in order to use `simplifyUp` in the
 -- constructor
 #if __GLASGOW_HASKELL__ >= 800
-pattern LitP  :: () => (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
-pattern AddP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP  :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern QuotP :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern RemP  :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern DivP  :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern ModP  :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern LitP         :: () => (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern AddP         :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP         :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP         :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP         :: () => (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP        :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP         :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern DivP         :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern ModP         :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern DivBalancedP :: () => (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 #else
-pattern LitP  :: (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
-pattern AddP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern SubP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern MulP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern NegP  :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern QuotP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern RemP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern DivP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
-pattern ModP  :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern LitP         :: (Eq a, Show a) => TypeRep a -> a -> ASTF FeldDomain a
+pattern AddP         :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern SubP         :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern MulP         :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern NegP         :: (Num a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern QuotP        :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern RemP         :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern DivP         :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern ModP         :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
+pattern DivBalancedP :: (Integral a, PrimType' a) => TypeRep a -> ASTF FeldDomain a -> ASTF FeldDomain a -> ASTF FeldDomain a
 #endif
 
 viewLit :: ASTF FeldDomain a -> Maybe a
@@ -100,10 +102,11 @@ pattern SubP t a b <- SymP t Sub :$ a :$ b where SubP t a b = simplifyUp $ SymP 
 pattern MulP t a b <- SymP t Mul :$ a :$ b where MulP t a b = simplifyUp $ SymP t Mul :$ a :$ b
 pattern NegP t a   <- SymP t Neg :$ a      where NegP t a   = simplifyUp $ SymP t Neg :$ a
 
-pattern QuotP t a b <- SymP t Quot :$ a :$ b where QuotP t a b = simplifyUp $ SymP t Quot :$ a :$ b
-pattern RemP t a b  <- SymP t Rem  :$ a :$ b where RemP t a b  = simplifyUp $ SymP t Rem  :$ a :$ b
-pattern DivP t a b  <- SymP t Div  :$ a :$ b where DivP t a b  = simplifyUp $ SymP t Div  :$ a :$ b
-pattern ModP t a b  <- SymP t Mod  :$ a :$ b where ModP t a b  = simplifyUp $ SymP t Mod  :$ a :$ b
+pattern QuotP t a b         <- SymP t Quot        :$ a :$ b where QuotP t a b        = simplifyUp $ SymP t Quot        :$ a :$ b
+pattern RemP t a b          <- SymP t Rem         :$ a :$ b where RemP t a b         = simplifyUp $ SymP t Rem         :$ a :$ b
+pattern DivP t a b          <- SymP t Div         :$ a :$ b where DivP t a b         = simplifyUp $ SymP t Div         :$ a :$ b
+pattern ModP t a b          <- SymP t Mod         :$ a :$ b where ModP t a b         = simplifyUp $ SymP t Mod         :$ a :$ b
+pattern DivBalancedP t a b  <- SymP t DivBalanced :$ a :$ b where DivBalancedP t a b = simplifyUp $ SymP t DivBalanced :$ a :$ b
 
 
 
@@ -156,6 +159,11 @@ simplifyUp (DivP t@(Single _) a b) | alphaEq a b = LitP t 1
 simplifyUp (ModP t (LitP _ 0) b) = LitP t 0
 simplifyUp (ModP t a (LitP _ 1)) = LitP t 0
 simplifyUp (ModP t@(Single _) a b) | alphaEq a b = LitP t 0
+
+simplifyUp (MulP _ (DivBalancedP _ a b) c) | alphaEq b c = a
+simplifyUp (MulP _ a (DivBalancedP _ b c)) | alphaEq a c = b
+  -- These rewrites are only correct if the assumption of `DivBalanced` is
+  -- fulfilled.
 
 simplifyUp (SymP _ Not :$ (SymP _ Not :$ a)) = a
 simplifyUp (SymP t Not :$ (SymP _ Lt :$ a :$ b)) = simplifyUp $ SymP t Ge :$ a :$ b

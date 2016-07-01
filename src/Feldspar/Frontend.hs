@@ -196,6 +196,11 @@ div = sugarSymFeld Div
 mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 mod = sugarSymFeld Mod
 
+-- | Integer division assuming `unsafeBalancedDiv x y * y == x` (i.e. no
+-- remainder). Violating the assumption may lead to incorrect generated code.
+unsafeBalancedDiv :: (Integral a, PrimType a) => Data a -> Data a -> Data a
+unsafeBalancedDiv = sugarSymFeld DivBalanced
+
 -- | Construct a complex number
 complex :: (Num a, PrimType a, PrimType (Complex a))
     => Data a  -- ^ Real part

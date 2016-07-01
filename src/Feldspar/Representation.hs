@@ -149,6 +149,23 @@ data IArr a = IArr
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
+data ExtraPrimitive sig
+  where
+    -- Integer division assuming `divBalanced x y * y == x` (i.e. no remainder).
+    -- The purpose of the assumption is to use it in simplifications.
+    DivBalanced :: (Integral a, PrimType' a) =>
+        ExtraPrimitive (a :-> a :-> Full a)
+
+instance Eval ExtraPrimitive
+  where
+    evalSym DivBalanced = \a b -> if a `mod` b /= 0
+      then error $ unwords ["divBalanced", show a, show b, "is not balanced"]
+      else div a b
+
+instance EvalEnv ExtraPrimitive env
+
+instance StringTree ExtraPrimitive
+
 -- | For loop
 data ForLoop sig
   where
@@ -198,6 +215,7 @@ type FeldConstructs
     :+: Let
     :+: Tuple
     :+: Primitive
+    :+: ExtraPrimitive
     :+: ForLoop
     :+: IOSym
 
@@ -303,6 +321,10 @@ newtype Comp a = Comp
 --------------------------------------------------------------------------------
 -- Template Haskell instances
 --------------------------------------------------------------------------------
+
+deriveSymbol    ''ExtraPrimitive
+deriveRender id ''ExtraPrimitive
+deriveEquality  ''ExtraPrimitive
 
 deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop
