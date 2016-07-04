@@ -188,9 +188,6 @@ data IOSym sig
     UnsafePerform :: Comp (Data a) -> IOSym (Full a)
     -- Identity function with a side effect
     UnsafePerformWith :: Comp () -> IOSym (a :-> Full a)
-  -- The reason for having `UnsafeArrIx` instead of doing the same thing using
-  -- `UnsafePerform` is that `UnsafeArrIx` can be compared for equality, which
-  -- may help some optimizations.
 
 instance Render IOSym
   where
