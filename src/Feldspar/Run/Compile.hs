@@ -228,6 +228,11 @@ translateExp = goAST . optimize . unData
     go t divBal (a :* b :* Nil)
         | Just DivBalanced <- prj divBal
         = liftStruct2 (sugarSymPrim Quot) <$> goAST a <*> goAST b
+    go t guard (cond :* a :* Nil)
+        | Just (GuardVal msg) <- prj guard
+        = do cond' <- extractSingle <$> goAST cond
+             lift $ assert cond' msg
+             goAST a
     go t loop (len :* init :* (lami :$ (lams :$ body)) :* Nil)
         | Just ForLoop   <- prj loop
         , Just (LamT iv) <- prj lami

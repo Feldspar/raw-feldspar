@@ -479,6 +479,20 @@ resugar = Syntactic.resugar
 
 
 ----------------------------------------
+-- ** Assertions
+----------------------------------------
+
+-- | Guard a value by an assertion.
+guardVal :: Syntax a
+    => String     -- Error message
+    -> Data Bool  -- Condition that is expected to be true
+    -> a          -- Value to attach the assertion to
+    -> a
+guardVal msg = sugarSymFeld (GuardVal msg)
+
+
+
+----------------------------------------
 -- ** Unsafe operations
 ----------------------------------------
 

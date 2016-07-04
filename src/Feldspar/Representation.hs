@@ -155,12 +155,16 @@ data ExtraPrimitive sig
     -- The purpose of the assumption is to use it in simplifications.
     DivBalanced :: (Integral a, PrimType' a) =>
         ExtraPrimitive (a :-> a :-> Full a)
+    -- Guard a value by an assertion
+    GuardVal :: String -> ExtraPrimitive (Bool :-> a :-> Full a)
 
 instance Eval ExtraPrimitive
   where
     evalSym DivBalanced = \a b -> if a `mod` b /= 0
       then error $ unwords ["divBalanced", show a, show b, "is not balanced"]
       else div a b
+    evalSym (GuardVal msg) = \cond a ->
+        if cond then a else error $ "Feldspar assertion failure: " ++ msg
 
 instance EvalEnv ExtraPrimitive env
 
