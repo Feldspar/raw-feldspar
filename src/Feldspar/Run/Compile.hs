@@ -249,11 +249,6 @@ translateExp = goAST . optimize . unData
         | Just (UnsafePerform prog) <- prj unsPerf
         = translateExp =<<
             Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
-    go t unsPerf (a :* Nil)
-        | Just (UnsafePerformWith prog) <- prj unsPerf = do
-            a' <- goAST a
-            Oper.reexpressEnv unsafeTransSmallExp (Oper.liftProgram $ unComp prog)
-            return a'
     go _ s _ = error $ "translateExp: no handling of symbol " ++ renderSym s
 
 -- | Translate an expression that is assumed to fulfill @`PrimType` a@

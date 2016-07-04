@@ -255,7 +255,7 @@ constFold e
           _ | MulP _ _ (SymP _ Pi) <- e -> False
                 -- Don't fold expressions like `2*pi`
           _ | Just (_ :: BindingT sig) <- prj s -> False
-          _ | Just (_ :: IOSym sig)    <- prj s -> False
+          _ | Just (_ :: Unsafe sig)   <- prj s -> False
           _ -> True
       )
       e
@@ -309,7 +309,7 @@ simplifyM a = simpleMatch
             _ | MulP _ _ (SymP _ Pi) <- a' -> return a'
                   -- Don't fold expressions like `2*pi`
 
-            _ | Just (_ :: IOSym sig) <- prj s -> tellUnsafe >> return a'
+            _ | Just (_ :: Unsafe sig) <- prj s -> tellUnsafe >> return a'
             _ | null vs && not unsafe
               , ValT t'@(Single _) <- t
                 -> return $ LitP t' $ evalClosed a'

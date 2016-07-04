@@ -182,28 +182,25 @@ instance EvalEnv ForLoop env
 instance StringTree ForLoop
 
 -- | Interaction with the IO layer
-data IOSym sig
+data Unsafe sig
   where
     -- Turn a program into a pure value
-    UnsafePerform :: Comp (Data a) -> IOSym (Full a)
-    -- Identity function with a side effect
-    UnsafePerformWith :: Comp () -> IOSym (a :-> Full a)
+    UnsafePerform :: Comp (Data a) -> Unsafe (Full a)
 
-instance Render IOSym
+instance Render Unsafe
   where
-    renderSym (UnsafePerform _)     = "UnsafePerform ..."
-    renderSym (UnsafePerformWith _) = "UnsafePerformWith ..."
+    renderSym (UnsafePerform _) = "UnsafePerform ..."
 
-instance StringTree IOSym
+instance StringTree Unsafe
 
-instance Eval IOSym
+instance Eval Unsafe
   where
     evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
 
-instance EvalEnv IOSym env
+instance EvalEnv Unsafe env
 
 -- | 'equal' always returns 'False'
-instance Equality IOSym
+instance Equality Unsafe
   where
     equal _ _ = False
 
@@ -214,7 +211,7 @@ type FeldConstructs
     :+: Primitive
     :+: ExtraPrimitive
     :+: ForLoop
-    :+: IOSym
+    :+: Unsafe
 
 type FeldDomain = FeldConstructs :&: TypeRepFun
 
@@ -327,5 +324,5 @@ deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop
 deriveEquality  ''ForLoop
 
-deriveSymbol ''IOSym
+deriveSymbol ''Unsafe
 
