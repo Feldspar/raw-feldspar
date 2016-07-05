@@ -4,7 +4,6 @@
 module Feldspar.Data.Array where
 
 
-import qualified Prelude
 import Prelude (Functor, Foldable, Traversable)
 
 import Data.Proxy

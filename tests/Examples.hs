@@ -57,5 +57,5 @@ main =
         ]
 
   where
-    marshalledM = marshalled' defaultExtCompilerOpts {externalFlagsPost = ["-lm"]}
+    marshalledM = marshalled' def def {externalFlagsPost = ["-lm"]}
 

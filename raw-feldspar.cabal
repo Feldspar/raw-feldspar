@@ -27,6 +27,7 @@ library
   exposed-modules:
     Data.Inhabited
     Data.TypedStruct
+    Data.Selection
     Feldspar.Primitive.Representation
     Feldspar.Primitive.Backend.C
     Feldspar.Representation
@@ -79,6 +80,7 @@ library
     base < 5,
     constraints,
     containers,
+    data-default-class,
     data-hash,
     imperative-edsl >= 0.5,
     -- hardware-edsl >= 0.1.0.2,

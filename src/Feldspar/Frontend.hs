@@ -16,6 +16,7 @@ import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
+import qualified Control.Monad.Operational.Higher as Oper
 import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
 
@@ -482,13 +483,22 @@ resugar = Syntactic.resugar
 -- ** Assertions
 ----------------------------------------
 
--- | Guard a value by an assertion.
+-- | Guard a value by an assertion (with implicit label @`UserAssertion` ""@)
 guardVal :: Syntax a
-    => String     -- Error message
-    -> Data Bool  -- Condition that is expected to be true
-    -> a          -- Value to attach the assertion to
+    => Data Bool  -- ^ Condition that is expected to be true
+    -> String     -- ^ Error message
+    -> a          -- ^ Value to attach the assertion to
     -> a
-guardVal msg = sugarSymFeld (GuardVal msg)
+guardVal = guardValLabel $ UserAssertion ""
+
+-- | Like 'guardVal' but with an explicit assertion label
+guardValLabel :: Syntax a
+    => AssertionLabel  -- ^ Assertion label
+    -> Data Bool       -- ^ Condition that is expected to be true
+    -> String          -- ^ Error message
+    -> a               -- ^ Value to attach the assertion to
+    -> a
+guardValLabel c cond msg = sugarSymFeld (GuardVal c msg) cond
 
 
 
@@ -739,10 +749,19 @@ ifE c t f = do
 break :: MonadComp m => m ()
 break = liftComp $ Comp Imp.break
 
--- | Assertion
+-- | Assertion (with implicit label @`UserAssertion` ""@)
 assert :: MonadComp m
     => Data Bool  -- ^ Expression that should be true
     -> String     -- ^ Message in case of failure
     -> m ()
-assert cond msg = liftComp $ Comp $ Imp.assert cond msg
+assert = assertLabel $ UserAssertion ""
+
+-- | Like 'assert' but tagged with an explicit assertion label
+assertLabel :: MonadComp m
+    => AssertionLabel  -- ^ Assertion label
+    -> Data Bool       -- ^ Expression that should be true
+    -> String          -- ^ Message in case of failure
+    -> m ()
+assertLabel c cond msg =
+    liftComp $ Comp $ Oper.singleInj $ Assert c cond msg
 

@@ -10,6 +10,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Data.Constraint (Dict (..))
+import Data.Default.Class
 
 import Language.Syntactic hiding ((:+:) (..), (:<:) (..))
 import Language.Syntactic.Functional hiding (Binding (..))
@@ -25,6 +26,7 @@ import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
 import qualified Language.Embedded.Backend.C as Imp
 
 import Data.TypedStruct
+import Data.Selection
 import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.C ()
 import Feldspar.Representation
@@ -63,11 +65,49 @@ unsafeFreezeRefV = lift . mapStructA unsafeFreezeRef
 
 
 --------------------------------------------------------------------------------
+-- * Compilation options
+--------------------------------------------------------------------------------
+
+-- | Options affecting code generation
+--
+-- A default set of options is given by 'def'.
+--
+-- The assertion labels to include in the generated code can be stated using the
+-- functions 'select', 'allExcept' and 'selectBy'. For example
+--
+-- @`def` {compilerAssertions = `allExcept` [`InternalAssertion`]}@
+--
+-- states that we want to include all except internal assertions.
+data CompilerOpts = CompilerOpts
+    { compilerAssertions :: Selection AssertionLabel
+        -- ^ Which assertions to include in the generated code
+    }
+
+instance Default CompilerOpts
+  where
+    def = CompilerOpts
+      { compilerAssertions = universal
+      }
+
+onlyUserAssertions :: Selection AssertionLabel
+onlyUserAssertions = selectBy $ \l -> case l of
+    UserAssertion _ -> True
+    _ -> False
+
+
+
+--------------------------------------------------------------------------------
 -- * Translation environment
 --------------------------------------------------------------------------------
 
 -- | Translation environment
-type Env = Map Name VExp'
+data Env = Env
+    { envAliases :: Map Name VExp'
+    , envOptions :: CompilerOpts
+    }
+
+env0 :: Env
+env0 = Env Map.empty def
 
 -- | Add a local alias to the environment
 localAlias :: MonadReader Env m
@@ -75,12 +115,13 @@ localAlias :: MonadReader Env m
     -> VExp a  -- ^ New expression
     -> m b
     -> m b
-localAlias v e = local (Map.insert v (VExp' e))
+localAlias v e =
+    local (\env -> env {envAliases = Map.insert v (VExp' e) (envAliases env)})
 
 -- | Lookup an alias in the environment
 lookAlias :: MonadReader Env m => TypeRep a -> Name -> m (VExp a)
 lookAlias t v = do
-    env <- ask
+    env <- asks envAliases
     return $ case Map.lookup v env of
         Nothing -> error $ "lookAlias: variable " ++ show v ++ " not in scope"
         Just (VExp' e) -> case typeEq t (toTypeRep e) of Just Dict -> e
@@ -229,7 +270,7 @@ translateExp = goAST . optimize . unData
         | Just DivBalanced <- prj divBal
         = liftStruct2 (sugarSymPrim Quot) <$> goAST a <*> goAST b
     go t guard (cond :* a :* Nil)
-        | Just (GuardVal msg) <- prj guard
+        | Just (GuardVal _ msg) <- prj guard  -- TODAY
         = do cond' <- extractSingle <$> goAST cond
              lift $ assert cond' msg
              goAST a
@@ -265,16 +306,24 @@ unsafeTransSmallExp a = do
   -- not allowed when passing it to `reexpressEnv`. It should be possible to
   -- make it work by changing the interface to `reexpressEnv`.
 
-translate :: Run a -> ProgC a
-translate
+translate :: Env -> Run a -> ProgC a
+translate env
     = Oper.interpretWithMonadT Oper.singleton id
         -- fuse the monad stack
-    . flip runReaderT Map.empty . Oper.reexpressEnv unsafeTransSmallExp
+    . flip runReaderT env . Oper.reexpressEnv unsafeTransSmallExp
         -- compile outer monad
     . Oper.interpretWithMonadT Oper.singleton
-        (lift . flip runReaderT Map.empty . Oper.reexpressEnv unsafeTransSmallExp)
+        (lift . flip runReaderT env . Oper.reexpressEnv unsafeTransSmallExp)
         -- compile inner monad
     . unRun
+
+instance (Imp.ControlCMD Oper.:<: instr) =>
+    Oper.Reexpressible AssertCMD instr Env
+  where
+    reexpressInstrEnv reexp (Assert c cond msg) = do
+        cs <- asks (compilerAssertions . envOptions)
+        when (cs `includes` c) $
+          (reexp cond >>= lift . flip Imp.assert msg)
 
 
 
@@ -284,7 +333,7 @@ translate
 
 -- | Interpret a program in the 'IO' monad
 runIO :: MonadRun m => m a -> IO a
-runIO = Imp.runIO . translate . liftRun
+runIO = Imp.runIO . translate env0 . liftRun
 
 -- | Interpret a program in the 'IO' monad
 runIO' :: MonadRun m => m a -> IO a
@@ -308,7 +357,7 @@ captureIO :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureIO = Imp.captureIO . translate . liftRun
+captureIO = Imp.captureIO . translate env0 . liftRun
 
 -- | Compile a program to C code represented as a string. To compile the
 -- resulting C code, use something like
@@ -317,8 +366,21 @@ captureIO = Imp.captureIO . translate . liftRun
 --
 -- This function returns only the first (main) module. To get all C translation
 -- unit, use 'compileAll'.
+compile' :: MonadRun m => CompilerOpts -> m a -> String
+compile' opts = Imp.compile . translate (Env mempty opts) . liftRun
+
+-- | Compile a program to C code represented as a string. To compile the
+-- resulting C code, use something like
+--
+-- > cc -std=c99 YOURPROGRAM.c
+--
+-- This function returns only the first (main) module. To get all C translation
+-- unit, use 'compileAll'.
+--
+-- By default, only assertions labeled with 'UserAssertion' will be included in
+-- the generated code.
 compile :: MonadRun m => m a -> String
-compile = Imp.compile . translate . liftRun
+compile = compile' def {compilerAssertions = onlyUserAssertions}
 
 -- | Compile a program to C modules, each one represented as a pair of a name
 -- and the code represented as a string
@@ -326,92 +388,140 @@ compile = Imp.compile . translate . liftRun
 -- To compile the resulting C code, use something like
 --
 -- > cc -std=c99 YOURPROGRAM.c
+compileAll' :: MonadRun m => CompilerOpts -> m a -> [(String, String)]
+compileAll' opts = Imp.compileAll . translate (Env mempty opts) . liftRun
+
+-- | Compile a program to C modules, each one represented as a pair of a name
+-- and the code represented as a string
+--
+-- To compile the resulting C code, use something like
+--
+-- > cc -std=c99 YOURPROGRAM.c
+--
+-- By default, only assertions labeled with 'UserAssertion' will be included in
+-- the generated code.
 compileAll :: MonadRun m => m a -> [(String, String)]
-compileAll = Imp.compileAll . translate . liftRun
+compileAll = compileAll' def {compilerAssertions = onlyUserAssertions}
 
 -- | Compile a program to C code and print it on the screen. To compile the
 -- resulting C code, use something like
 --
 -- > cc -std=c99 YOURPROGRAM.c
+icompile' :: MonadRun m => CompilerOpts -> m a -> IO ()
+icompile' opts = Imp.icompile . translate (Env mempty opts) . liftRun
+
+-- | Compile a program to C code and print it on the screen. To compile the
+-- resulting C code, use something like
+--
+-- > cc -std=c99 YOURPROGRAM.c
+--
+-- By default, only assertions labeled with 'UserAssertion' will be included in
+-- the generated code.
 icompile :: MonadRun m => m a -> IO ()
-icompile = Imp.icompile . translate . liftRun
+icompile = icompile' def {compilerAssertions = onlyUserAssertions}
 
 -- | Generate C code and use CC to check that it compiles (no linking)
-compileAndCheck' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
-compileAndCheck' opts = Imp.compileAndCheck' opts . translate . liftRun
+compileAndCheck' :: MonadRun m
+    => CompilerOpts
+    -> ExternalCompilerOpts
+    -> m a
+    -> IO ()
+compileAndCheck' opts eopts =
+    Imp.compileAndCheck' eopts . translate (Env mempty opts) . liftRun
 
 -- | Generate C code and use CC to check that it compiles (no linking)
+--
+-- By default, all assertions will be included in the generated code.
 compileAndCheck :: MonadRun m => m a -> IO ()
-compileAndCheck = compileAndCheck' mempty
+compileAndCheck = compileAndCheck' def def
 
 -- | Generate C code, use CC to compile it, and run the resulting executable
-runCompiled' :: MonadRun m => ExternalCompilerOpts -> m a -> IO ()
-runCompiled' opts = Imp.runCompiled' opts . translate . liftRun
+runCompiled' :: MonadRun m
+    => CompilerOpts
+    -> ExternalCompilerOpts
+    -> m a
+    -> IO ()
+runCompiled' opts eopts =
+    Imp.runCompiled' eopts . translate (Env mempty opts) . liftRun
 
 -- | Generate C code, use CC to compile it, and run the resulting executable
+--
+-- By default, all assertions will be included in the generated code.
 runCompiled :: MonadRun m => m a -> IO ()
-runCompiled = runCompiled' mempty
+runCompiled = runCompiled' def def
 
 -- | Compile a program and make it available as an 'IO' function from 'String'
 -- to 'String' (connected to @stdin@/@stdout@. respectively). Note that
 -- compilation only happens once, even if the 'IO' function is used many times
 -- in the body.
 withCompiled' :: MonadRun m
-    => ExternalCompilerOpts
+    => CompilerOpts
+    -> ExternalCompilerOpts
     -> m a  -- ^ Program to compile
     -> ((String -> IO String) -> IO b)
          -- ^ Function that has access to the compiled executable as a function
     -> IO b
-withCompiled' opts = Imp.withCompiled' opts . translate . liftRun
+withCompiled' opts eopts =
+    Imp.withCompiled' eopts . translate (Env mempty opts) . liftRun
 
 -- | Compile a program and make it available as an 'IO' function from 'String'
 -- to 'String' (connected to @stdin@/@stdout@. respectively). Note that
 -- compilation only happens once, even if the 'IO' function is used many times
 -- in the body.
+--
+-- By default, all assertions will be included in the generated code.
 withCompiled :: MonadRun m
     => m a  -- ^ Program to compile
     -> ((String -> IO String) -> IO b)
          -- ^ Function that has access to the compiled executable as a function
     -> IO b
-withCompiled = withCompiled' mempty {externalSilent = True}
+withCompiled = withCompiled' def def {externalSilent = True}
 
 -- | Like 'runCompiled'' but with explicit input/output connected to
 -- @stdin@/@stdout@. Note that the program will be compiled every time the
 -- function is applied to a string. In order to compile once and run many times,
 -- use the function 'withCompiled''.
 captureCompiled' :: MonadRun m
-    => ExternalCompilerOpts
+    => CompilerOpts
+    -> ExternalCompilerOpts
     -> m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureCompiled' opts = Imp.captureCompiled' opts . translate . liftRun
+captureCompiled' opts eopts =
+    Imp.captureCompiled' eopts . translate (Env mempty opts) . liftRun
 
 -- | Like 'runCompiled' but with explicit input/output connected to
 -- @stdin@/@stdout@. Note that the program will be compiled every time the
 -- function is applied to a string. In order to compile once and run many times,
 -- use the function 'withCompiled'.
+--
+-- By default, all assertions will be included in the generated code.
 captureCompiled :: MonadRun m
     => m a        -- ^ Program to run
     -> String     -- ^ Input to send to @stdin@
     -> IO String  -- ^ Result from @stdout@
-captureCompiled = captureCompiled' mempty
+captureCompiled = captureCompiled' def def
 
 -- | Compare the content written to @stdout@ from the reference program and from
 -- running the compiled C code
 compareCompiled' :: MonadRun m
-    => ExternalCompilerOpts
+    => CompilerOpts
+    -> ExternalCompilerOpts
     -> m a     -- ^ Program to run
     -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled' opts = Imp.compareCompiled' opts . translate . liftRun
+compareCompiled' opts eopts =
+    Imp.compareCompiled' eopts . translate (Env mempty opts) . liftRun
 
 -- | Compare the content written to @stdout@ from the reference program and from
 -- running the compiled C code
+--
+-- By default, all assertions will be included in the generated code.
 compareCompiled :: MonadRun m
     => m a     -- ^ Program to run
     -> IO a    -- ^ Reference program
     -> String  -- ^ Input to send to @stdin@
     -> IO ()
-compareCompiled = compareCompiled' mempty
+compareCompiled = compareCompiled' def def
 

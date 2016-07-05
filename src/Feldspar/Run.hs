@@ -5,13 +5,19 @@ module Feldspar.Run
     module Feldspar
   , module Feldspar.Run.Frontend
   , module Feldspar.Run.Marshal
+    -- * Compilation options
+  , Selection, select, allExcept, selectBy
+  , CompilerOpts (..)
+  , ExternalCompilerOpts (..)
+  , Default (..)
     -- * Back ends
   , runIO
+  , compile'
   , compile
+  , compileAll'
   , compileAll
+  , icompile'
   , icompile
-  , ExternalCompilerOpts (..)
-  , defaultExtCompilerOpts
   , compileAndCheck'
   , compileAndCheck
   , runCompiled'
@@ -26,8 +32,9 @@ module Feldspar.Run
 
 
 
-import Language.Embedded.Backend.C (ExternalCompilerOpts (..), defaultExtCompilerOpts)
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..), Default (..))
 
+import Data.Selection
 import Feldspar
 import Feldspar.Run.Representation
 import Feldspar.Run.Compile

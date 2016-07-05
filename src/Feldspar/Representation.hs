@@ -1,3 +1,4 @@
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -7,7 +8,9 @@ module Feldspar.Representation where
 
 
 
+import Control.Monad.Reader
 import Data.Complex
+import Data.Hash (hashInt)
 import Data.Int
 import Data.List (genericTake)
 import Data.Proxy
@@ -149,24 +152,45 @@ data IArr a = IArr
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
+-- | Assertion labels
+data AssertionLabel
+    = InternalAssertion
+        -- ^ Internal assertion to guarantee meaningful results
+    | LibraryAssertion String
+        -- ^ Assertion related to a specific library
+    | UserAssertion String
+        -- ^ Assertion in user code. The default label for user assertions is
+        --   @`UserAssertion` ""@
+  deriving (Eq, Show)
+
 data ExtraPrimitive sig
   where
     -- Integer division assuming `divBalanced x y * y == x` (i.e. no remainder).
     -- The purpose of the assumption is to use it in simplifications.
     DivBalanced :: (Integral a, PrimType' a) =>
         ExtraPrimitive (a :-> a :-> Full a)
+
     -- Guard a value by an assertion
-    GuardVal :: String -> ExtraPrimitive (Bool :-> a :-> Full a)
+    GuardVal ::
+        AssertionLabel -> String -> ExtraPrimitive (Bool :-> a :-> Full a)
 
 instance Eval ExtraPrimitive
   where
     evalSym DivBalanced = \a b -> if a `mod` b /= 0
       then error $ unwords ["divBalanced", show a, show b, "is not balanced"]
       else div a b
-    evalSym (GuardVal msg) = \cond a ->
+    evalSym (GuardVal _ msg) = \cond a ->
         if cond then a else error $ "Feldspar assertion failure: " ++ msg
 
 instance EvalEnv ExtraPrimitive env
+
+instance Equality ExtraPrimitive
+  where
+    equal DivBalanced    DivBalanced    = True
+    equal (GuardVal _ _) (GuardVal _ _) = True
+
+    hash DivBalanced    = hashInt 1
+    hash (GuardVal _ _) = hashInt 2
 
 instance StringTree ExtraPrimitive
 
@@ -302,10 +326,33 @@ instance Imp.EvalExp Data
 -- * Monadic computations
 --------------------------------------------------------------------------------
 
+data AssertCMD fs a
+  where
+    Assert
+        :: AssertionLabel
+        -> exp Bool
+        -> String
+        -> AssertCMD (Operational.Param3 prog exp pred) ()
+
+instance Operational.HFunctor AssertCMD
+  where
+    hfmap _ (Assert c cond msg) = Assert c cond msg
+
+instance Operational.HBifunctor AssertCMD
+  where
+    hbimap _ g (Assert c cond msg) = Assert c (g cond) msg
+
+instance Operational.InterpBi AssertCMD IO (Operational.Param1 PrimType')
+  where
+    interpBi (Assert _ cond msg) = do
+        cond' <- cond
+        unless cond' $ error $ "Assertion failed: " ++ msg
+
 type CompCMD
   =               Imp.RefCMD
   Operational.:+: Imp.ArrCMD
   Operational.:+: Imp.ControlCMD
+  Operational.:+: AssertCMD
 
 -- | Monad for computational effects: mutable data structures and control flow
 newtype Comp a = Comp
@@ -322,7 +369,6 @@ newtype Comp a = Comp
 
 deriveSymbol    ''ExtraPrimitive
 deriveRender id ''ExtraPrimitive
-deriveEquality  ''ExtraPrimitive
 
 deriveSymbol    ''ForLoop
 deriveRender id ''ForLoop

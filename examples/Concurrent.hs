@@ -87,10 +87,10 @@ vecChan = do
     closeChan c
 
 
-runStorableChanTest = mapM_ (runCompiled' opts) prog
+runStorableChanTest = mapM_ (runCompiled' def opts) prog
   where
     prog = [ primChan, pairChan, vecChan ]
-    opts = defaultExtCompilerOpts
+    opts = def
          { externalFlagsPost = ["-lpthread"]
          , externalFlagsPre  = [ "-I../imperative-edsl/include"
                                , "../imperative-edsl/csrc/chan.c" ] }
@@ -100,8 +100,8 @@ runStorableChanTest = mapM_ (runCompiled' opts) prog
 ----------------------------------------
 
 testAll = do
-    tag "waiting" >> compareCompiled' opts waiting (runIO waiting)  ""
-    tag "suicide" >> compareCompiled' opts suicide (runIO suicide)  ""
+    tag "waiting" >> compareCompiled' def opts waiting (runIO waiting) ""
+    tag "suicide" >> compareCompiled' def opts suicide (runIO suicide) ""
   where
     tag str = putStrLn $ "---------------- examples/Concurrent.hs/" Prelude.++ str Prelude.++ "\n"
-    opts = defaultExtCompilerOpts {externalFlagsPost = ["-lpthread"]}
+    opts = def {externalFlagsPost = ["-lpthread"]}

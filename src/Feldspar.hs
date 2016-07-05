@@ -6,7 +6,7 @@ module Feldspar
   , Data
   , Syntax
   , Comp
-    -- ** Values
+    -- ** Object-language types
   , module Data.Int
   , module Data.Word
   , Complex (..)
@@ -35,6 +35,7 @@ module Feldspar
   , RealFrac
   , Border (..)
   , IxRange
+  , AssertionLabel (..)
     -- * Storable types
   , module Feldspar.Storable
   ) where

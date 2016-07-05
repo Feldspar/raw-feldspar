@@ -11,7 +11,7 @@ import Feldspar.Run.Representation
 import Feldspar.Run.Compile
 import Feldspar.Run.Frontend
 
-import Language.Embedded.Backend.C (ExternalCompilerOpts (..))
+import Language.Embedded.Backend.C (ExternalCompilerOpts (..), Default (..))
 
 
 
@@ -167,13 +167,15 @@ connectStdIO f = (toFeld >>= f) >>= fromFeld
 -- | A version of 'marshalled' that takes 'ExternalCompilerOpts' as additional
 -- argument
 marshalled' :: (MarshalFeld a, MarshalFeld b)
-    => ExternalCompilerOpts
+    => CompilerOpts
+    -> ExternalCompilerOpts
     -> (a -> Run b)  -- ^ Function to compile
     -> ((HaskellRep a -> IO (HaskellRep b)) -> IO c)
          -- ^ Function that has access to the compiled executable as a function
     -> IO c
-marshalled' opts f body = withCompiled' opts (connectStdIO f) $ \g ->
-    body (fmap (parse toHaskell) . g . fromHaskell)
+marshalled' opts eopts f body =
+    withCompiled' opts eopts (connectStdIO f) $ \g ->
+      body (fmap (parse toHaskell) . g . fromHaskell)
 
 -- | Compile a function and make it available as an 'IO' function. Note that
 -- compilation only happens once, even if the function is used many times in the
@@ -195,5 +197,5 @@ marshalled :: (MarshalFeld a, MarshalFeld b)
     -> ((HaskellRep a -> IO (HaskellRep b)) -> IO c)
          -- ^ Function that has access to the compiled executable as a function
     -> IO c
-marshalled = marshalled' mempty
+marshalled = marshalled' def def
 
