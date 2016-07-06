@@ -4,6 +4,9 @@ module Feldspar.Run.Marshal where
 
 
 
+import qualified Prelude
+import Prelude hiding (length)
+
 import Data.Typeable
 
 import Feldspar
@@ -159,6 +162,47 @@ instance (MarshalFeld a, MarshalFeld b, MarshalFeld c, MarshalFeld d) => Marshal
     type HaskellRep (a,b,c,d) = (HaskellRep a, HaskellRep b, HaskellRep c, HaskellRep d)
     fromFeld (a,b,c,d) = fromFeld a >> printf " " >> fromFeld b >> printf " " >> fromFeld c >> printf " " >> fromFeld d
     toFeld = (,,,) <$> toFeld <*> toFeld <*> toFeld <*> toFeld
+
+instance (MarshalHaskell a, MarshalFeld (Data a), Type a) => MarshalFeld (Arr a)
+  where
+    type HaskellRep (Arr a) = [a]
+
+    fromFeld arr = do
+        len <- force $ length arr
+        fput stdout "" len " "
+        for (0,1,Excl len) $ \i -> do
+            a <- getArr i arr
+            fromFeld (a :: Data a)
+            printf " "
+
+    toFeld = do
+        len <- fget stdin
+        arr <- newArr len
+        for (0,1,Excl len) $ \i -> do
+            a <- toFeld
+            setArr i (a :: Data a) arr
+        return arr
+
+instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
+    MarshalFeld (IArr a)
+  where
+    type HaskellRep (IArr a) = [a]
+
+    fromFeld arr = do
+        len <- force $ length arr
+        fput stdout "" len " "
+        for (0,1,Excl len) $ \i -> do
+            fromFeld (arrIx arr i :: Data a)
+            printf " "
+
+    toFeld = do
+        len <- fget stdin
+        arr <- newArr len
+        for (0,1,Excl len) $ \i -> do
+            a <- toFeld
+            setArr i (a :: Data a) arr
+        iarr <- unsafeFreezeArr arr
+        return iarr
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@
 connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()

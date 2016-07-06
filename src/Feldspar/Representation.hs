@@ -135,14 +135,26 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
 -- | Mutable array
 data Arr a = Arr
     { arrOffset :: Data Index
+    , arrLength :: Data Length
     , unArr     :: Struct PrimType' (Imp.Arr Index) a
     }
+  -- `arrOffset` gives the offset into the internal arrays. The user should not
+  -- be able to access the offset or the internal arrays.
+  --
+  -- `arrLength` gives the maximum index+1 according to the view provided by
+  -- `arrIx`. Thus, the maximum index in the internal arrays is
+  -- `arrLength + arrOffset - 1`.
+  -- `arrLength` should not be exported directly to prevent the user from using
+  -- record syntax to change the length of an array. But an equivalent function
+  -- can be exported.
+
   -- An array of tuples is represented as a struct of smaller arrays. See
   -- comment to `Ref`.
 
 -- | Immutable array
 data IArr a = IArr
     { iarrOffset :: Data Index
+    , iarrLength :: Data Length
     , unIArr     :: Struct PrimType' (Imp.IArr Index) a
     }
 

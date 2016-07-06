@@ -123,22 +123,22 @@ sequenceVec = foldM (const id) ()
 -- * The former can be used directly (after flattening) in cases where a memory
 --   array is needed (e.g. when calling an external procedure). The latter first
 --   needs to be copied into a memory array.
-data Manifest a = Manifest (Data Length) (IArr (Internal a))
+newtype Manifest a = Manifest (IArr (Internal a))
 
 type DManifest a = Manifest (Data a)
 
 instance Syntax a => Indexed (Manifest a)
   where
     type IndexedElem (Manifest a) = a
-    Manifest _ arr ! i = sugar (arr ! i)
+    Manifest arr ! i = sugar (arr ! i)
 
 instance Finite (Manifest a)
   where
-    length (Manifest l _) = l
+    length (Manifest arr) = length arr
 
 instance Slicable (Manifest a)
   where
-    slice from n (Manifest _ arr) = Manifest n $ slice from n arr
+    slice from n (Manifest arr) = Manifest $ slice from n arr
 
 instance Syntax a => Forcible (Manifest a)
   where
@@ -160,20 +160,20 @@ instance Syntax a => Storable (Manifest a)
         return rep
     readStoreRep (lenRef,arr) = do
         len  <- getRef lenRef
-        iarr <- freezeArr arr len
-        return $ Manifest len iarr
+        iarr <- slice 0 len <$> freezeArr arr
+        return $ Manifest iarr
     unsafeFreezeStoreRep (lenRef,arr) = do
         len  <- unsafeFreezeRef lenRef
-        iarr <- unsafeFreezeArr arr
-        return $ Manifest len iarr
-    writeStoreRep (lenRef,dst) (Manifest len iarr) = do
-        setRef lenRef len
-        src <- unsafeThawArr iarr
-        copyArr dst src len
+        iarr <- slice 0 len <$> unsafeFreezeArr arr
+        return $ Manifest iarr
+    writeStoreRep (lenRef,dst) (Manifest arr) = do
+        setRef lenRef (length arr)
+        src <- unsafeThawArr arr
+        copyArr dst src
     copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do
         sLen <- unsafeFreezeRef sLenRef
         setRef dLenRef sLen
-        copyArr dst src sLen
+        copyArr dst (slice 0 sLen src)
 
 instance
     ( MarshalHaskell (Internal a)
@@ -183,10 +183,8 @@ instance
       MarshalFeld (Manifest a)
   where
     type HaskellRep (Manifest a) = [Internal a]
-    fromFeld (Manifest len arr) = fromFeld $ Fin len arr
-    toFeld = do
-        Fin len arr <- toFeld
-        return $ Manifest len arr
+    fromFeld (Manifest arr) = fromFeld arr
+    toFeld = Manifest <$> toFeld
 
 -- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
 -- `Syntax` constraint.
@@ -496,7 +494,7 @@ instance Syntax a => Forcible (Push a)
         arr <- newArr len
         dump $ \i a -> setArr i a arr
         iarr <- unsafeFreezeArr arr
-        return $ Manifest len iarr
+        return $ Manifest iarr
     fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
 
 instance
@@ -879,13 +877,13 @@ instance Materializable Run a => Materializable Run (Run a)
       where
         len = Prelude.product $ listExtent e
 
-instance DirectMaterializable (Fin (IArr a))
+instance DirectMaterializable (IArr a)
   where
-    maybeToFlatManifest = Just $ \(Fin len arr) -> Manifest len arr
+    maybeToFlatManifest = Just Manifest
 
-instance (Type a, MonadComp m) => Materializable m (Fin (IArr a))
+instance (Type a, MonadComp m) => Materializable m (IArr a)
   where
-    type InnerElem (Fin (IArr a)) = Data a
+    type InnerElem (IArr a) = Data a
     toFlatPush e = toPushE . toPull
 
 instance DirectMaterializable a => DirectMaterializable (Nest a)
@@ -988,9 +986,10 @@ materialize _ _ a
 materialize arr e a = do
     dump $ \i a -> setArr i (desugar a) arr
     iarr <- unsafeFreezeArr arr
-    return $ Manifest len iarr
+    return $ Manifest iarr
   where
-    PushE len dump = toFlatPush e a
+    PushE _len dump = toFlatPush e a
+  -- TODO Assert len = ...
 
 -- | Convert a nested structure to a corresponding nested 'Manifest' vector.
 -- Memorization can be used to get a structure that supports cheap indexing
@@ -1060,7 +1059,7 @@ instance Linearizable Run a => Linearizable Run (Run a)
   where
     linearPush = linearPush <=< lift
 
-instance (Type a, MonadComp m) => Linearizable m (Fin (IArr a))
+instance (Type a, MonadComp m) => Linearizable m (IArr a)
   where
     linearPush = linearPush . toPushSeq . toPull
 

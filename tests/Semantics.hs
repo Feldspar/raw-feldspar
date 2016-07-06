@@ -40,7 +40,7 @@ property_marshalFeld f a = QC.monadicIO $ do
 
 -- | Indexing in a 3-dimensional structure
 nestIndex
-    :: ( Fin (IArr Int32)
+    :: ( IArr Int32
        , (Data Length, Data Length, Data Length)
        , (Data Index,  Data Index,  Data Index)
        )
@@ -65,11 +65,11 @@ property_nestIndex f =
 
 -- | Indexing in a 3-dimensional structure
 nestIndexLength
-    :: ( Fin (IArr Int32)
+    :: ( IArr Int32
        , (Data Length, Data Length, Data Length)
        , (Data Index, Data Index)
        )
-    -> Run (Fin (IArr Int32))
+    -> Run (IArr Int32)
 nestIndexLength (arr,(l1,l2,l3),(i1,i2)) = return $ nestedArr ! i1 ! i2
   where
     nestedArr = multiNest (l1 :> l2 :> l3 :> ZE) arr
@@ -103,10 +103,10 @@ main =
     marshalled (return :: Pass (Data Double))           $ \f_Double ->
     marshalled (return :: Pass (Data (Complex Float)))  $ \f_CompFloat ->
     marshalled (return :: Pass (Data (Complex Double))) $ \f_CompDouble ->
-    marshalled (return :: Pass (Fin (Arr Double)))      $ \f_Arr ->
-    marshalled (return :: Pass (Fin (IArr Int32)))      $ \f_IArr ->
+    marshalled (return :: Pass (Arr Double))            $ \f_Arr ->
+    marshalled (return :: Pass (IArr Int32))            $ \f_IArr ->
     marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
-    marshalled (return :: Pass (Fin (IArr Double), (Data Int8, Fin (Arr (Complex Float))))) $ \f_Nested ->
+    marshalled (return :: Pass (IArr Double, (Data Int8, Arr (Complex Float)))) $ \f_Nested ->
 
     marshalled nestIndex       $ \nestIndex_c ->
     marshalled nestIndexLength $ \nestIndexLength_c ->

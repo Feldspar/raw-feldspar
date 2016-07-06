@@ -11,6 +11,7 @@ import Data.Bits (Bits, FiniteBits)
 import qualified Data.Bits as Bits
 import Data.Complex (Complex)
 import Data.Int
+import Data.List (genericLength)
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -459,6 +460,9 @@ class Finite a
     -- | The length of a finite structure
     length :: a -> Data Length
 
+instance Finite (Arr a)  where length = arrLength
+instance Finite (IArr a) where length = iarrLength
+
 -- | Linear structures that can be sliced
 class Slicable a
   where
@@ -476,11 +480,11 @@ instance Type a => Indexed (IArr a)
 
 instance Slicable (Arr a)
   where
-    slice from _ (Arr o arr) = Arr (o+from) arr
+    slice from len (Arr o _ arr) = Arr (o+from) len arr
 
 instance Slicable (IArr a)
   where
-    slice from _ (IArr o arr) = IArr (o+from) arr
+    slice from len (IArr o _ arr) = IArr (o+from) len arr
 
 
 
@@ -642,7 +646,7 @@ newNamedArr :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)
-newNamedArr base l = liftComp $ fmap (Arr 0) $
+newNamedArr base l = liftComp $ fmap (Arr 0 l) $
     mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
 
 -- | Create and initialize an array
@@ -661,8 +665,10 @@ initNamedArr :: (PrimType a, MonadComp m)
     => String  -- ^ Base name
     -> [a]     -- ^ Initial contents
     -> m (Arr a)
-initNamedArr base =
-    liftComp . fmap (Arr 0 . Single) . Comp . Imp.initNamedArr base
+initNamedArr base as =
+    liftComp $ fmap (Arr 0 len . Single) $ Comp $ Imp.initNamedArr base as
+  where
+    len = value $ genericLength as
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
@@ -684,31 +690,32 @@ setArr i a arr
   where
     rep = resugar a :: Struct PrimType' Data (Internal a)
 
--- | Copy the contents of an array to another array. The number of elements to
--- copy must not be greater than the number of allocated elements in either
--- array.
+-- | Copy the contents of an array to another array. The length of the
+-- destination array must not be less than that of the source array.
+--
+-- In order to copy only a part of an array, use 'slice' before calling
+-- 'copyArr'.
 copyArr :: (Type a, MonadComp m)
-    => Arr a        -- ^ Destination
-    -> Arr a        -- ^ Source
-    -> Data Length  -- ^ Number of elements
+    => Arr a  -- ^ Destination
+    -> Arr a  -- ^ Source
     -> m ()
-copyArr arr1 arr2 len = liftComp $ sequence_ $
+copyArr arr1 arr2 = liftComp $ sequence_ $
     zipListStruct
       (\a1 a2 ->
-          Comp $ Imp.copyArr (a1, arrOffset arr1) (a2, arrOffset arr2) len
+          Comp $ Imp.copyArr
+            (a1, arrOffset arr1)
+            (a2, arrOffset arr2)
+            (length arr2)
       )
       (unArr arr1)
       (unArr arr2)
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
-freezeArr :: (Type a, MonadComp m)
-    => Arr a
-    -> Data Length  -- ^ Length of new array
-    -> m (IArr a)
-freezeArr arr n = liftComp $ do
-    arr2 <- newArr n
-    copyArr arr2 arr n
+freezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
+freezeArr arr = liftComp $ do
+    arr2 <- newArr (length arr)
+    copyArr arr2 arr
     unsafeFreezeArr arr2
   -- This is better than calling `freezeArr` from imperative-edsl, since that
   -- one copies without offset.
@@ -719,20 +726,17 @@ freezeArr arr n = liftComp $ do
 unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
 unsafeFreezeArr arr
     = liftComp
-    $ fmap (IArr (arrOffset arr))
+    $ fmap (IArr (arrOffset arr) (length arr))
     $ mapStructA (Comp . Imp.unsafeFreezeArr)
     $ unArr arr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
-thawArr :: (Type a, MonadComp m)
-    => IArr a
-    -> Data Length  -- ^ Number of elements to copy
-    -> m (Arr a)
-thawArr arr n = liftComp $ do
+thawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
+thawArr arr = liftComp $ do
     arr2 <- unsafeThawArr arr
-    arr3 <- newArr n
-    copyArr arr3 arr2 n
+    arr3 <- newArr (length arr)
+    copyArr arr3 arr2
     return arr3
 
 -- | Thaw an immutable array to a mutable one without making a copy. This is
@@ -741,13 +745,15 @@ thawArr arr n = liftComp $ do
 unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
 unsafeThawArr arr
     = liftComp
-    $ fmap (Arr (iarrOffset arr))
+    $ fmap (Arr (iarrOffset arr) (length arr))
     $ mapStructA (Comp . Imp.unsafeThawArr)
     $ unIArr arr
 
 -- | Create and initialize an immutable array
 initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
-initIArr = liftComp . fmap (IArr 0 . Single) . Comp . Imp.initIArr
+initIArr as = liftComp $ fmap (IArr 0 len . Single) $ Comp $ Imp.initIArr as
+  where
+    len = value $ genericLength as
 
 
 
