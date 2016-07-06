@@ -208,9 +208,18 @@ mod :: (Integral a, PrimType a) => Data a -> Data a -> Data a
 mod = sugarSymFeld Mod
 
 -- | Integer division assuming `unsafeBalancedDiv x y * y == x` (i.e. no
--- remainder). Violating the assumption may lead to incorrect generated code.
+-- remainder)
+--
+-- The advantage of using 'unsafeBalancedDiv' over 'quot' or 'div' is that the
+-- above assumption can be used for simplifying the expression.
 unsafeBalancedDiv :: (Integral a, PrimType a) => Data a -> Data a -> Data a
-unsafeBalancedDiv = sugarSymFeld DivBalanced
+unsafeBalancedDiv a b = guardValLabel
+    InternalAssertion
+    (rem a b == 0)
+    "unsafeBalancedDiv: division not balanced"
+    (sugarSymFeld DivBalanced a b)
+  -- Note: We can't check that `result * b == a`, because `result * b` gets
+  -- simplified to `a`.
 
 -- | Construct a complex number
 complex :: (Num a, PrimType a, PrimType (Complex a))
@@ -401,9 +410,11 @@ oneBits n = complement (allOnes .<<. n)
 lsbs :: (Bits a, Num a, PrimType a) => Data Int32 -> Data a -> Data a
 lsbs k i = i .&. oneBits k
 
--- | Integer logarithm in base 2
+-- | Integer logarithm in base 2. Returns \(\lfloor log_2(x) \rfloor\).
+-- Assumes \(x>0\).
 ilog2 :: (FiniteBits a, Integral a, PrimType a) => Data a -> Data a
-ilog2 a = snd $ P.foldr (\ffi vr -> share vr (step ffi)) (a,0) ffis
+ilog2 a = guardValLabel InternalAssertion (a >= 1) "ilog2: argument < 1" $
+    snd $ P.foldr (\ffi vr -> share vr (step ffi)) (a,0) ffis
   where
     step (ff,i) (v,r) =
         share (b2i (v > fromInteger ff) .<<. value i) $ \shift ->
