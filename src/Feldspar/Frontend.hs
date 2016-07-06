@@ -66,10 +66,12 @@ cond = sugarSymFeld Cond
 
 -- | Condition operator; use as follows:
 --
--- > cond1 ? a $
--- > cond2 ? b $
--- > cond3 ? c $
--- >         default
+-- @
+-- cond1 `?` a $
+-- cond2 `?` b $
+-- cond3 `?` c $
+--         default
+-- @
 (?) :: Syntax a
     => Data Bool  -- ^ Condition
     -> a          -- ^ True branch
@@ -79,11 +81,19 @@ cond = sugarSymFeld Cond
 
 infixl 1 ?
 
-switch :: (Syntax a, Syntax b, PrimType (Internal a)) =>
-    b -> [(Internal a, b)] -> a -> b
+-- | Multi-way conditional expression
+--
+-- The first association @(a,b)@ in the list of cases for which @a@ is equal to
+-- the scrutinee is selected, and the associated @b@ is returned as the result.
+-- If no case matches, the default value is returned.
+switch :: (Syntax a, Syntax b, PrimType (Internal a))
+    => b        -- ^ Default result
+    -> [(a,b)]  -- ^ Cases (match, result)
+    -> a        -- ^ Scrutinee
+    -> b        -- ^ Result
 switch def [] _ = def
 switch def cs s = P.foldr
-    (\(c,a) b -> value c == desugar s ? a $ b)
+    (\(c,a) b -> desugar c == desugar s ? a $ b)
     def
     cs
 
