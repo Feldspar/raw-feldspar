@@ -188,6 +188,7 @@ instance Equality ExtraPrimitive
   where
     equal DivBalanced    DivBalanced    = True
     equal (GuardVal _ _) (GuardVal _ _) = True
+    equal _ _ = False
 
     hash DivBalanced    = hashInt 1
     hash (GuardVal _ _) = hashInt 2
