@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/emilaxelsson/raw-feldspar.png)](https://travis-ci.org/emilaxelsson/raw-feldspar)
+[![Build Status](https://travis-ci.org/emilaxelsson/raw-feldspar.png?branch=master)](https://travis-ci.org/emilaxelsson/raw-feldspar)
 
 # Resource-Aware Feldspar
 
