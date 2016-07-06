@@ -440,8 +440,11 @@ ilog2 a = guardValLabel InternalAssertion (a >= 1) "ilog2: argument < 1" $
 arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
-    ix :: PrimType' b => Imp.IArr Index b -> Data b
-    ix arr' = sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr)
+    ix :: forall b . PrimType' b => Imp.IArr Index b -> Data b
+    ix arr' = sugarSymFeldPrim
+      (GuardVal InternalAssertion "arrIx: index out of bounds")
+      (i < iarrLength arr)
+      (sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr) :: Data b)
 
 class Indexed a
   where
@@ -480,11 +483,17 @@ instance Type a => Indexed (IArr a)
 
 instance Slicable (Arr a)
   where
-    slice from len (Arr o _ arr) = Arr (o+from) len arr
+    slice from len (Arr o l arr) = Arr o' l' arr
+      where
+        o' = guardValLabel InternalAssertion (from<=l) "invalid Arr slice" (o+from)
+        l' = guardValLabel InternalAssertion (from+len<=l) "invalid Arr slice" len
 
 instance Slicable (IArr a)
   where
-    slice from len (IArr o _ arr) = IArr (o+from) len arr
+    slice from len (IArr o l arr) = IArr o' l' arr
+      where
+        o' = guardValLabel InternalAssertion (from<=l) "invalid IArr slice" (o+from)
+        l' = guardValLabel InternalAssertion (from+len<=l) "invalid IArr slice" len
 
 
 
@@ -672,21 +681,29 @@ initNamedArr base as =
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
-getArr i arr
-    = liftComp
-    $ fmap resugar
-    $ mapStructA (Comp . Imp.getArr (i + arrOffset arr))
-    $ unArr arr
+getArr i arr = do
+    assertLabel
+      InternalAssertion
+      (i < arrLength arr)
+      "getArr: index out of bounds"
+    liftComp
+      $ fmap resugar
+      $ mapStructA (Comp . Imp.getArr (i + arrOffset arr))
+      $ unArr arr
 
 -- | Set an element of an array
 setArr :: forall m a . (Syntax a, MonadComp m) =>
     Data Index -> a -> Arr (Internal a) -> m ()
-setArr i a arr
-    = liftComp
-    $ sequence_
-    $ zipListStruct
-        (\a' arr' -> Comp $ Imp.setArr (i + arrOffset arr) a' arr') rep
-    $ unArr arr
+setArr i a arr = do
+    assertLabel
+      InternalAssertion
+      (i < arrLength arr)
+      "setArr: index out of bounds"
+    liftComp
+      $ sequence_
+      $ zipListStruct
+          (\a' arr' -> Comp $ Imp.setArr (i + arrOffset arr) a' arr') rep
+      $ unArr arr
   where
     rep = resugar a :: Struct PrimType' Data (Internal a)
 
@@ -699,16 +716,21 @@ copyArr :: (Type a, MonadComp m)
     => Arr a  -- ^ Destination
     -> Arr a  -- ^ Source
     -> m ()
-copyArr arr1 arr2 = liftComp $ sequence_ $
-    zipListStruct
-      (\a1 a2 ->
-          Comp $ Imp.copyArr
-            (a1, arrOffset arr1)
-            (a2, arrOffset arr2)
-            (length arr2)
-      )
-      (unArr arr1)
-      (unArr arr2)
+copyArr arr1 arr2 = do
+    assertLabel
+      InternalAssertion
+      (length arr1 >= length arr2)
+      "copyArr: destination too small"
+    liftComp $ sequence_ $
+      zipListStruct
+        (\a1 a2 ->
+            Comp $ Imp.copyArr
+              (a1, arrOffset arr1)
+              (a2, arrOffset arr2)
+              (length arr2)
+        )
+        (unArr arr1)
+        (unArr arr2)
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
