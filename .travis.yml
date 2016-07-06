@@ -38,7 +38,7 @@ install:
   - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" --dependencies
 
 script:
-  - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" -v2 test:NumSimpl
+  - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" -v2
   - TESTS=( $(awk 'tolower($0) ~ /^test-suite / { print $2 }' *.cabal) );
     RC=true; for T in ${TESTS[@]}; do echo "== $T ==";
     if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
