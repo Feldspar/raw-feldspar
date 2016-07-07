@@ -132,7 +132,7 @@ type Dim4 = Dim Dim3
 -- For example, this value
 --
 -- @
--- 10 :> 20 :> Z :: Extent (Dim (Dim ()))
+-- 10 `:>` 20 `:>` `Z` :: `Extent` (`Dim` (`Dim` ()))
 -- @
 --
 -- describes a two-dimensional structure with 10 rows and 20 columns.
@@ -162,5 +162,5 @@ multiNest
     -> a               -- ^ One-dimensional structure
     -> MultiNest (Dim d) a
 multiNest (l :> ZE)       a = a  -- TODO Assert l == length a
-multiNest (l1 :> l2 :> e) a = Nest l1 l2 $ multiNest (l2 :> e) a
+multiNest (l1 :> l2 :> e) a = Nest l1 l2 $ multiNest (l1*l2 :> e) a
 
