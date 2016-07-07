@@ -6,6 +6,7 @@ module Feldspar.Optimize where
 
 
 
+import Control.Monad.Reader
 import Control.Monad.Writer hiding (Any (..))
 import Data.Maybe
 import qualified Data.Monoid as Monoid
@@ -19,6 +20,7 @@ import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.Functional.Sharing
 
+import Data.Selection
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
 import Feldspar.Representation
@@ -269,7 +271,9 @@ constArgs _               = False
 
 
 
-type Opt = Writer (Set Name, Monoid.Any)
+type OptEnv = Selection AssertionLabel
+
+type Opt = ReaderT OptEnv (Writer (Set Name, Monoid.Any))
 
 tellVar :: Name -> Opt ()
 tellVar v = tell (Set.singleton v, mempty)
@@ -281,46 +285,50 @@ tellUnsafe :: Opt ()
 tellUnsafe = tell (mempty, Monoid.Any True)
 
 simplifyM :: ASTF FeldDomain a -> Opt (ASTF FeldDomain a)
-simplifyM a@(VarP _ v)    = tellVar v >> return a
-simplifyM (LamP t v body) = deleteVar v $ fmap (LamP t v) $ simplifyM body
-simplifyM res@(SymP t I2N :$ AddP _ a b) | isExact res = AddP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
-simplifyM res@(SymP t I2N :$ SubP _ a b) | isExact res = SubP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
-simplifyM res@(SymP t I2N :$ MulP _ a b) | isExact res = MulP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
-simplifyM res@(SymP t I2N :$ NegP _ a)   | isExact res = NegP t <$> simplifyM (SymP t I2N :$ a)
-  -- Pushing down `I2N` is not good for in-exact types, since that puts more of
-  -- the expression under the in-exact type. This means that fewer
-  -- simplifications may apply. Also, operations on in-exact types are typically
-  -- more expensive.
-  --
-  -- Here it's important to guard on whether the *result* is an exact type. (For
-  -- other numeric operations it doesn't matter which sub-expression we check
-  -- because they all have the same type.)
-simplifyM a = simpleMatch
-    ( \s@(_ :&: t) as -> do
-        (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
-        case () of
-            _ | SymP _ (FreeVar _) <- a' -> tellUnsafe >> return a'
-            _ | SymP _ (ArrIx _) :$ _ <- a' -> tellUnsafe >> return a'
-                  -- Array indexing is actually not unsafe. It's more like an
-                  -- expression with a free variable. But setting the unsafe
-                  -- flag does the trick.
+simplifyM a = do
+    cs <- ask
+    case a of
+      a@(VarP _ v)    -> tellVar v >> return a
+      (LamP t v body) -> deleteVar v $ fmap (LamP t v) $ simplifyM body
+      res@(SymP t I2N :$ AddP _ a b) | isExact res -> AddP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+      res@(SymP t I2N :$ SubP _ a b) | isExact res -> SubP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+      res@(SymP t I2N :$ MulP _ a b) | isExact res -> MulP t <$> simplifyM (SymP t I2N :$ a) <*> simplifyM (SymP t I2N :$ b)
+      res@(SymP t I2N :$ NegP _ a)   | isExact res -> NegP t <$> simplifyM (SymP t I2N :$ a)
+        -- Pushing down `I2N` is not good for in-exact types, since that puts
+        -- more of the expression under the in-exact type. This means that fewer
+        -- simplifications may apply. Also, operations on in-exact types are
+        -- typically more expensive.
+        --
+        -- Here it's important to guard on whether the *result* is an exact
+        -- type. (For other numeric operations it doesn't matter which
+        -- sub-expression we check because they all have the same type.)
+      (SymP _ (GuardVal c _) :$ _ :$ a) | not (cs `includes` c) -> simplifyM a
+      _ -> simpleMatch
+        ( \s@(_ :&: t) as -> do
+            (a',(vs, Monoid.Any unsafe)) <- listen (simplifyUp . appArgs (Sym s) <$> mapArgsM simplifyM as)
+            case () of
+                _ | SymP _ (FreeVar _) <- a' -> tellUnsafe >> return a'
+                _ | SymP _ (ArrIx _) :$ _ <- a' -> tellUnsafe >> return a'
+                      -- Array indexing is actually not unsafe. It's more like
+                      -- an expression with a free variable. But setting the
+                      -- unsafe flag does the trick.
 
-            _ | SymP _ Pi <- a' -> return a'
-            _ | MulP _ _ (SymP _ Pi) <- a' -> return a'
-                  -- Don't fold expressions like `2*pi`
+                _ | SymP _ Pi <- a' -> return a'
+                _ | MulP _ _ (SymP _ Pi) <- a' -> return a'
+                      -- Don't fold expressions like `2*pi`
 
-            _ | Just (_ :: Unsafe sig) <- prj s -> tellUnsafe >> return a'
-            _ | null vs && not unsafe
-              , ValT t'@(Single _) <- t
-                -> return $ LitP t' $ evalClosed a'
-                  -- Constant fold if expression is closed and does not
-                  -- contain unsafe operations.
-            _ -> return a'
-    )
-    a
+                _ | Just (_ :: Unsafe sig) <- prj s -> tellUnsafe >> return a'
+                _ | null vs && not unsafe
+                  , ValT t'@(Single _) <- t
+                    -> return $ LitP t' $ evalClosed a'
+                      -- Constant fold if expression is closed and does not
+                      -- contain unsafe operations.
+                _ -> return a'
+        )
+        a
 
-simplify :: ASTF FeldDomain a -> ASTF FeldDomain a
-simplify = fst . runWriter . simplifyM
+simplify :: OptEnv -> ASTF FeldDomain a -> ASTF FeldDomain a
+simplify env = fst . runWriter . flip runReaderT env . simplifyM
 
 -- | Interface for controlling code motion
 cmInterface :: CodeMotionInterface FeldDomain
@@ -347,6 +355,6 @@ cmInterface = defaultInterfaceDecor
     sharable _ _ = True
 
 -- | Optimize a Feldspar expression
-optimize :: ASTF FeldDomain a -> ASTF FeldDomain a
-optimize = codeMotion cmInterface . simplify
+optimize :: OptEnv -> ASTF FeldDomain a -> ASTF FeldDomain a
+optimize env = codeMotion cmInterface . simplify env
 

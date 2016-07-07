@@ -31,6 +31,7 @@ import qualified Language.Embedded.Imperative.CMD as Imp
 import qualified Language.Embedded.Backend.C.Expression as Imp
 
 import Data.Inhabited
+import Data.Selection
 import Data.TypedStruct
 import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.C ()
@@ -174,6 +175,12 @@ data AssertionLabel
         -- ^ Assertion in user code. The default label for user assertions is
         --   @`UserAssertion` ""@
   deriving (Eq, Show)
+
+-- | A selection that includes all labels defined as 'UserAssertion'
+onlyUserAssertions :: Selection AssertionLabel
+onlyUserAssertions = selectBy $ \l -> case l of
+    UserAssertion _ -> True
+    _ -> False
 
 data ExtraPrimitive sig
   where

@@ -64,10 +64,14 @@ import Feldspar.Storable
 
 
 -- | Show the syntax tree using Unicode art
+--
+-- Only user assertions will be included.
 showAST :: (Syntactic a, Domain a ~ FeldDomain) => a -> String
-showAST = Syntactic.showAST . optimize . Syntactic.desugar
+showAST = Syntactic.showAST . optimize onlyUserAssertions . Syntactic.desugar
 
 -- | Draw the syntax tree on the terminal using Unicode art
+--
+-- Only user assertions will be included.
 drawAST :: (Syntactic a, Domain a ~ FeldDomain) => a -> IO ()
-drawAST = Syntactic.drawAST . optimize . Syntactic.desugar
+drawAST = Syntactic.drawAST . optimize onlyUserAssertions . Syntactic.desugar
 

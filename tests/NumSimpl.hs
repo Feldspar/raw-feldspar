@@ -36,7 +36,7 @@ evalNumExp env (MUL a b) = evalNumExp env a * evalNumExp env b
 evalNumExp env (NEG a)   = negate (evalNumExp env a)
 
 num2AST :: (Num a, PrimType a) => NumExp -> ASTF FeldDomain a
-num2AST = simplify . unData .
+num2AST = simplify mempty . unData .
     evalNumExp (\v -> sugarSymFeld $ VarT $ fromIntegral v)
 
 genNumExp :: Gen NumExp
@@ -87,20 +87,20 @@ prop_numExp_inexact (a,b,c,d,e) numExp =
     env2   = zip ([0..] :: [Name]) $ map toDyn [a,b,c,d,e]
 
 prop_simplify_idempotent_int :: NumExp -> Property
-prop_simplify_idempotent_int exp = counterexample (unlines [show e, show $ simplify e])
-                                 $ e == simplify e
+prop_simplify_idempotent_int exp = counterexample (unlines [show e, show $ simplify mempty e])
+                                 $ e == simplify mempty e
   where
     e :: ASTF FeldDomain Int32
     e = num2AST exp
 
 prop_simplify_idempotent_word :: NumExp -> Bool
-prop_simplify_idempotent_word exp = e == simplify e
+prop_simplify_idempotent_word exp = e == simplify mempty e
   where
     e :: ASTF FeldDomain Word32
     e = num2AST exp
 
 prop_simplify_idempotent_double :: NumExp -> Bool
-prop_simplify_idempotent_double exp = e == simplify e
+prop_simplify_idempotent_double exp = e == simplify mempty e
   where
     e :: ASTF FeldDomain Double
     e = num2AST exp

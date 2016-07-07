@@ -89,11 +89,6 @@ instance Default CompilerOpts
       { compilerAssertions = universal
       }
 
-onlyUserAssertions :: Selection AssertionLabel
-onlyUserAssertions = selectBy $ \l -> case l of
-    UserAssertion _ -> True
-    _ -> False
-
 
 
 --------------------------------------------------------------------------------
@@ -150,7 +145,9 @@ type ProgC = Program TargetCMD (Param2 Prim PrimType')
 
 -- | Translate an expression
 translateExp :: forall m a . Monad m => Data a -> TargetT m (VExp a)
-translateExp = goAST . optimize . unData
+translateExp a = do
+    cs <- asks (compilerAssertions . envOptions)
+    goAST $ optimize cs $ unData a
   where
     -- Assumes that `b` is not a function type
     goAST :: ASTF FeldDomain b -> TargetT m (VExp b)
