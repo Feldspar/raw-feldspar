@@ -246,11 +246,20 @@ instance Syntax a => Storable (Pull a)
     type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
     type StoreSize (Pull a) = Data Length
     newStoreRep _        = newStoreRep (Proxy :: Proxy (Manifest a))
-    initStoreRep         = toValue >=> initStoreRep
     readStoreRep         = fmap fromValue . readStoreRep
     unsafeFreezeStoreRep = fmap fromValue . unsafeFreezeStoreRep
-    writeStoreRep s      = toValue >=> writeStoreRep s
     copyStoreRep _       = copyStoreRep (Proxy :: Proxy (Manifest a))
+
+    writeStoreRep (r,arr) v = do
+        setRef r $ length v
+        memorizeStore arr (length v :> ZE) $ fmap desugar v
+
+    initStoreRep v = do
+        r   <- initRef $ length v
+        arr <- newArr $ length v
+        let s = (r,arr)
+        writeStoreRep s v
+        return s
 
 instance
     ( MarshalHaskell (Internal a)

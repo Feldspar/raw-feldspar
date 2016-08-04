@@ -79,7 +79,7 @@ map_inplace :: Run ()
 map_inplace = do
     svec <- initStore (0...19)
     inplace svec $ fmap (*33)
-    vec <- readStore svec
+    vec <- unsafeFreezeStore svec
     printf "result: %d\n" $ sum vec
 
 
