@@ -443,7 +443,7 @@ arrIx arr i = resugar $ mapStruct ix $ unIArr arr
     ix :: forall b . PrimType' b => Imp.IArr Index b -> Data b
     ix arr' = sugarSymFeldPrim
       (GuardVal InternalAssertion "arrIx: index out of bounds")
-      (i < iarrLength arr)
+      (i < length arr)
       (sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr) :: Data b)
 
 class Indexed a
@@ -684,7 +684,7 @@ getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
 getArr i arr = do
     assertLabel
       InternalAssertion
-      (i < arrLength arr)
+      (i < length arr)
       "getArr: index out of bounds"
     liftComp
       $ fmap resugar
@@ -697,7 +697,7 @@ setArr :: forall m a . (Syntax a, MonadComp m) =>
 setArr i a arr = do
     assertLabel
       InternalAssertion
-      (i < arrLength arr)
+      (i < length arr)
       "setArr: index out of bounds"
     liftComp
       $ sequence_

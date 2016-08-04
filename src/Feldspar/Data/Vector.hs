@@ -99,7 +99,7 @@ sequenceVec = foldM (const id) ()
 -- * Manifest vectors
 --------------------------------------------------------------------------------
 
--- | A non-nestable vector with a concrete representation in memory
+-- | A vector with a concrete representation in memory
 --
 -- A multi-dimensional manifest vector can be obtained using 'multiNest'; e.g:
 --
@@ -118,7 +118,8 @@ sequenceVec = foldM (const id) ()
 -- * The former can be converted to the latter (using combinations of `toPull`
 --   and `fmap`)
 --
--- * The former can be flattened cheaply without using division and modulus (using 'materialize')
+-- * The former can be flattened cheaply without using division and modulus
+--   (using 'materialize')
 --
 -- * The former can be used directly (after flattening) in cases where a memory
 --   array is needed (e.g. when calling an external procedure). The latter first
@@ -252,7 +253,7 @@ instance Syntax a => Storable (Pull a)
 
     writeStoreRep (r,arr) v = do
         setRef r $ length v
-        memorizeStore arr (length v :> ZE) $ fmap desugar v
+        memorizeStore arr Outer $ fmap desugar v
 
     initStoreRep v = do
         r   <- initRef $ length v
@@ -822,6 +823,25 @@ type family Dimensions a
     Dimensions (PushSeqE m a) = Dim (Dimensions a)
     Dimensions a              = ()
 
+-- | The inner element type of a nested structure
+type family InnerElem a
+  where
+    InnerElem (Data a)       = Data a
+    InnerElem ()             = ()
+    InnerElem (a,b)          = (a,b)
+    InnerElem (a,b,c)        = (a,b,c)
+    InnerElem (a,b,c,d)      = (a,b,c,d)
+    InnerElem (Comp a)       = InnerElem a
+    InnerElem (Run a)        = InnerElem a
+    InnerElem (IArr a)       = Data a
+    InnerElem (Nest a)       = InnerElem a
+    InnerElem (Manifest a)   = a
+    InnerElem (Pull a)       = InnerElem a
+    InnerElem (Push a)       = InnerElem a
+    InnerElem (PushE m a)    = InnerElem a
+    InnerElem (PushSeq a)    = InnerElem a
+    InnerElem (PushSeqE m a) = InnerElem a
+
 class DirectMaterializable a
   where
     -- | Convert a structure directly to a flat 'Manifest' without copying. This
@@ -840,17 +860,18 @@ class
     ) =>
       Materializable m a
   where
-    -- | The inner element type of a nested structure
-    type InnerElem a
-
     -- | Convert a nested structure to a flat 'PushE' vector
     toFlatPush
-        :: Extent (Dimensions a)  -- ^ Extent of the structure
-        -> a                      -- ^ Structure to convert
-        -> PushE m (InnerElem a)
-    default toFlatPush :: Extent () -> a -> PushE m a
-    toFlatPush ZE = pure
-
+        :: InnerExtent' (Dimensions a)  -- ^ Extent of the structure
+        -> a                            -- ^ Structure to convert
+        -> m (PushE m (InnerElem a))
+      -- The reason for returning in the monad is to enable the `Materializable`
+      -- instances for `Comp` and `Run`. If the function did not return in the
+      -- monad, one would have to produce a `PushE m a` from a `m (PushE m a)`.
+      -- This is only possible if the total length is known (so knowing the
+      -- inner extent doesn't help).
+    default toFlatPush :: InnerExtent' () -> a -> m (PushE m a)
+    toFlatPush ZE = return . pure
 
 instance DirectMaterializable (Data a)
 instance DirectMaterializable ()
@@ -858,33 +879,23 @@ instance DirectMaterializable (a,b)
 instance DirectMaterializable (a,b,c)
 instance DirectMaterializable (a,b,c,d)
 
-instance (Type a, MonadComp m)           => Materializable m (Data a)  where type InnerElem (Data a)  = Data a
-instance MonadComp m                     => Materializable m ()        where type InnerElem ()        = ()
-instance (Syntax (a,b), MonadComp m)     => Materializable m (a,b)     where type InnerElem (a,b)     = (a,b)
-instance (Syntax (a,b,c), MonadComp m)   => Materializable m (a,b,c)   where type InnerElem (a,b,c)   = (a,b,c)
-instance (Syntax (a,b,c,d), MonadComp m) => Materializable m (a,b,c,d) where type InnerElem (a,b,c,d) = (a,b,c,d)
+instance (Type a, MonadComp m)           => Materializable m (Data a)
+instance MonadComp m                     => Materializable m ()
+instance (Syntax (a,b), MonadComp m)     => Materializable m (a,b)
+instance (Syntax (a,b,c), MonadComp m)   => Materializable m (a,b,c)
+instance (Syntax (a,b,c,d), MonadComp m) => Materializable m (a,b,c,d)
 
 instance DirectMaterializable (Comp a)
 
 instance Materializable m a => Materializable m (Comp a)
   where
-    type InnerElem (Comp a) = InnerElem a
-    toFlatPush e m = PushE len $ \write -> do
-        a <- liftComp m
-        dumpPushE (toFlatPush e a) write
-      where
-        len = Prelude.product $ listExtent e
+    toFlatPush e m = liftComp m >>= toFlatPush e
 
 instance DirectMaterializable (Run a)
 
 instance Materializable Run a => Materializable Run (Run a)
   where
-    type InnerElem (Run a) = InnerElem a
-    toFlatPush e m = PushE len $ \write -> do
-        a <- m
-        dumpPushE (toFlatPush e a) write
-      where
-        len = Prelude.product $ listExtent e
+    toFlatPush e m = m >>= toFlatPush e
 
 instance DirectMaterializable (IArr a)
   where
@@ -892,8 +903,7 @@ instance DirectMaterializable (IArr a)
 
 instance (Type a, MonadComp m) => Materializable m (IArr a)
   where
-    type InnerElem (IArr a) = Data a
-    toFlatPush e = toPushE . toPull
+    toFlatPush e = return . toPushE . toPull
 
 instance DirectMaterializable a => DirectMaterializable (Nest a)
   where
@@ -903,7 +913,6 @@ instance DirectMaterializable a => DirectMaterializable (Nest a)
 
 instance (Materializable m a, Slicable a) => Materializable m (Nest a)
   where
-    type InnerElem (Nest a) = InnerElem a
     toFlatPush e = toFlatPush e . pullyToPush
 
 instance DirectMaterializable (Manifest a)
@@ -912,57 +921,31 @@ instance DirectMaterializable (Manifest a)
 
 instance (Syntax a, MonadComp m) => Materializable m (Manifest a)
   where
-    type InnerElem (Manifest a) = a
-    toFlatPush e = toPushE . toPull
+    toFlatPush e = return . toPushE . toPull
 
 instance DirectMaterializable (Pull a)
 
 instance Materializable m a => Materializable m (Pull a)
   where
-    type InnerElem (Pull a) = InnerElem a
     toFlatPush e = toFlatPush e . toPush
 
 instance DirectMaterializable (Push a)
 
 instance Materializable m a => Materializable m (Push a)
   where
-    type InnerElem (Push a) = InnerElem a
     toFlatPush e = toFlatPush e . (id :: PushE m a -> PushE m a) . toPushE
 
 instance DirectMaterializable (PushE m a)
 
 instance Materializable m a => Materializable m (PushE m a)
   where
-    type InnerElem (PushE m a) = InnerElem a
-    toFlatPush (l :> ls) = concatPushE innerLen . fmap (toFlatPush ls)
-      where
-        innerLen = Prelude.product $ listExtent ls
-      -- TODO Assert l == length of argument vector
-
-instance DirectMaterializable (PushSeq a)
-
-instance Materializable m a => Materializable m (PushSeq a)
-  where
-    type InnerElem (PushSeq a) = InnerElem a
     toFlatPush e
-        = toFlatPush e
-        . (id :: PushSeqE m a -> PushSeqE m a)
-        . toPushSeqE
-
-instance DirectMaterializable (PushSeqE m a)
-
-instance Materializable m a => Materializable m (PushSeqE m a)
-  where
-    type InnerElem (PushSeqE m a) = InnerElem a
-    toFlatPush (l :> ls) (PushSeqE dump) = PushE l $ \write -> do
-        r <- initRef (0 :: Data Index)
-        dump $ \a -> do
-          i <- unsafeFreezeRef r
-          dumpPushE (toFlatPush ls a) $ \j b ->
-              write (i*innerLen + j) b
-          setRef r (i+1)
+        = return
+        . concatPushE innerLen
+        . joinElemPush
+        . fmap (toFlatPush $ tailExtent' e)
       where
-        innerLen = Prelude.product $ listExtent ls
+        innerLen = Prelude.product $ listExtent' e
 
 -- | Convert a nested structure to a flat 'Manifest' vector. The provided
 -- storage may or may not be used to hold the result.
@@ -986,18 +969,17 @@ instance Materializable m a => Materializable m (PushSeqE m a)
 -- structure.
 materialize :: forall a m . Materializable m a
     => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
-    -> Extent (Dimensions a)         -- ^ Extent of the structure
+    -> InnerExtent (Dimensions a)    -- ^ Extent of the structure
     -> a                             -- ^ Structure to materialize
     -> m (Manifest (InnerElem a))    -- ^ Flat result
 materialize _ _ a
     | Just f <- maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
     = return (f a)
 materialize arr e a = do
+    PushE _len dump <- toFlatPush (convInnerExtent e) a
     dump $ \i a -> setArr i (desugar a) arr
     iarr <- unsafeFreezeArr arr
     return $ Manifest iarr
-  where
-    PushE _len dump = toFlatPush e a
   -- TODO Assert len = ...
 
 -- | Convert a nested structure to a corresponding nested 'Manifest' vector.
@@ -1024,7 +1006,7 @@ materialize arr e a = do
 -- structure.
 memorize :: forall a d m . (Materializable m a, Dimensions a ~ Dim d)
     => Arr (Internal (InnerElem a))
-    -> Extent (Dimensions a)
+    -> InnerExtent (Dimensions a)
     -> a
     -> m (MultiNest (Dimensions a) (Manifest (InnerElem a)))
 memorize arr e = fmap (multiNest e) . materialize arr e
@@ -1033,11 +1015,13 @@ memorize arr e = fmap (multiNest e) . materialize arr e
 -- array. ('memorize' is not guaranteed to store the structure.)
 memorizeStore :: forall a m . Materializable m a
     => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
-    -> Extent (Dimensions a)         -- ^ Extent of the structure
+    -> InnerExtent (Dimensions a)    -- ^ Extent of the structure
     -> a                             -- ^ Structure to materialize
     -> m ()
-memorizeStore arr e a = dumpPushE (toFlatPush e a) $ \i a ->
-    setArr i (desugar a) arr
+memorizeStore arr e a = do
+    v <- toFlatPush (convInnerExtent e) a
+    dumpPushE v $ \i a ->
+      setArr i (desugar a) arr
 
 
 

@@ -1,12 +1,10 @@
-{-# LANGUAGE UndecidableInstances #-}
-
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 -- | Data structures for working with arrays
 module Feldspar.Data.Array where
 
 
-import Prelude (Functor, Foldable, Traversable)
+import Prelude (Functor, Foldable, Traversable, error, product, reverse)
 
 import Data.Proxy
 
@@ -25,7 +23,9 @@ data Nest a = Nest
 instance Slicable a => Indexed (Nest a)
   where
     type IndexedElem (Nest a) = a
-    Nest _ w a ! i = slice (w*i) w a
+    Nest l w a ! i = slice (w*i') w a
+      where
+        i' = guardValLabel InternalAssertion (i<l) "invalid Nest slice" i
 
 instance Finite (Nest a)
   where
@@ -33,7 +33,11 @@ instance Finite (Nest a)
 
 instance Slicable a => Slicable (Nest a)
   where
-    slice from n (Nest _ w man) = Nest n w $ slice (from*w) (n*w) man
+    slice from n (Nest l w a) = Nest n' w $ slice (from'*w) (n'*w) a
+      where
+        guard = guardValLabel InternalAssertion (from+n<=l) "invalid Nest slice"
+        from' = guard from
+        n'    = guard n
 
 instance Forcible a => Forcible (Nest a)
   where
@@ -81,13 +85,17 @@ instance MarshalFeld a => MarshalFeld (Nest a)
 --
 -- 'multiNest' may be a more convenient alternative to 'nest', expecially for
 -- adding several levels of nesting.
-nest
-    :: Data Length  -- ^ Number of segments
+nest :: Finite a
+    => Data Length  -- ^ Number of segments
     -> Data Length  -- ^ Segment length
     -> a
     -> Nest a
-nest = Nest
-  -- TODO Add assertion
+nest l w a = Nest (guard l) (guard w) a
+  where
+    guard = guardValLabel
+      InternalAssertion
+      (l*w == length a)
+      "nest: unbalanced nesting"
 
 -- | A version of 'nest' that only takes the segment length as argument. The
 -- total number of segments is computed by division.
@@ -102,7 +110,6 @@ nestEvery :: Finite a
     -> a
     -> Nest a
 nestEvery n a = Nest (length a `unsafeBalancedDiv` n) n a
-  -- TODO Add assertion
 
 -- | Remove a layer of nesting
 unnest :: Nest a -> a
@@ -127,40 +134,92 @@ type Dim3 = Dim Dim2
 -- | Four dimensions
 type Dim4 = Dim Dim3
 
--- | A description of the extent of a rectangular multi-dimensional structure
+-- | A description of the inner extent of a rectangular multi-dimensional
+-- structure. \"Inner extent\" means the extent of all but the outermost
+-- dimension.
 --
 -- For example, this value
 --
 -- @
--- 10 `:>` 20 `:>` `Z` :: `Extent` (`Dim` (`Dim` ()))
+-- `Outer` `:>` 10 `:>` 20 :: `InnerExtent` (`Dim` (`Dim` (`Dim` ())))
 -- @
 --
--- describes a two-dimensional structure with 10 rows and 20 columns.
-data Extent d
+-- describes a three-dimensional structure where each inner structure has 10
+-- rows and 20 columns.
+data InnerExtent d
   where
-    ZE   :: Extent ()
-    (:>) :: Data Length -> Extent d -> Extent (Dim d)
+    NoExt :: InnerExtent ()
+    Outer :: InnerExtent (Dim ())
+    (:>)  :: InnerExtent (Dim d) -> Data Length -> InnerExtent (Dim (Dim d))
 
-infixr 5 :>
+infixl 5 :>
 
--- | Get a list of the extent in each dimension
-listExtent :: Extent d -> [Data Length]
-listExtent ZE       = []
-listExtent (l :> e) = l : listExtent e
+-- | Return the inner extent as a list of lengths
+listExtent :: InnerExtent d -> [Data Length]
+listExtent = reverse . go
+  where
+    go :: InnerExtent d -> [Data Length]
+    go NoExt    = []
+    go Outer    = []
+    go (e :> l) = l : go e
 
 -- | Add as much nesting to a one-dimensional structure as needed to reach the
 -- given dimensionality
 type family MultiNest d a
   where
-    MultiNest (Dim ()) a = a
-    MultiNest (Dim d)  a = Nest (MultiNest d a)
+    MultiNest (Dim ())      a = a
+    MultiNest (Dim (Dim d)) a = Nest (MultiNest (Dim d) a)
 
 -- | Turn a one-dimensional structure into a multi-dimensional one by adding
--- nesting as described by the given 'Extent'
-multiNest
-    :: Extent (Dim d)  -- ^ Extent of the result
-    -> a               -- ^ One-dimensional structure
-    -> MultiNest (Dim d) a
-multiNest (l :> ZE)       a = a  -- TODO Assert l == length a
-multiNest (l1 :> l2 :> e) a = Nest l1 l2 $ multiNest (l1*l2 :> e) a
+-- nesting as described by the given 'InnerExtent'
+multiNest :: forall a d . Finite a =>
+    InnerExtent (Dim d) -> a -> MultiNest (Dim d) a
+multiNest e a = go e lsAll
+  where
+    lsInner = listExtent e
+    lsAll   = unsafeBalancedDiv (length a) (product lsInner) : lsInner
+      -- Extent of *all* dimensions (including the outermost)
+
+    go :: InnerExtent (Dim d') -> [Data Length] -> MultiNest (Dim d') a
+    go Outer    _          = a
+    go (e :> _) (l1:l2:ls) = Nest l1 l2 $ go e (l1*l2 : ls)
+    go (e :> _) _          = error "impossible"
+      -- Note: The `InnerExtent` argument is just there for the type checker. We
+      -- cannot take the lengths from that value, because they come in the wrong
+      -- order.
+
+-- | A version of 'InnerExtent' for internal use
+data InnerExtent' d
+  where
+    ZE :: InnerExtent' ()
+    OE :: InnerExtent' (Dim ())
+    SE :: Data Length -> InnerExtent' d -> InnerExtent' (Dim d)
+  -- `InnerExtent'` is more convenient to work with than `InnerExtent`, because
+  -- it recurses over the dimensions outside-in. However, `InnerExtent` is more
+  -- convenient for the user. Consider these two values describing the inner
+  -- extent of a three-dimensional structure:
+  --
+  --     Outer :> 10 :> 20
+  --     10 `SE` (20 `SE` ZE)
+  --
+  -- In the first case it's clear that the extent of the outermost dimension is
+  -- omitted.
+
+listExtent' :: InnerExtent' d -> [Data Length]
+listExtent' ZE       = []
+listExtent' OE       = []
+listExtent' (SE l e) = l : listExtent' e
+
+tailExtent' :: InnerExtent' (Dim d) -> InnerExtent' d
+tailExtent' OE        = ZE
+tailExtent' (SE _ ls) = ls
+
+convInnerExtent :: InnerExtent d -> InnerExtent' d
+convInnerExtent e = go e (listExtent e)
+  where
+    go :: InnerExtent d -> [Data Length] -> InnerExtent' d
+    go NoExt    _      = ZE
+    go Outer    _      = OE
+    go (e :> _) (l:ls) = SE l $ go e ls
+    go (_ :> _) _      = error "convInnerExtent: impossible"
 

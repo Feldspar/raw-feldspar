@@ -47,7 +47,7 @@ nestIndex
     -> Run (Data Int32)
 nestIndex (arr,(l1,l2,l3),(i1,i2,i3)) = return $ nestedArr ! i1 ! i2 ! i3
   where
-    nestedArr = multiNest (l1 :> l2 :> l3 :> ZE) arr
+    nestedArr = multiNest (Outer :> l2 :> l3) arr
 
 property_nestIndex f =
     forAll genLenIx $ \(l1,i1) ->
@@ -72,7 +72,7 @@ nestIndexLength
     -> Run (IArr Int32)
 nestIndexLength (arr,(l1,l2,l3),(i1,i2)) = return $ nestedArr ! i1 ! i2
   where
-    nestedArr = multiNest (l1 :> l2 :> l3 :> ZE) arr
+    nestedArr = multiNest (Outer :> l2 :> l3) arr
 
 property_nestIndexLength f =
     forAll genLenIx $ \(l1,i1) ->
