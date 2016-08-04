@@ -1,3 +1,5 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+
 import qualified Prelude
 
 import qualified Data.Complex as Complex
@@ -27,6 +29,16 @@ almostEq a b
 
 a ~= b = Prelude.and $ Prelude.zipWith almostEq a b
 
+wrapStorage :: (Syntax a, Finite (vec a), MonadComp m) =>
+    (Storage (Internal a) -> vec a -> m b) -> vec a -> m b
+wrapStorage f v = do
+    s1 <- newArr $ length v
+    s2 <- newArr $ length v
+    f (s1,s2) v
+
+fftS  = wrapStorage fft
+ifftS = wrapStorage ifft
+
 prop_fft_dft dft' fft' = QC.monadicIO $ do
     n   :: Int              <- QC.pick $ QC.choose (2,5)
     inp :: [Complex Double] <- QC.pick $ QC.vector (2 Prelude.^ n)
@@ -44,8 +56,8 @@ prop_inverse f fi = QC.monadicIO $ do
 main =
     marshalledM (return . dft)  $ \dft'  ->
     marshalledM (return . idft) $ \idft' ->
-    marshalledM fft             $ \fft'  ->
-    marshalledM ifft            $ \ifft' ->
+    marshalledM fftS            $ \fft'  ->
+    marshalledM ifftS           $ \ifft' ->
 
       defaultMain $ testGroup "tests"
         [ testCase "Demo"       Demo.testAll

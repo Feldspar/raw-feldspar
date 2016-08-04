@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
--- Copyright (c) 2016 and after, see package copyright
-
 -- Copyright (c) 2013, Emil Axelsson, Peter Jonsson, Anders Persson and
 --                     Josef Svenningsson
 -- Copyright (c) 2012, Emil Axelsson, Gergely Dévai, Anders Persson and
@@ -34,7 +32,8 @@
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 module FFT
-  ( fft
+  ( Storage
+  , fft
   , ifft
   ) where
 
@@ -47,6 +46,18 @@ import Feldspar.Data.Vector
 
 
 
+-- | Storage for vector-to-vector operations
+--
+-- * The first array is the storage for the result. It should be free before
+--   the operation.
+--
+-- * The second array is temporary storage. It can hold the argument vector, and
+--   it will be free after the operation.
+type Storage a = (Arr a, Arr a)
+
+swapStorage :: Storage a -> Storage a
+swapStorage (a,b) = (b,a)
+
 rotBit :: Data Index -> Data Index -> Data Index
 rotBit k i = lefts .|. rights
   where
@@ -55,29 +66,64 @@ rotBit k i = lefts .|. rights
     rights = ir .&. oneBits k'
     lefts  = (((ir .>>. k') .<<. 1) .|. (i .&. 1)) .<<. k'
 
-riffle :: Syntax a => Data Index -> Pull a -> Pull a
+riffle :: (Pully pull a, Syntax a) => Data Index -> pull -> Pull a
 riffle = permute . const . rotBit
 
-stages :: (Storable s, MonadComp m) => Pull a -> (a -> s -> s) -> s -> m s
-stages as body init = do
-    s <- initStore init
-    for (0, 1, Excl (length as)) $ \i ->
-        writeStore s . body (as!i) =<< readStore s
-    unsafeFreezeStore s
+stages
+    :: ( Finite (push1 a)
+       , Materializable m (push1 a)
+       , InnerElem (push1 a) ~ a
+       , Dimensions (push1 a) ~ Dim ()
+       , Materializable m (push2 a)
+       , InnerElem (push2 a) ~ a
+       , Dimensions (push2 a) ~ Dim ()
+       , InnerElem a ~ a
+       , Dimensions a ~ ()
+       )
+    => Storage (Internal a)
+    -> Pull i                        -- ^ Vector to loop over
+    -> (i -> Manifest a -> push2 a)  -- ^ One stage
+    -> push1 a                       -- ^ Initial state
+    -> m (Manifest a)                -- ^ Final state
+stages (resLoc,tmpLoc) as body init = do
+    memorizeStore resLoc Outer init
+    for (0,1,Excl n) $ \i -> do
+        prev <- (Manifest . slice 0 l) <$> unsafeFreezeArr resLoc
+        next <- memorize tmpLoc Outer $ body (as!i) prev
+        memorizeStore resLoc Outer next
+    (Manifest . slice 0 l) <$> unsafeFreezeArr resLoc
+  where
+    n = length as
+    l = length init
 
-bitRev :: (Type a, MonadComp m) =>
-    Data Index -> Pull (Data a) -> m (Pull (Data a))
-bitRev n = stages (1...n) riffle
+bitRev
+    :: ( Pushy push
+       , Syntax a
+       , Finite (push a)
+       , Materializable m a
+       , InnerElem a ~ a
+       , Dimensions a ~ ()
+       , Materializable m (push a)
+       , InnerElem (push a) ~ a
+       , Dimensions (push a) ~ Dim ()
+       , MonadComp m
+       )
+    => Storage (Internal a)
+    -> Data Index
+    -> push a
+    -> m (Manifest a)
+bitRev store n = stages store (1...n) riffle
 
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
 fftCore :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
-    => Bool  -- ^ Inverse?
+    => Storage (Complex a)
+    -> Bool  -- ^ Inverse?
     -> Data Index
     -> DPull (Complex a)
-    -> m (DPull (Complex a))
-fftCore inv n = stages (reverse (0...n)) step
+    -> m (DManifest (Complex a))
+fftCore store inv n = stages store (reverse (0...n)) step
   where
     step k vec = Pull (length vec) ixf
       where
@@ -90,31 +136,28 @@ fftCore inv n = stages (reverse (0...n)) step
             k2   = 1 .<<. k'
 
 fft' :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
-     => Bool  -- ^ Inverse?
-     -> DPull (Complex a)
-     -> m (DPull (Complex a))
-fft' inv v = do
-    n' <- force n
-    fftCore inv n' v >>= bitRev n'
-  where
-    n = ilog2 (length v) - 1
+    => Storage (Complex a)
+    -> Bool  -- ^ Inverse?
+    -> DPull (Complex a)
+    -> m (DManifest (Complex a))
+fft' store inv v = do
+    n <- force (ilog2 (length v) - 1)
+    fftCore store inv n v >>= (bitRev (swapStorage store) n . toPull)
 
-
--- | Radix-2 Decimation-In-Frequeny Fast Fourier Transformation of the given
+-- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
 fft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
-    DPull (Complex a) -> m (DPull (Complex a))
-fft = fft' False
+    Storage (Complex a) -> DPull (Complex a) -> m (DManifest (Complex a))
+fft store = fft' store False
 
-
--- | Radix-2 Decimation-In-Frequeny Inverse Fast Fourier Transformation of the
+-- | Radix-2 Decimation-In-Frequency Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving 'ifft . fft == id'.
 ifft :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m) =>
-    DPull (Complex a) -> m (DPull (Complex a))
-ifft v = normalize <$> fft' True v
+    Storage (Complex a) -> DPull (Complex a) -> m (DPull (Complex a))
+ifft store v = normalize <$> fft' store True v
   where
-    normalize = fmap (/ (i2n $ length v))
+    normalize = fmap (/ (i2n $ length v)) . toPull
 
