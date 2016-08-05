@@ -13,6 +13,7 @@ module Feldspar.Data.Vector
 import qualified Prelude
 
 import Control.Monad.Trans
+import Data.List (genericLength)
 import Data.Proxy
 
 import Feldspar
@@ -189,6 +190,28 @@ instance
 
 -- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
 -- `Syntax` constraint.
+
+-- | Make a constant 'Manifest' vector
+constManifest :: (PrimType (Internal a), MonadComp m) =>
+    [Internal a] -> m (Manifest a)
+constManifest as = fmap (Manifest . slice 0 l) . unsafeFreezeArr =<< initArr as
+  where
+    l = value $ genericLength as
+
+-- | Make a 'Manifest' vector from a list of values
+listManifest
+    :: ( Materializable m a
+       , Dimensions a ~ ()
+       , InnerElem a ~ a
+       , MonadComp m
+       )
+    => [a] -> m (Manifest a)
+listManifest as = do
+    arr <- newArr l
+    memorizeStore arr Outer $ listPush as
+    Manifest . slice 0 l <$> unsafeFreezeArr arr
+  where
+    l = value $ genericLength as
 
 
 
