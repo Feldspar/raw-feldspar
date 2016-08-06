@@ -133,10 +133,21 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- to a struct of small references. Among other things, that would require
   -- dynamic typing.)
 
+-- | Status of an array:
+--
+-- * 0 means *hot*:    reading and writing allowed
+-- * 1 means *frozen*: only reading an freezing allowed
+-- * 2 means *dead*:   neither reading nor writing allowed
+--
+-- An array in either of the two states \"hot\" or \"frozen\" is said to be
+-- \"alive\"
+type ArrStatus = Word8
+
 -- | Mutable array
 data Arr a = Arr
     { arrOffset :: Data Index
     , arrLength :: Data Length
+    , arrStatus :: Ref ArrStatus
     , unArr     :: Struct PrimType' (Imp.Arr Index) a
     }
   -- `arrOffset` gives the offset into the internal arrays. The user should not
@@ -156,8 +167,48 @@ data Arr a = Arr
 data IArr a = IArr
     { iarrOffset :: Data Index
     , iarrLength :: Data Length
+    , iarrStatus :: Ref ArrStatus
     , unIArr     :: Struct PrimType' (Imp.IArr Index) a
     }
+
+-- Regarding array status:
+--
+--   * Each physical array may have different "incarnations"
+--   * Each incarnation may have different "views"; for example:
+--       - An `IArr` is an immutable view of a mutable array
+--       - Slicing an array gives a new view
+--   * All views of a particular incarnation share the *same status reference*,
+--     so the reference can be seen as an identifier for the incarnation
+--
+-- It is important for all views to share the same reference, since this makes
+-- it possible to change the status of all views at once. This wouldn't be
+-- possible if each view was its own incarnation.
+--
+-- Two important invariants are:
+--
+--   1. An immutable view may not have hot status
+--   2. At any moment, there is *at most one* incarnation of a particular array
+--      that is alive
+--
+-- Invariant #1 can be maintained by making sure that the status is set to
+-- frozen whenever an immutable view is created, and that the status can never
+-- change back to hot. However, it is allowed to change status from frozen to
+-- hot if it is certain that the incarnation is not accessible by any immutable
+-- views.
+--
+-- Invariant #2 can be maintained by making sure that new incarnations can
+-- only be created by either:
+--
+--   * Making a new physical array
+--   * Recycling an existing *live* array. The existing incarnation should then
+--     be marked dead.
+--
+-- (As a consequence, an incarnation can never change status from dead to
+-- alive.)
+--
+-- Note that changing status from hot to frozen or from alive to dead is always
+-- harmless from a semantical point of view. The worst consequence is that it
+-- might make the program more likely to crash.
 
 
 

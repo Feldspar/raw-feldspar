@@ -12,6 +12,7 @@ import qualified Data.Bits as Bits
 import Data.Complex (Complex)
 import Data.Int
 import Data.List (genericLength)
+import Data.Word
 
 import Language.Syntactic (Internal)
 import Language.Syntactic.Functional
@@ -440,11 +441,29 @@ ilog2 a = guardValLabel InternalAssertion (a >= 1) "ilog2: argument < 1" $
 arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
+    isAlive = unsafePerform $ (2 >) <$> unsafeFreezeRef (iarrStatus arr)
+      -- It shouldn't be possible for an `IArr` to be hot, so we don't check
+      -- specifically for that
+
     ix :: forall b . PrimType' b => Imp.IArr Index b -> Data b
-    ix arr' = sugarSymFeldPrim
-      (GuardVal InternalAssertion "arrIx: index out of bounds")
+    ix arr' = guardValLabel' InternalAssertion
       (i < length arr)
-      (sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr) :: Data b)
+      "arrIx: index out of bounds" $
+        guardValLabel' InternalAssertion
+        isAlive
+        "arrIx: reading from a dead array"
+        (sugarSymFeldPrim (ArrIx arr') (i + iarrOffset arr) :: Data b)
+  -- Due to the use of `unsafePerform`, `arrIx` is not referentially
+  -- transparent. E.g. when using the resulting expression in two different
+  -- contexts, one may cause an assertion violation while the other one doesn't.
+  -- But when assertion violations *do not occur* (after all assertion
+  -- violations are not part of a program's intended behavior) the function
+  -- behaves referentially transparently.
+
+  -- TODO It's important for the guard to be checked right before the indexing
+  -- occurs. This is how the code generator currently behaves. Maybe it should
+  -- be stated as a guarantee for `guardVal` that no effectful operations will
+  -- occur between checking the guard and using the expression.
 
 class Indexed a
   where
@@ -483,14 +502,14 @@ instance Type a => Indexed (IArr a)
 
 instance Slicable (Arr a)
   where
-    slice from len (Arr o l arr) = Arr o' l' arr
+    slice from len (Arr o l s arr) = Arr o' l' s arr
       where
         o' = guardValLabel InternalAssertion (from<=l) "invalid Arr slice" (o+from)
         l' = guardValLabel InternalAssertion (from+len<=l) "invalid Arr slice" len
 
 instance Slicable (IArr a)
   where
-    slice from len (IArr o l arr) = IArr o' l' arr
+    slice from len (IArr o l s arr) = IArr o' l' s arr
       where
         o' = guardValLabel InternalAssertion (from<=l) "invalid IArr slice" (o+from)
         l' = guardValLabel InternalAssertion (from+len<=l) "invalid IArr slice" len
@@ -533,6 +552,16 @@ guardValLabel :: Syntax a
     -> a               -- ^ Value to attach the assertion to
     -> a
 guardValLabel c cond msg = sugarSymFeld (GuardVal c msg) cond
+
+-- | Like 'guardValLabel' with a simpler type constraint, mostly for internal
+-- use
+guardValLabel' :: PrimType' a
+    => AssertionLabel  -- ^ Assertion label
+    -> Data Bool       -- ^ Condition that is expected to be true
+    -> String          -- ^ Error message
+    -> Data a          -- ^ Value to attach the assertion to
+    -> Data a
+guardValLabel' c cond msg = sugarSymFeldPrim (GuardVal c msg) cond
 
 
 
@@ -655,8 +684,10 @@ newNamedArr :: (Type a, MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)
-newNamedArr base l = liftComp $ fmap (Arr 0 l) $
-    mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
+newNamedArr base len = do
+    status <- initNamedRef "arrstatus" (0 :: Data Word8)
+    liftComp $ fmap (Arr 0 len status) $
+      mapStructA (const (Comp $ Imp.newNamedArr base len)) typeRep
 
 -- | Create and initialize an array
 initArr :: (PrimType a, MonadComp m)
@@ -674,14 +705,20 @@ initNamedArr :: (PrimType a, MonadComp m)
     => String  -- ^ Base name
     -> [a]     -- ^ Initial contents
     -> m (Arr a)
-initNamedArr base as =
-    liftComp $ fmap (Arr 0 len . Single) $ Comp $ Imp.initNamedArr base as
+initNamedArr base as = do
+    status <- initNamedRef "arrstatus" (0 :: Data Word8)
+    liftComp $ fmap (Arr 0 len status . Single) $ Comp $ Imp.initNamedArr base as
   where
     len = value $ genericLength as
 
 -- | Get an element of an array
 getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
 getArr i arr = do
+    s <- unsafeFreezeRef $ arrStatus arr
+    assertLabel
+      InternalAssertion
+      (s < 2)
+      "getArr: reading from dead array"
     assertLabel
       InternalAssertion
       (i < length arr)
@@ -695,6 +732,11 @@ getArr i arr = do
 setArr :: forall m a . (Syntax a, MonadComp m) =>
     Data Index -> a -> Arr (Internal a) -> m ()
 setArr i a arr = do
+    s <- unsafeFreezeRef $ arrStatus arr
+    assertLabel
+      InternalAssertion
+      (s == 0)
+      "setArr: writing to frozen or dead array"
     assertLabel
       InternalAssertion
       (i < length arr)
@@ -717,6 +759,16 @@ copyArr :: (Type a, MonadComp m)
     -> Arr a  -- ^ Source
     -> m ()
 copyArr arr1 arr2 = do
+    s1 <- unsafeFreezeRef $ arrStatus arr1
+    s2 <- unsafeFreezeRef $ arrStatus arr2
+    assertLabel
+      InternalAssertion
+      (s1 == 0)
+      "copyArr: copying to dead or frozen array"
+    assertLabel
+      InternalAssertion
+      (s2 < 2)
+      "copyArr: copying from dead array"
     assertLabel
       InternalAssertion
       (length arr1 >= length arr2)
@@ -732,50 +784,125 @@ copyArr arr1 arr2 = do
         (unArr arr1)
         (unArr arr2)
 
--- | Freeze a mutable array to an immutable one. This involves copying the array
--- to a newly allocated one.
+-- | Copy the contents of an immutable array to another array. The length of the
+-- destination array must not be less than that of the source array.
+--
+-- In order to copy only a part of an array, use 'slice' before calling
+-- 'copyArr'.
+copyIArr :: (Type a, MonadComp m)
+    => Arr a   -- ^ Destination
+    -> IArr a  -- ^ Source
+    -> m ()
+copyIArr arr1 arr2 = do
+    s1 <- unsafeFreezeRef $ arrStatus arr1
+    s2 <- unsafeFreezeRef $ iarrStatus arr2
+    assertLabel
+      InternalAssertion
+      (s1 == 0)
+      "copyArr: copying to dead or frozen array"
+    assertLabel
+      InternalAssertion
+      (s2 < 2)
+      "copyArr: copying from dead array"
+    assertLabel
+      InternalAssertion
+      (length arr1 >= length arr2)
+      "copyArr: destination too small"
+    liftComp $ sequence_ $
+      zipListStruct
+        (\a1 a2 -> do
+            a2' <- Comp $ Imp.unsafeThawArr a2
+            Comp $ Imp.copyArr
+              (a1, arrOffset arr1)
+              (a2', iarrOffset arr2)
+              (length arr2)
+        )
+        (unArr arr1)
+        (unIArr arr2)
+
+-- | Freeze a mutable array to an immutable one without making a copy
+--
+-- When compiling with internal assertions on, it is guaranteed that the
+-- argument array will not be changed as long as the resulting immutable array
+-- is alive.
 freezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
-freezeArr arr = liftComp $ do
-    arr2 <- newArr (length arr)
-    copyArr arr2 arr
-    unsafeFreezeArr arr2
-  -- This is better than calling `freezeArr` from imperative-edsl, since that
-  -- one copies without offset.
-
--- | Freeze a mutable array to an immutable one without making a copy. This is
--- generally only safe if the the mutable array is not updated as long as the
--- immutable array is alive.
-unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
-unsafeFreezeArr arr
-    = liftComp
-    $ fmap (IArr (arrOffset arr) (length arr))
-    $ mapStructA (Comp . Imp.unsafeFreezeArr)
-    $ unArr arr
-
--- | Thaw an immutable array to a mutable one. This involves copying the array
--- to a newly allocated one.
-thawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
-thawArr arr = liftComp $ do
-    arr2 <- unsafeThawArr arr
-    arr3 <- newArr (length arr)
-    copyArr arr3 arr2
-    return arr3
-
--- | Thaw an immutable array to a mutable one without making a copy. This is
--- generally only safe if the the mutable array is not updated as long as the
--- immutable array is alive.
-unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
-unsafeThawArr arr
-    = liftComp
-    $ fmap (Arr (iarrOffset arr) (length arr))
-    $ mapStructA (Comp . Imp.unsafeThawArr)
-    $ unIArr arr
+freezeArr arr = do
+    s <- unsafeFreezeRef $ arrStatus arr
+    assertLabel
+      InternalAssertion
+      (s < 2)
+      "freezeArr: freezing dead array"
+    setRef (arrStatus arr) (1 :: Data Word8)
+    liftComp
+      $ fmap (IArr (arrOffset arr) (length arr) (arrStatus arr))
+      $ mapStructA (Comp . Imp.unsafeFreezeArr)
+      $ unArr arr
 
 -- | Create and initialize an immutable array
 initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
-initIArr as = liftComp $ fmap (IArr 0 len . Single) $ Comp $ Imp.initIArr as
+initIArr as = do
+    status <- initNamedRef "arrstatus" (1 :: Data Word8)
+    liftComp $ fmap (IArr 0 len status . Single) $ Comp $ Imp.initIArr as
   where
     len = value $ genericLength as
+
+-- | Recycle an array by creating a new incarnation and invalidating the
+-- previous incarnation
+--
+-- When compiling with assertions, it will be checked that any attempt to use
+-- the old array will cause the program to crash.
+recycleArr :: MonadComp m => Arr a -> m (Arr a)
+recycleArr arr = do
+    s <- unsafeFreezeRef $ arrStatus arr
+    assertLabel
+      InternalAssertion
+      (s < 2)
+      "recycleArr: recycling dead array"
+    setRef (arrStatus arr) (2 :: Data Word8)
+    unsafeRecycleArr arr
+
+-- | Recycle an array without requiring it to be alive, and without invalidating
+-- the previous incarnation
+--
+-- Note that this function ruins the safety net around array accesses for the
+-- array involved. Use with extreme care!
+unsafeRecycleArr :: MonadComp m => Arr a -> m (Arr a)
+unsafeRecycleArr arr = do
+    status <- initNamedRef "arrstatus" (0 :: Data Word8)
+    return $ arr {arrStatus = status}
+
+-- | Run a local computation and reset the status of the array afterwards. The
+-- array must be in hot state before the operation, and it will be reset to hot
+-- after the operation.
+localArr :: MonadComp m => Arr a -> m () -> m ()
+localArr arr body = do
+    s <- unsafeFreezeRef $ arrStatus arr
+    assertLabel
+      InternalAssertion
+      (s == 0)
+      "localArr: array is frozen or dead"
+    body
+    setRef (arrStatus arr) (0 :: Data Word8)
+  -- It's not allowed for the array to be frozen before the operation (even if
+  -- it would be reset to frozen afterwards), because the body may recycle the
+  -- array and change its content.
+
+-- | Temporarily freeze an array. The frozen array is only accessible inside the
+-- body of the supplied function. The array can be either hot or frozen before
+-- the operation, and it will retain its existing status after the operation.
+freezeArrTemp :: (Type a, MonadComp m) => Arr a -> (IArr a -> m ()) -> m ()
+freezeArrTemp arr body = do
+    s    <- getRef $ arrStatus arr
+    iarr <- freezeArr arr
+    body iarr
+    setRef (arrStatus arr) (s :: Data Word8)
+
+-- | Temporarily recycle an array. The recycled array is only accessible inside
+-- the body of the supplied function. The array must be in hot state before the
+-- operation, and it will be reset to hot after the operation.
+recycleArrTemp :: MonadComp m => Arr a -> (Arr a -> m ()) -> m ()
+recycleArrTemp arr body = localArr arr $
+    recycleArr arr >>= body
 
 
 

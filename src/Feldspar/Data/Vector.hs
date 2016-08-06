@@ -166,12 +166,12 @@ instance Syntax a => Storable (Manifest a)
         return $ Manifest iarr
     unsafeFreezeStoreRep (lenRef,arr) = do
         len  <- unsafeFreezeRef lenRef
-        iarr <- slice 0 len <$> unsafeFreezeArr arr
+        iarr <- slice 0 len <$> freezeArr arr
         return $ Manifest iarr
-    writeStoreRep (lenRef,dst) (Manifest arr) = do
-        setRef lenRef (length arr)
-        src <- unsafeThawArr arr
-        copyArr dst src
+      -- TODO Not "unsafe" anymore
+    writeStoreRep (lenRef,dst) (Manifest src) = do
+        setRef lenRef (length src)
+        copyIArr dst src
     copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do
         sLen <- unsafeFreezeRef sLenRef
         setRef dLenRef sLen
@@ -194,7 +194,7 @@ instance
 -- | Make a constant 'Manifest' vector
 constManifest :: (PrimType (Internal a), MonadComp m) =>
     [Internal a] -> m (Manifest a)
-constManifest as = fmap (Manifest . slice 0 l) . unsafeFreezeArr =<< initArr as
+constManifest as = fmap (Manifest . slice 0 l) . freezeArr =<< initArr as
   where
     l = value $ genericLength as
 
@@ -209,7 +209,7 @@ listManifest
 listManifest as = do
     arr <- newArr l
     memorizeStore arr Outer $ listPush as
-    Manifest . slice 0 l <$> unsafeFreezeArr arr
+    Manifest . slice 0 l <$> freezeArr arr
   where
     l = value $ genericLength as
 
@@ -526,7 +526,7 @@ instance Syntax a => Forcible (Push a)
     toValue (Push len dump) = do
         arr <- newArr len
         dump $ \i a -> setArr i a arr
-        iarr <- unsafeFreezeArr arr
+        iarr <- freezeArr arr
         return $ Manifest iarr
     fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
 
@@ -971,7 +971,8 @@ instance Materializable m a => Materializable m (PushE m a)
         innerLen = Prelude.product $ listExtent' e
 
 -- | Convert a nested structure to a flat 'Manifest' vector. The provided
--- storage may or may not be used to hold the result.
+-- storage may or may not be used to hold the result, and will be marked as dead
+-- if it does.
 --
 -- Some example types after supplying the first two arguments (@arr@ is of type
 -- @`Arr` `Double`@):
@@ -1001,7 +1002,7 @@ materialize _ _ a
 materialize arr e a = do
     PushE _len dump <- toFlatPush (convInnerExtent e) a
     dump $ \i a -> setArr i (desugar a) arr
-    iarr <- unsafeFreezeArr arr
+    iarr <- freezeArr arr
     return $ Manifest iarr
   -- TODO Assert len = ...
 

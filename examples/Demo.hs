@@ -77,10 +77,12 @@ test_scProd2 = do
 
 map_inplace :: Run ()
 map_inplace = do
-    svec <- initStore (0...19)
-    inplace svec $ fmap (*33)
-    vec <- unsafeFreezeStore svec
-    printf "result: %d\n" $ sum vec
+    arr  <- newArr 20
+    vec1 <- memorize arr Outer (0...19)
+    arr' <- unsafeRecycleArr arr
+    vec2 <- memorize arr' Outer $ map (*33) vec1
+    printf "result: %d\n" $ sum $ toPull vec2
+  -- This is not encouraged style, but it can be done
 
 
 

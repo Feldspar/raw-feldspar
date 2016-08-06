@@ -201,7 +201,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
         for (0,1,Excl len) $ \i -> do
             a <- toFeld
             setArr i (a :: Data a) arr
-        iarr <- unsafeFreezeArr arr
+        iarr <- freezeArr arr
         return iarr
 
 -- | Connect a Feldspar function between serializable types to @stdin@/@stdout@

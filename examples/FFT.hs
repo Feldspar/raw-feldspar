@@ -55,9 +55,6 @@ import Feldspar.Data.Vector
 --   it will be free after the operation.
 type Storage a = (Arr a, Arr a)
 
-swapStorage :: Storage a -> Storage a
-swapStorage (a,b) = (b,a)
-
 rotBit :: Data Index -> Data Index -> Data Index
 rotBit k i = lefts .|. rights
   where
@@ -81,17 +78,20 @@ stages
        , Dimensions a ~ ()
        )
     => Storage (Internal a)
-    -> Pull i                        -- ^ Vector to loop over
-    -> (i -> Manifest a -> push2 a)  -- ^ One stage
-    -> push1 a                       -- ^ Initial state
-    -> m (Manifest a)                -- ^ Final state
+    -> Pull i                            -- ^ Vector to loop over
+    -> (i -> Manifest a -> push2 a)      -- ^ One stage
+    -> push1 a                           -- ^ Initial state
+    -> m (Manifest a, Arr (Internal a))  -- ^ Final state
 stages (resLoc,tmpLoc) as body init = do
     memorizeStore resLoc Outer init
+    tmpLoc' <- recycleArr tmpLoc
     for (0,1,Excl n) $ \i -> do
-        prev <- (Manifest . slice 0 l) <$> unsafeFreezeArr resLoc
-        next <- memorize tmpLoc Outer $ body (as!i) prev
-        memorizeStore resLoc Outer next
-    (Manifest . slice 0 l) <$> unsafeFreezeArr resLoc
+      freezeArrTemp resLoc $ \resLocI -> do
+        let prev = Manifest $ slice 0 l resLocI
+        memorizeStore tmpLoc' Outer $ body (as!i) prev
+      copyArr resLoc tmpLoc'
+    res <- (Manifest . slice 0 l) <$> freezeArr resLoc
+    return (res,tmpLoc')
   where
     n = length as
     l = length init
@@ -111,7 +111,7 @@ bitRev
     => Storage (Internal a)
     -> Data Index
     -> push a
-    -> m (Manifest a)
+    -> m (Manifest a, Arr (Internal a))
 bitRev store n = stages store (1...n) riffle
 
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
@@ -122,7 +122,7 @@ fftCore :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
     -> Bool  -- ^ Inverse?
     -> Data Index
     -> DPull (Complex a)
-    -> m (DManifest (Complex a))
+    -> m (DManifest (Complex a), Arr (Complex a))
 fftCore store inv n = stages store (reverse (0...n)) step
   where
     step k vec = Pull (length vec) ixf
@@ -140,9 +140,10 @@ fft' :: (RealFloat a, PrimType a, PrimType (Complex a), MonadComp m)
     -> Bool  -- ^ Inverse?
     -> DPull (Complex a)
     -> m (DManifest (Complex a))
-fft' store inv v = do
-    n <- force (ilog2 (length v) - 1)
-    fftCore store inv n v >>= (bitRev (swapStorage store) n . toPull)
+fft' (loc1,loc2) inv v = do
+    n          <- force (ilog2 (length v) - 1)
+    (v2,loc2') <- fftCore (loc1,loc2) inv n v
+    fst <$> bitRev (loc2',loc1) n (toPull v2)
 
 -- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
