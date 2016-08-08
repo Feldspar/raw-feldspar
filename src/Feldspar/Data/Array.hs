@@ -112,8 +112,8 @@ nestEvery :: Finite a
 nestEvery n a = Nest (length a `unsafeBalancedDiv` n) n a
 
 -- | Remove a layer of nesting
-unnest :: Nest a -> a
-unnest (Nest _ _ a) = a
+unnest :: Slicable a => Nest a -> a
+unnest (Nest l w a) = slice 0 (l*w) a
 
 -- | Increase dimensionality
 --

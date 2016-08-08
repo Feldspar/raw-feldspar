@@ -928,7 +928,7 @@ instance (Type a, MonadComp m) => Materializable m (IArr a)
   where
     toFlatPush e = return . toPushE . toPull
 
-instance DirectMaterializable a => DirectMaterializable (Nest a)
+instance (DirectMaterializable a, Slicable a) => DirectMaterializable (Nest a)
   where
     maybeToFlatManifest = do
         f <- maybeToFlatManifest
