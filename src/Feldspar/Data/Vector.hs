@@ -1,7 +1,147 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
+-- | This module gives a library of different vector types.
+--
+-- = Basic use
+--
+-- A typical 1-dimensional vector computation goes as follows:
+--
+-- 1. Start with a 'Manifest' vector (one that is refers directly to an array in
+--   memory).
+--
+-- 2. Apply operations overloaded by 'Pully' (e.g. 'take', 'drop', 'map',
+--    'reverse'). The result is one or more 'Pull' vectors.
+--
+-- 3. If the previous step resulted in several parts, assemble them using
+--    operations overloaded by 'Pushy' (e.g. '++'). The result is a 'Push'
+--    vector.
+--
+-- 4. Write the vector to memory using 'manifest' or 'manifestFresh'.
+--
+-- (Of course, there are many variations on this general scheme.)
+--
+-- Note that it's possible to skip step \#2 or \#3 above. For example, it's
+-- possible to directly concatenate two 'Manifest' vectors using '++', and
+-- 'manifest' can be applied directly to a 'Pull' vector (or even to a
+-- 'Manifest', in which case it becomes a no-op).
+--
+--
+--
+-- = Efficiency and fusion
+--
+-- The library has been designed so that all operations fuse together without
+-- creating any intermediate structures in memory. The only exception is the
+-- operations that produce 'Manifest' or 'Manifest2' vectors ('manifest',
+-- 'manifest2', etc.).
+--
+-- For example, the following function only creates a single structure in memory
+-- even though it seemingly generates several intermediate vectors:
+--
+-- @
+-- f :: (`Num` a, `Syntax` a, `MonadComp` m) => `Pull` a -> m (`Manifest` a)
+-- f = `manifestFresh` . `reverse` . `map` (*2) . `take` 10
+-- @
+--
+-- Furthermore, the operations associated with each type of vector are
+-- restricted to operations that can be carried out efficiently for that type.
+-- For example, although it would be possible to implement append for 'Pull'
+-- vectors, doing so results in unnecessary conditionals in the generated code.
+-- Therefore, the '++' operator returns a 'Push' vector, which ensures efficient
+-- generated code.
+--
+-- In many cases, the cycle 'Manifest' -> 'Pull' -> 'Push' -> 'Manifest' is
+-- guided by the types of the operations involved. However, there are cases when
+-- it's preferable to shortcut the cycle even when it's not demanded by the
+-- types. The reason is that fusion can lead to duplicated computations.
+--
+-- Here is an example where fusion leads to redundant computations:
+--
+-- @
+-- bad = do
+--     v :: `DManifest` `Int32` <- `toFeld`  -- Read from stdin
+--     let v'  = `map` heavy v
+--         v'' = v' `++` `reverse` v'
+--     `fromFeld` v''                    -- Write to stdout
+-- @
+--
+-- Since @v'@ is used twice in defining @v''@, the mapping of the @heavy@
+-- computation will be done twice when writing @v''@ to the output. One way to
+-- prevent this is to perform the heavy mapping once, store the result in
+-- memory, and define @v''@ from the stored vector:
+--
+-- @
+-- good = do
+--     v :: `DManifest` `Int32` <- `toFeld`  -- Read from stdin
+--     v' <- `manifestFresh` $ `map` heavy v
+--     let v'' = v' `++` `reverse` v'
+--     `fromFeld` v''                    -- Write to stdout
+-- @
+--
+-- Even though the examples are called @bad@ and @good@, there's not a clear-cut
+-- answer to which version is best. It could depend on whether time or
+-- memory is the most scarce resource. This library leaves the decision in the
+-- hands of the programmer.
+--
+--
+--
+-- = Working with matrices
+--
+-- 2-dimensional matrix computations can follow a scheme similar to the above by
+-- using the types 'Manifest2', 'Pull2' and 'Push2' and the corresponding
+-- operations.
+--
+-- A quite common situation is the need to apply an operation on each row or
+-- column of a matrix. Operating on the rows can be done by a combination of
+-- 'exposeRows' and 'hideRows'. For example, this function reverses each row in
+-- a matrix:
+--
+-- @
+-- revEachRow :: `MonadComp` m => `Pull2` a -> `Push2` m a
+-- revEachRow mat = `hideRows` (`numCols` mat) $ `map` `reverse` $ `exposeRows` mat
+-- @
+--
+-- 'exposeRows' takes a 'Pully2' matrix and turns it into @`Pull` (`Pull` a)@
+-- i.e. a vector of row vectors. 'map' is used to apply 'reverse' to each row.
+-- Finally, 'hideRows' turns the nested vector it back into a matrix, of type
+-- 'Push2'.
+--
+-- Note that 'hideRows' generally cannot know the length of the rows, so this
+-- number has to be provided as its first argument. When compiling with
+-- assertions, it will be checked at runtime that the length of each row is
+-- equal to the given length.
+--
+-- In order to operate on the columns instead of the rows, just apply
+-- 'transpose' on the original matrix. This operation will fuse with the rest of
+-- the computation.
+--
+-- It gets a bit more complicated when the operation applied to each row is
+-- effectful. For example, the operation may have to use 'manifest' internally
+-- giving it a monadic result type. In such situations, the function 'sequens'
+-- is helpful. It is a bit similar to the standard function @sequence@ for
+-- lists, execept that it converts @`Push` m (m a)@ into @`Push` m a@; i.e. it
+-- embeds the effect into the resulting 'Push' vector.
+--
+-- Here is a version of the previous example where the row operation is
+-- effectful (due to 'manifestFresh') and 'sequens' is inserted to embed the
+-- effects:
+--
+-- @
+-- revEachRowM :: (`Syntax` a, `MonadComp` m) => `Pull2` a -> `Push2` m a
+-- revEachRowM mat = `hideRows` (`numCols` mat) $ `sequens`
+--                 $ `map` (`manifestFresh` . `reverse`) $ `exposeRows` mat
+--
+-- @
+--
+-- Note that 'sequens' is generally a dangerous function due to the hiding of
+-- effects inside the resulting vector. These effects may be (seemingly)
+-- randomly interleaved with other effects when the vector is used. However, the
+-- above example is fine, since 'manifestFresh' allocates a fresh array for the
+-- storage, so its effects cannot be observed from the outside.
+--
+-- The comments to 'Push' elaborate more on the semantics of push vectors with
+-- interleaved effects.
 
 module Feldspar.Data.Vector
   ( module Feldspar.Data.Array
@@ -12,8 +152,6 @@ module Feldspar.Data.Vector
 
 import qualified Prelude
 
-import Control.Monad.Trans
-import Data.List (genericLength)
 import Data.Proxy
 
 import Feldspar
@@ -24,47 +162,13 @@ import qualified Language.Embedded.Concurrent as Imp
 
 
 
--- Motivation for design
--- =============================================================================
---
--- This library is inspired by the different types of vectors in
--- <http://hackage.haskell.org/package/feldspar-language-0.7/docs/Feldspar-Vector-Internal.html>
---
--- However, rather than using Repa-style multi-dimensional vectors, this library
--- only provides one-dimensional structures. Higher dimensions are instead
--- obtained by nesting them. The main reason for this design is to allow
--- interleaving of effects in vector computations. Imagine that we want to apply
--- an operation
---
---     op :: MonadComp m => DPull Double -> m (DPull Double)
---
--- on each row of a matrix `mat :: Pull (DPull Double)`. That gives us:
---
---     fmap op mat :: MonadComp m => Pull (m (DPull Double))
---
--- Notice the interleaved effect `m` between the vector layers. Repa-style
--- vectors cannot have effects interleaved between dimensions.
---
--- Another potential advantage of using nesting is that it's quite possible to
--- have different vector types at different levels. For example
---
---     replicate 5 $ listPush [1,2,3,4 :: Data Double] :: Pull (Push (Data Double))
---
--- is a `Pull` matrix whose rows are `Push`.
---
--- There are also some disadvantages to nesting:
---
---   * There is no guarantee that the inner vectors have the same length, so
---     functions operating on matrices have to assume this property.
---   * Similarly, it is generally not possible to get the length of the inner
---     vectors, so it sometimes has to be provided from the outside (see e.g.
---     `concat`).
---
--- The `PushSeq` type and the `Linearizable` class attempt to overcome some of
--- the limitations by allowing arbitrary nested structures to be flattened
--- without knowing the exact shape of the structure. For example, concatenation
--- of `PushSeq` is done using `join`, which doesn't have the length argument
--- that `concat` has.
+tManifest :: Manifest a -> Manifest a
+tManifest = id
+  -- TODO Use patch combinators
+
+tManifest2 :: Manifest2 a -> Manifest2 a
+tManifest2 = id
+  -- TODO Use patch combinators
 
 
 
@@ -72,110 +176,60 @@ import qualified Language.Embedded.Concurrent as Imp
 -- * Generic operations
 --------------------------------------------------------------------------------
 
--- | Foldable vectors
-class Folding vec
+class Finite2 a
   where
-    -- | Left fold of a vector
-    fold :: Syntax a => (a -> b -> a) -> a -> vec b -> a
+    -- | Get the extent of a 2-dimensional vector
+    --
+    -- It must hold that:
+    --
+    -- @
+    -- `numRows` == `length`
+    -- @
+    extent2
+        :: a
+        -> (Data Length, Data Length)  -- ^ @(rows,columns)@
 
-    -- | Monadic left fold of a vector
-    foldM :: (Syntax a, MonadComp m) => (a -> b -> m a) -> a -> vec b -> m a
+-- | Get the number of rows of a two-dimensional structure
+--
+-- @
+-- `numRows` == `length`
+-- @
+numRows :: Finite2 a => a -> Data Length
+numRows = fst . extent2
 
--- | Sum the elements of a vector
-sum :: (Num a, Syntax a, Folding vec) => vec a -> a
-sum = fold (+) 0
+-- | Get the number of columns of a two-dimensional structure
+numCols :: Finite2 a => a -> Data Length
+numCols = snd . extent2
 
--- | Compute the length of a vector using 'fold'. Note that this operation
--- requires traversing the vector.
-lengthByFold :: (Functor vec, Folding vec) => vec a -> Data Length
-lengthByFold = fold (+) 0 . fmap (const 1)
-
--- | Perform all actions in a vector in sequence
-sequenceVec :: (Folding vec, MonadComp m) => vec (m ()) -> m ()
-sequenceVec = foldM (const id) ()
+instance Finite2 (Nest a)
+  where
+    extent2 (Nest r c _) = (r,c)
 
 
 
 --------------------------------------------------------------------------------
--- * Manifest vectors
+-- * 1-dimensional manifest vectors
 --------------------------------------------------------------------------------
 
--- | A vector with a concrete representation in memory
---
--- A multi-dimensional manifest vector can be obtained using 'multiNest'; e.g:
---
--- @
--- -- Vector of Double
--- vec :: `Manifest` (`Data` `Double`)
---
--- -- 10*20 matrix of Double
--- mat :: `Nest` (`Manifest` (`Data` `Double`))
--- mat = `multiNest` (10 `:>` 20 `:>` `ZE`) vec
--- @
---
--- In general, a vector of type @`Nest` ... (`Nest` (`Manifest` a))@ is
--- preferred over @`Pull` ... (`Pull` (`Pull` a))@, because:
---
--- * The former can be converted to the latter (using combinations of `toPull`
---   and `fmap`)
---
--- * The former can be flattened cheaply without using division and modulus
---   (using 'materialize')
---
--- * The former can be used directly (after flattening) in cases where a memory
---   array is needed (e.g. when calling an external procedure). The latter first
---   needs to be copied into a memory array.
-newtype Manifest a = Manifest (IArr (Internal a))
+-- | A 1-dimensional vector with a concrete representation in memory
+newtype Manifest a = Manifest {unManifest :: IArr (Internal a)}
 
+-- | 'Manifest' vector specialized to 'Data' elements
 type DManifest a = Manifest (Data a)
 
 instance Syntax a => Indexed (Manifest a)
   where
     type IndexedElem (Manifest a) = a
-    Manifest arr ! i = sugar (arr ! i)
+    Manifest arr ! i = sugar (arr!i)
 
-instance Finite (Manifest a)
-  where
-    length (Manifest arr) = length arr
+instance Finite (Manifest a) where length = length . unManifest
+
+-- | Treated as a row vector
+instance Finite2 (Manifest a) where extent2 v = (1, length v)
 
 instance Slicable (Manifest a)
   where
-    slice from n (Manifest arr) = Manifest $ slice from n arr
-
-instance Syntax a => Forcible (Manifest a)
-  where
-    type ValueRep (Manifest a) = Manifest a
-    toValue   = return
-    fromValue = id
-
-instance Syntax a => Storable (Manifest a)
-  where
-    type StoreRep (Manifest a)  = (Ref Length, Arr (Internal a))
-    type StoreSize (Manifest a) = Data Length
-    newStoreRep _ len = do
-        lenRef <- initRef len
-        arr    <- newArr len
-        return (lenRef,arr)
-    initStoreRep vec = do
-        rep <- newStoreRep (Nothing :: Maybe (Pull a)) (length vec)
-        writeStoreRep rep vec
-        return rep
-    readStoreRep (lenRef,arr) = do
-        len  <- getRef lenRef
-        iarr <- slice 0 len <$> freezeArr arr
-        return $ Manifest iarr
-    unsafeFreezeStoreRep (lenRef,arr) = do
-        len  <- unsafeFreezeRef lenRef
-        iarr <- slice 0 len <$> unsafeFreezeArr arr
-        return $ Manifest iarr
-    writeStoreRep (lenRef,dst) (Manifest arr) = do
-        setRef lenRef (length arr)
-        src <- unsafeThawArr arr
-        copyArr dst src
-    copyStoreRep _ (dLenRef,dst) (sLenRef,src) = do
-        sLen <- unsafeFreezeRef sLenRef
-        setRef dLenRef sLen
-        copyArr dst (slice 0 sLen src)
+    slice from n = Manifest . slice from n . unManifest
 
 instance
     ( MarshalHaskell (Internal a)
@@ -184,43 +238,69 @@ instance
     ) =>
       MarshalFeld (Manifest a)
   where
-    type HaskellRep (Manifest a) = [Internal a]
-    fromFeld (Manifest arr) = fromFeld arr
-    toFeld = Manifest <$> toFeld
-
--- No instance `PushySeq Manifest` because indexing in `Manifest` requires a
--- `Syntax` constraint.
+    type HaskellRep (Manifest a) = HaskellRep (IArr (Internal a))
+    fromFeld = fromFeld . unManifest
+    toFeld   = Manifest <$> toFeld
 
 -- | Make a constant 'Manifest' vector
 constManifest :: (PrimType (Internal a), MonadComp m) =>
     [Internal a] -> m (Manifest a)
-constManifest as = fmap (Manifest . slice 0 l) . unsafeFreezeArr =<< initArr as
-  where
-    l = value $ genericLength as
+constManifest as = fmap Manifest . unsafeFreezeArr =<< initArr as
 
 -- | Make a 'Manifest' vector from a list of values
+listManifest :: forall m a . (Syntax a, MonadComp m) => [a] -> m (Manifest a)
 listManifest
-    :: ( Materializable m a
-       , Dimensions a ~ ()
-       , InnerElem a ~ a
-       , MonadComp m
-       )
-    => [a] -> m (Manifest a)
-listManifest as = do
-    arr <- newArr l
-    memorizeStore arr Outer $ listPush as
-    Manifest . slice 0 l <$> unsafeFreezeArr arr
+    = manifestFresh
+    . (id :: Push m a -> Push m a)
+    . listPush
+
+
+
+--------------------------------------------------------------------------------
+-- * 2-dimensional manifest vectors
+--------------------------------------------------------------------------------
+
+-- | A 2-dimensional vector with a concrete representation in memory
+newtype Manifest2 a = Manifest2 {unManifest2 :: Nest (Manifest a)}
+
+-- | 'Manifest2' vector specialized to 'Data' elements
+type DManifest2 a = Manifest2 (Data a)
+
+-- | Indexing the rows
+instance Syntax a => Indexed (Manifest2 a)
   where
-    l = value $ genericLength as
+    type IndexedElem (Manifest2 a) = Manifest a
+    Manifest2 arr ! i = arr!i
+
+-- | 'length' gives number of rows
+instance Finite (Manifest2 a) where length = length . unManifest2
+
+instance Finite2 (Manifest2 a) where extent2 = extent2 . unManifest2
+
+-- | Take a slice of the rows
+instance Slicable (Manifest2 a)
+  where
+    slice from n = Manifest2 . slice from n . unManifest2
+
+instance
+    ( Syntax a
+    , MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    ) =>
+      MarshalFeld (Manifest2 a)
+  where
+    type HaskellRep (Manifest2 a) = HaskellRep (Nest (Manifest a))
+    fromFeld = fromFeld . unManifest2
+    toFeld   = Manifest2 <$> toFeld
 
 
 
 --------------------------------------------------------------------------------
--- * Pull vectors
+-- * 1-dimensional pull vectors
 --------------------------------------------------------------------------------
 
--- | Pull vector: a vector representation that supports random access and fusion
--- of operations
+-- | 1-dimensional pull vector: a vector representation that supports random
+-- access and fusion of operations
 data Pull a where
     Pull
         :: Data Length        -- Length of vector
@@ -249,71 +329,53 @@ instance Functor Pull
 instance Indexed (Pull a)
   where
     type IndexedElem (Pull a) = a
-    (!) (Pull _ ixf) = ixf
+    Pull len ixf ! i = ixf $ guardValLabel
+      InternalAssertion
+      (i < len)
+      "indexing outside of Pull vector"
+      i
 
 instance Finite (Pull a)
   where
     length (Pull len _) = len
 
+-- | Treated as a row vector
+instance Finite2 (Pull a) where extent2 v = (1, length v)
+
 instance Slicable (Pull a)
   where
     slice from n = take n . drop from
 
-instance Syntax a => Forcible (Pull a)
-  where
-    type ValueRep (Pull a) = Manifest a
-    toValue   = toValue . toPush
-    fromValue = toPull
+-- instance Syntax a => Storable (Pull a)
+--   where
+--     type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
+--     type StoreSize (Pull a) = Data Length
+--     newStoreRep _        = newStoreRep (Proxy :: Proxy (Manifest a))
+--     readStoreRep         = fmap fromValue . readStoreRep
+--     unsafeFreezeStoreRep = fmap fromValue . unsafeFreezeStoreRep
+--     copyStoreRep _       = copyStoreRep (Proxy :: Proxy (Manifest a))
 
-instance Syntax a => Storable (Pull a)
-  where
-    type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
-    type StoreSize (Pull a) = Data Length
-    newStoreRep _        = newStoreRep (Proxy :: Proxy (Manifest a))
-    readStoreRep         = fmap fromValue . readStoreRep
-    unsafeFreezeStoreRep = fmap fromValue . unsafeFreezeStoreRep
-    copyStoreRep _       = copyStoreRep (Proxy :: Proxy (Manifest a))
+--     writeStoreRep (r,arr) v = do
+--         setRef r $ length v
+--         memorizeStore arr Outer $ fmap desugar v
 
-    writeStoreRep (r,arr) v = do
-        setRef r $ length v
-        memorizeStore arr Outer $ fmap desugar v
-
-    initStoreRep v = do
-        r   <- initRef $ length v
-        arr <- newArr $ length v
-        let s = (r,arr)
-        writeStoreRep s v
-        return s
+--     initStoreRep v = do
+--         r   <- initRef $ length v
+--         arr <- newArr $ length v
+--         let s = (r,arr)
+--         writeStoreRep s v
+--         return s
 
 instance
-    ( MarshalHaskell (Internal a)
+    ( Syntax a
+    , MarshalHaskell (Internal a)
     , MarshalFeld (Data (Internal a))
-    , Syntax a
     ) =>
       MarshalFeld (Pull a)
   where
-    type HaskellRep (Pull a) = [Internal a]
-    fromFeld = fromFeld <=< toValue
-    toFeld   = fromValue <$> toFeld
-  -- Ideally, we would like the more general instance
-  --
-  --     instance MarshalFeld a => MarshalFeld (Pull a)
-  --       where type HaskellRep (Pull a) = [HaskellRep a]
-  --       fromFeld (Pull len ixf) = do
-  --           fput stdout "" len " "
-  --           for (0,1,Excl len) (fromFeld . ixf)
-  --       toFeld = do
-  --           len <- fget stdin
-  --           return $ Pull len ...
-  --
-  -- However, `toFeld` needs to return a `Pull` with an index function
-  -- `Data Index -> a`. The only way to construct such a function is by storing
-  -- the elements in an array and index into that. This poses two problems: (1)
-  -- how big an array should `toFeld` allocate, and (2) the type `a` is not
-  -- necessarily an expression (e.g. it can be a `Pull`), so there has to be a
-  -- way to write `a` to memory, even if it has just been read from memory by
-  -- `toFeld`. Problem (1) could be solved if we could have nested mutable
-  -- arrays, but problem (2) would remain.
+    type HaskellRep (Pull a) = HaskellRep (Manifest a)
+    fromFeld = fromFeld . (id :: Push Run a -> Push Run a) . toPush
+    toFeld   = toPull . tManifest <$> toFeld
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -333,40 +395,21 @@ instance ( Syntax a, BulkTransferable a
         len :: Data Length <- untypedReadChan c
         arr <- newArr len
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
-        lenRef <- initRef len
-        unsafeFreezeStore $ Store (lenRef, arr)
+        toPull . Manifest <$> unsafeFreezeArr arr
     untypedWriteChan c v = do
-        Store (lenRef, arr) <- initStore v
-        len :: Data Length <- getRef lenRef
+        arr <- newArr len
         untypedWriteChan c len
         untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
-
-instance Folding Pull
-  where
-    fold f x vec = forLoop (length vec) x $ \i s -> f s (vec!i)
-      -- It would be possible to also express `fold` by converting to `PushSeq`
-      -- (in which case the `Folding` class could probably be replaced by
-      -- `PushySeq`), but the current implementation has the advantage of using
-      -- a pure `forLoop` which potentially can be better optimized.
-    foldM f x vec = foldM f x $ toPushSeq vec
+      where
+        len = length v
 
 -- | Data structures that are 'Pull'-like (i.e. support '!' and 'length')
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 
--- | Convert a 'Pully' structure (e.g. @`Fin` (`IArr` a)@ or @`Manifest` a@) to
--- a 'Pull' vector
+-- | Convert a vector to 'Pull'
 toPull :: Pully vec a => vec -> Pull a
 toPull vec = Pull (length vec) (vec!)
-
-instance Pushy Pull
-  where
-    toPush = pullyToPush
-
-instance PushySeq Pull
-  where
-    toPushSeq (Pull len ixf) = PushSeq $ \put ->
-        for (0,1,Excl len) $ \i -> put (ixf i)
 
 
 
@@ -374,6 +417,7 @@ instance PushySeq Pull
 -- ** Operations
 ----------------------------------------
 
+-- | Take the head of a non-empty vector
 head :: Pully vec a => vec -> a
 head = (!0)
 
@@ -387,9 +431,6 @@ drop :: Pully vec a => Data Length -> vec -> Pull a
 drop l vec = Pull (b2i (l<=m) * (m-l)) ((vec!) . (+l))
   where
     m = length vec
-
-splitAt :: Pully vec a => Data Index -> vec -> (Pull a, Pull a)
-splitAt l vec = (take l vec, drop l vec)
 
 tails :: Pully vec a => vec -> Pull (Pull a)
 tails vec = Pull (length vec + 1) (`drop` vec)
@@ -409,14 +450,17 @@ map f vec = Pull (length vec) (f . (vec!))
 zip :: (Pully vec1 a, Pully vec2 b) => vec1 -> vec2 -> Pull (a,b)
 zip a b = Pull (length a `min` length b) (\i -> (a!i, b!i))
 
-permute :: Pully vec a =>
+-- | Back-permute a 'Pull' vector using an index mapping. The supplied mapping
+-- must be a bijection when restricted to the domain of the vector. This
+-- property is not checked, so use with care.
+backPermute :: Pully vec a =>
     (Data Length -> Data Index -> Data Index) -> (vec -> Pull a)
-permute perm vec = Pull len ((vec!) . perm len)
+backPermute perm vec = Pull len ((vec!) . perm len)
   where
     len = length vec
 
 reverse :: Pully vec a => vec -> Pull a
-reverse = permute $ \len i -> len-i-1
+reverse = backPermute $ \len i -> len-i-1
 
 (...) :: Data Index -> Data Index -> Pull (Data Index)
 l ... h = Pull (b2i (l<h+1) * (h-l+1)) (+l)
@@ -427,9 +471,16 @@ zipWith :: (Pully vec1 a, Pully vec2 b) =>
     (a -> b -> c) -> vec1 -> vec2 -> Pull c
 zipWith f a b = fmap (uncurry f) $ zip a b
 
+-- | Left fold of a vector
+fold :: (Syntax a, Pully vec a) => (a -> a -> a) -> a -> vec -> a
+fold f init vec = forLoop (length vec) init $ \i st -> f (vec!i) st
+
 -- | Left fold of a non-empty vector
 fold1 :: (Syntax a, Pully vec a) => (a -> a -> a) -> vec -> a
 fold1 f vec = forLoop (length vec) (vec!0) $ \i st -> f (vec!(i+1)) st
+
+sum :: (Pully vec a, Syntax a, Num a) => vec -> a
+sum = fold (+) 0
 
 -- | Scalar product
 scProd :: (Num a, Syntax a, Pully vec1 a, Pully vec2 a) => vec1 -> vec2 -> a
@@ -437,66 +488,204 @@ scProd a b = sum (zipWith (*) a b)
 
 
 
+--------------------------------------------------------------------------------
+-- * 2-dimensional pull vectors
+--------------------------------------------------------------------------------
+
+-- | 2-dimensional pull vector: a vector representation that supports random
+-- access and fusion of operations
+data Pull2 a where
+    Pull2
+        :: Data Length                      -- Number of rows
+        -> Data Length                      -- Number of columns
+        -> (Data Index -> Data Index -> a)  -- (row,col) -> element
+        -> Pull2 a
+
+-- | 'Pull2' vector specialized to 'Data' elements
+type DPull2 a = Pull2 (Data a)
+
+instance Functor Pull2
+  where
+    fmap f (Pull2 r c ixf) = Pull2 r c (\i j -> f $ ixf i j)
+
+-- | Indexing the rows
+instance Indexed (Pull2 a)
+  where
+    type IndexedElem (Pull2 a) = Pull a
+    Pull2 r c ixf ! i = Pull c (ixf i')
+      where
+        i' = guardValLabel
+          InternalAssertion
+          (i < r)
+          "indexing outside of Pull2 vector"
+          i
+
+-- | 'length' gives number of rows
+instance Finite (Pull2 a) where length = numRows
+
+instance Finite2 (Pull2 a)
+  where
+    extent2 (Pull2 r c _) = (r,c)
+
+-- | Take a slice of the rows
+instance Slicable (Pull2 a)
+  where
+    slice from n vec
+        = hideRowsPull (numCols vec)
+        $ take n
+        $ drop from
+        $ exposeRows
+        $ vec
+
+instance
+    ( Syntax a
+    , MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    ) =>
+      MarshalFeld (Pull2 a)
+  where
+    type HaskellRep (Pull2 a) = HaskellRep (Manifest2 a)
+    fromFeld = fromFeld . (id :: Push2 Run a -> Push2 Run a) . toPush2
+    toFeld   = toPull2 . tManifest2 <$> toFeld
+
+-- | Vectors that can be converted to 'Pull2'
+class Pully2 vec a | vec -> a
+  where
+    -- | Convert a vector to 'Pull2'
+    toPull2 :: vec -> Pull2 a
+
+-- | Convert to a 'Pull2' with a single row
+instance Syntax a => Pully2 (Manifest a) a
+  where
+    toPull2 = toPull2 . toPull
+
+instance Syntax a => Pully2 (Manifest2 a) a
+  where
+    toPull2 (Manifest2 arr@(Nest r c _)) = Pull2 r c $ \i j -> arr!i!j
+
+-- | Convert to a 'Pull2' with a single row
+instance Pully2 (Pull a) a
+  where
+    toPull2 (Pull l ixf) = Pull2 1 l $ \_ j -> ixf j
+
+instance Pully2 (Pull2 a) a where toPull2 = id
+
+
+
 ----------------------------------------
--- ** Matrix operations
+-- ** Operations
 ----------------------------------------
 
-pullMatrix
-    :: Data Length  -- ^ Number of rows
-    -> Data Length  -- ^ Number of columns
-    -> (Data Index -> Data Index -> a)
-         -- ^ Index function: @rowIndex -> columnIndex -> element@
-    -> Pull (Pull a)
-pullMatrix r c ixf = Pull r $ \k -> Pull c $ \l -> ixf k l
+-- | Transposed version of 'toPull'. Can be used to e.g. turn a 'Pull' into a
+-- column of a matrix
+toPull2' :: Pully2 vec a => vec -> Pull2 a
+toPull2' = transpose . toPull2
 
--- | Transpose of a matrix. Assumes that the number of rows is > 0 and that all
--- rows have the same length.
-transpose :: (Pully mat row, Pully row a) => mat -> Pull (Pull a)
-transpose a = Pull (length (a!0)) $ \k -> Pull (length a) $ \l -> a!l!k
+-- | Turn a vector of rows into a 2-dimensional vector. All inner vectors are
+-- assumed to have the given length, and this assumption is not checked by
+-- assertions. If types permit, it is preferable to use 'hideRows', which does
+-- check the lengths.
+hideRowsPull :: (Pully vec1 vec2, Pully vec2 a)
+    => Data Length  -- ^ Length of inner vectors
+    -> vec1
+    -> Pull2 a
+hideRowsPull c vec = Pull2 (length vec) c $ \i j -> vec!i!j
+
+-- | Expose the rows in a 'Pull2' by turning it into a vector of rows
+exposeRows :: Pully2 vec a => vec -> Pull (Pull a)
+exposeRows vec = Pull (numRows v) $ \i -> Pull (numCols v) $ \j -> v!i!j
+  where
+    v = toPull2 vec
+
+-- | Transpose of a matrix
+transpose :: Pully2 vec a => vec -> Pull2 a
+transpose vec = Pull2 (numCols v) (numRows v) $ \i j -> v!j!i
+  where
+    v = toPull2 vec
+
+toRowVec :: Pully vec a => vec -> Pull2 a
+toRowVec vec = hideRowsPull (length vec) $ replicate 1 vec
+
+fromRowVec :: Pully2 vec a => vec -> Pull a
+fromRowVec = head . exposeRows
+
+toColVec :: Pully vec a => vec -> Pull2 a
+toColVec = transpose . toRowVec
+
+fromColVec :: Pully2 vec a => vec -> Pull a
+fromColVec = fromRowVec . transpose
 
 -- | Matrix multiplication
-matMul
-    :: ( Pully mat1 row
-       , Pully mat2 row
-       , Pully row a
-       , Num a
-       , Syntax a
-       )
-    => mat1 -> mat2 -> Pull (Pull a)
-matMul a b = forEach a $ \a' ->
-               forEach (transpose b) $ \b' ->
-                 scProd a' b'
+matMul :: (Pully2 vec1 a, Pully2 vec2 a, Num a, Syntax a) =>
+    vec1 -> vec2 -> Pull2 a
+matMul veca vecb = Pull2 (numRows va) (numCols vb) $ \i j ->
+    scProd (va!i) (transpose vb ! j)
   where
-    forEach = flip map
+    va = toPull2 veca
+    vb = toPull2 vecb
 
 
 
 --------------------------------------------------------------------------------
--- * Push vectors
+-- * 1-dimensional push vectors
 --------------------------------------------------------------------------------
 
--- | Push vector: a vector representation that supports nested write patterns
--- (e.g. resulting from concatenation) and fusion of operations
+-- | 1-dimensional push vector: a vector representation that supports nested
+-- write patterns (e.g. resulting from concatenation) and fusion of operations
 --
--- The function that dumps the content of the vector is not allowed to perform
--- any side effects except through the \"write\" method
--- (@`Data` `Index` -> a -> m ()@) that is passed to it. That is, it must hold
--- that @`dumpPush` v (\\_ _ -> `return` ())@ has the same behavior as
--- @`return` ()@.
+-- If it is the case that @`dumpPush` v (\\_ _ -> `return` ())@ has the same
+-- behavior as @`return` ()@, i.e., the vector does not have any embedded side
+-- effects, we can regard 'Push' as a pure data structure with the denotation of
+-- a finite list.
 --
--- This condition ensures that `Push` behaves as pure data with the denotation
--- of a finite list.
-data Push a
+-- However, 'Push' is commonly used to assemble data after splitting it up and
+-- performing some operations on the parts. We want to be able to use 'Push'
+-- even if the operation involved has side effects. The function 'sequens' can
+-- be used to embed effects into a 'Push' vector.
+--
+-- 'Push' vectors with embedded effects can often be considered to be denoted by
+-- @M [a]@, where @M@ is some suitable monad. That is, the vector performs some
+-- effects and produces a finite list of values as a result. This denotation is
+-- enough to explain e.g. why
+--
+-- @
+-- `return` (v `++` v)
+-- @
+--
+-- is different from
+--
+-- @
+-- do v' <- `manifestFresh` v
+--    `return` (v' `++` v')
+-- @
+--
+-- (The former duplicates the embedded effects while the latter only performs
+-- the effects once.)
+--
+-- However, this denotation is not enough to model 'dumpPush', which allows a
+-- write method to be interleaved with the embedded effects. Even a function
+-- such as 'manifest' can to some extent be used observe the order of effects
+-- (if the array argument to 'manifest' is also updated by the internal
+-- effects).
+--
+-- Conclusion:
+--
+-- * You can normally think of @`Push` a@ as denoting @M [a]@ (finite list)
+--
+-- * Make sure to pass a free array as argument to 'manifest'
+--
+-- * Avoid using 'dumpPush' unless you know that it's safe
+data Push m a
   where
     Push
         :: Data Length
-        -> (forall m . MonadComp m => (Data Index -> a -> m ()) -> m ())
-        -> Push a
+        -> ((Data Index -> a -> m ()) -> m ())
+        -> Push m a
 
 -- | 'Push' vector specialized to 'Data' elements
-type DPush a = Push (Data a)
+type DPush m a = Push m (Data a)
 
-instance Functor Push
+instance Functor (Push m)
   where
     fmap f (Push len dump) = Push len $ \write ->
         dump $ \i -> write i . f
@@ -505,65 +694,68 @@ instance Functor Push
 --
 -- > pure x    = [x]
 -- > fs <*> xs = [f x | f <- fs, x <- xs]
-instance Applicative Push
+instance Applicative (Push m)
   where
-    pure a  = Push 1 $ \write -> write 0 a
-    Push len1 dump1 <*> Push len2 dump2 = Push (len1*len2) $ \write -> do
-        dump2 $ \i2 a ->
-          dump1 $ \i1 f ->
+    pure a = Push 1 $ \write -> write 0 a
+    vec1 <*> vec2 = Push (len1*len2) $ \write -> do
+        dumpPush vec2 $ \i2 a ->
+          dumpPush vec1 $ \i1 f ->
             write (i1*len2 + i2) (f a)
+      where
+        (len1,len2) = (length vec1, length vec2)
 
 -- No instance `Monad Push`, because it's not possible to determine the length
 -- of the result of `>>=`.
 
-instance Finite (Push a)
+instance Finite (Push m a)
   where
     length (Push len _) = len
 
-instance Syntax a => Forcible (Push a)
-  where
-    type ValueRep (Push a) = Manifest a
-    toValue (Push len dump) = do
-        arr <- newArr len
-        dump $ \i a -> setArr i a arr
-        iarr <- unsafeFreezeArr arr
-        return $ Manifest iarr
-    fromValue = toPush . (id :: Pull b -> Pull b) . fromValue
+-- | Treated as a row vector
+instance Finite2 (Push m a) where extent2 v = (1, length v)
 
 instance
-    ( MarshalHaskell (Internal a)
+    ( Syntax a
+    , MarshalHaskell (Internal a)
     , MarshalFeld (Data (Internal a))
-    , Syntax a
+    , m ~ Run
     ) =>
-      MarshalFeld (Push a)
+      MarshalFeld (Push m a)
   where
-    type HaskellRep (Push a) = [Internal a]
-    fromFeld = fromFeld <=< toValue
-    toFeld   = fromValue <$> toFeld
+    type HaskellRep (Push m a) = HaskellRep (Manifest a)
+    fromFeld = fromFeld <=< manifestFresh
+    toFeld   = toPush . tManifest <$> toFeld
 
-class Pushy vec
+-- | Vectors that can be converted to 'Push'
+class Pushy m vec a | vec -> a
   where
-    toPush :: vec a -> Push a
+    -- | Convert a vector to 'Push'
+    toPush :: vec -> Push m a
 
-instance Pushy Push where toPush = id
+-- | A version of 'toPush' that constrains the @m@ argument of 'Push' to that of
+-- the monad in which the result is returned. This can be a convenient way to
+-- avoid unresolved overloading.
+toPushM :: (Pushy m vec a, Monad m) => vec -> m (Push m a)
+toPushM = return . toPush
+
+instance (Syntax a, MonadComp m) => Pushy m (Manifest a) a where toPush = toPush . toPull
+instance (m1 ~ m2)               => Pushy m1 (Push m2 a) a where toPush = id
+
+instance MonadComp m => Pushy m (Pull a) a
+  where
+    toPush vec = Push len $ \write ->
+        for (0,1,Excl len) $ \i ->
+          write i (vec!i)
+      where
+        len = length vec
 
 -- | Dump the contents of a 'Push' vector
-dumpPush :: MonadComp m
-    => Push a                     -- ^ Vector to dump
+dumpPush
+    :: Push m a                   -- ^ Vector to dump
     -> (Data Index -> a -> m ())  -- ^ Function that writes one element
     -> m ()
 dumpPush (Push _ dump) = dump
 
--- | Convert a 'Pully' structure to 'Push'
---
--- This function is useful for vectors that do not have a 'Pushy' instance (e.g.
--- 'Manifest').
-pullyToPush :: Pully vec a => vec -> Push a
-pullyToPush vec = Push l $ \write -> for (0,1,Excl l) $ \i ->
-    write i (vec!i)
-  where
-    l = length vec
-
 
 
 ----------------------------------------
@@ -571,167 +763,153 @@ pullyToPush vec = Push l $ \write -> for (0,1,Excl l) $ \i ->
 ----------------------------------------
 
 -- | Create a 'Push' vector from a list of elements
-listPush :: [a] -> Push a
+listPush :: Monad m => [a] -> Push m a
 listPush as = Push 2 $ \write ->
     sequence_ [write (value i) a | (i,a) <- Prelude.zip [0..] as]
 
 -- | Append two vectors to make a 'Push' vector
-(++!) :: (Pushy vec1, Pushy vec2) => vec1 a -> vec2 a -> Push a
-(++!) v1 v2 =
-    let Push len1 dump1 = toPush v1
-        Push len2 dump2 = toPush v2
-    in  Push (len1+len2) $ \write ->
-          dump1 write >> dump2 (write . (+len1))
+(++) :: (Pushy m vec1 a, Pushy m vec2 a, Monad m) => vec1 -> vec2 -> Push m a
+vec1 ++ vec2 = Push (len1 + length v2) $ \write ->
+    dumpPush v1 write >> dumpPush v2 (write . (+len1))
+  where
+    v1   = toPush vec1
+    v2   = toPush vec2
+    len1 = length v1
 
 -- Concatenate nested vectors to a 'Push' vector
-concat :: (Pushy vec1, Pushy vec2, Functor vec1)
+concat :: (Pushy m vec1 vec2, Pushy m vec2 a, MonadComp m)
     => Data Length  -- ^ Length of inner vectors
-    -> vec1 (vec2 a)
-    -> Push a
-concat il vec =
-    let Push l dump1 = toPush $ fmap toPush vec
-    in  Push (l*il) $ \write ->
-          dump1 $ \i (Push l2 dump2) ->
-            dump2 $ \j a ->
-              write (i*l2+j) a
-  -- TODO Assert il==l2
-
--- | Flatten a vector of elements with a static structure
-flattenPush
-    :: Pushy vec
-    => Data Length  -- ^ Length of the lists returned by the second argument
-    -> (a -> [b])   -- ^ Convert source element to a list of destination elements
-    -> vec a
-    -> Push b
-flattenPush n f = concat n . fmap (listPush . f) . toPush
-
-
-
---------------------------------------------------------------------------------
--- * Push vectors with embedded effects
---------------------------------------------------------------------------------
-
--- | Push vector with embedded effects
-data PushE m a
+    -> vec1
+    -> Push m a
+concat c vec = Push (len*c) $ \write ->
+    dumpPush v $ \i row ->
+      dumpPush row $ \j a -> do
+        assertLabel
+          InternalAssertion
+          (length row == c)
+          "concat: inner length differs"
+        write (i * length row + j) a
   where
-    PushE :: Data Length -> ((Data Index -> a -> m ()) -> m ()) -> PushE m a
+    v   = fmap toPush $ toPush vec
+    len = length v
 
-instance Functor (PushE m)
+-- Flatten a 2-dimensional vector to a 'Push' vector
+flatten :: Pushy2 m vec a => vec -> Push m a
+flatten vec = Push (r*c) $ \write ->
+    dumpPush2 v $ \i j -> write (i*c + j)
   where
-    fmap f (PushE len dump) = PushE len $ \write -> dump $ \i -> write i . f
+    v     = toPush2 vec
+    (r,c) = extent2 v
 
--- | This instance behaves like the list instance:
+-- | Embed the effects in the elements into the internal effects of a 'Push'
+-- vector
 --
--- > pure x    = [x]
--- > fs <*> xs = [f x | f <- fs, x <- xs]
-instance Applicative (PushE m)
-  where
-    pure a  = PushE 1 $ \write -> write 0 a
-    PushE len1 dump1 <*> PushE len2 dump2 = PushE (len1*len2) $ \write -> do
-        dump2 $ \i2 a ->
-          dump1 $ \i1 f ->
-            write (i1*len2 + i2) (f a)
-
--- No instance `Monad Push`, because it's not possible to determine the length
--- of the result of `>>=`.
-
--- | Dump the contents of a 'PushE' vector
-dumpPushE
-    :: PushE m a                  -- ^ Vector to dump
-    -> (Data Index -> a -> m ())  -- ^ Function that writes one element
-    -> m ()
-dumpPushE (PushE _ dump) = dump
-
--- | Convert a 'PushySeq' vector to 'PushSeqE'
+-- __WARNING:__ This function should be used with care, since is allows hiding
+-- effects inside a vector. These effects may be (seemingly) randomly
+-- interleaved with other effects when the vector is used.
 --
--- See 'toFlatPush' for converting all levels of a nested structure to 'PushE'.
-toPushE :: MonadComp m => Pushy vec => vec a -> PushE m a
-toPushE vec =
-    let Push len dump = toPush vec
-    in  PushE len dump
-
--- Concatenate nested 'PushE' vectors
-concatPushE
-    :: Data Length  -- ^ Length of inner vectors
-    -> PushE m (PushE m a)
-    -> PushE m a
-concatPushE il (PushE l dump1) = PushE (l*il) $ \write ->
-      dump1 $ \i (PushE l2 dump2) ->
-        dump2 $ \j a ->
-          write (i*l2+j) a
-  -- TODO Assert il==l2
-
--- | Join the effect in an element with the internal effect in a 'PushE'
-joinElemPush :: Monad m => PushE m (m a) -> PushE m a
-joinElemPush (PushE len dump) = PushE len $ \write ->
-    dump $ \i m ->
+-- The name 'sequens' has to do with the similarity to the standard function
+-- 'sequence'.
+sequens :: (Pushy m vec (m a), Monad m) => vec -> Push m a
+sequens vec = Push (length v) $ \write ->
+    dumpPush v $ \i m ->
       m >>= write i
+  where
+    v = toPush vec
+
+-- | Forward-permute a 'Push' vector using an index mapping. The supplied
+-- mapping must be a bijection when restricted to the domain of the vector. This
+-- property is not checked, so use with care.
+forwardPermute :: Pushy m vec a =>
+    (Data Length -> Data Index -> Data Index) -> vec ->  Push m a
+forwardPermute p vec = Push len $ \write ->
+    dumpPush v $ \i a ->
+      write (p len i) a
+  where
+    v   = toPush vec
+    len = length v
 
 
 
 --------------------------------------------------------------------------------
--- * Sequential push vectors
+-- * 2-dimensional push vectors
 --------------------------------------------------------------------------------
 
--- | Sequential push vector
+-- | 2-dimensional push vector: a vector representation that supports nested
+-- write patterns (e.g. resulting from concatenation) and fusion of operations
 --
--- Note that 'PushSeq' is a 'Monad', so for example concatenation is done using
--- 'join'.
---
--- The function that dumps the content of the vector is not allowed to perform
--- any side effects except through the \"put\" method (@a -> m ()@) that is
--- passed to it. That is, it must hold that
--- @`dumpPushSeq` v (\\_ -> `return` ())@ has the same behavior as
--- @`return` ()@.
---
--- This condition ensures that `PushSeq` behaves as pure data with the
--- denotation of a (possibly infinite) list.
-data PushSeq a
+-- See the comments to 'Push' regarding the semantics of push vectors with
+-- interleaved effects.
+data Push2 m a
   where
-    PushSeq
-        :: { dumpPushSeq :: forall m . MonadComp m => (a -> m ()) -> m () }
-        -> PushSeq a
+    Push2
+        :: Data Length  -- Number of rows
+        -> Data Length  -- Number of columns
+        -> ((Data Index -> Data Index -> a -> m ()) -> m ())
+        -> Push2 m a
 
--- | 'PushSeq' vector specialized to 'Data' elements
-type DPushSeq a = PushSeq (Data a)
+-- | 'Push2' vector specialized to 'Data' elements
+type DPush2 m a = Push2 m (Data a)
 
-instance Functor PushSeq
+instance Functor (Push2 m)
   where
-    fmap f (PushSeq dump) = PushSeq $ \put -> dump (put . f)
+    fmap f (Push2 r c dump) = Push2 r c $ \write ->
+        dump $ \i j -> write i j . f
 
-instance Applicative PushSeq
+-- | 'length' gives number of rows
+instance Finite (Push2 m a)
   where
-    pure  = return
-    (<*>) = ap
+    length (Push2 r _ _) = r
 
-instance Monad PushSeq
+instance Finite2 (Push2 m a)
   where
-    return a = PushSeq $ \put -> put a
-    m >>= k  = PushSeq $ \put ->
-        dumpPushSeq m $ \a ->
-          dumpPushSeq (k a) put
+    extent2 (Push2 r c _) = (r,c)
 
--- No instance `Syntax a => Forcible (PushSeq a)` because `PushSeq` doesn't have
--- known length.
-
-class PushySeq vec
+instance
+    ( Syntax a
+    , MarshalHaskell (Internal a)
+    , MarshalFeld (Data (Internal a))
+    , m ~ Run
+    ) =>
+      MarshalFeld (Push2 m a)
   where
-    toPushSeq :: vec a -> PushSeq a
+    type HaskellRep (Push2 m a) = HaskellRep (Manifest2 a)
+    fromFeld = fromFeld <=< manifestFresh2
+    toFeld   = toPush2 . tManifest2 <$> toFeld
 
-instance PushySeq PushSeq where toPushSeq = id
-
-instance Folding PushSeq
+-- | Vectors that can be converted to 'Push2'
+class Pushy2 m vec a | vec -> a
   where
-    fold step init = unsafePerform . foldM (\s -> return . step s) init
-      -- `unsafePerform` is safe because of the no-side-effects condition on
-      -- `PushSeq`.
-    foldM step init vec = do
-        r <- initRef init
-        let put a = do
-              s <- unsafeFreezeRef r
-              setRef r =<< step s a
-        dumpPushSeq vec put
-        unsafeFreezeRef r
+    -- | Convert a vector to 'Push2'
+    toPush2 :: vec -> Push2 m a
+
+-- | A version of 'toPush2' that constrains the @m@ argument of 'Push2' to that
+-- of the monad in which the result is returned. This can be a convenient way to
+-- avoid unresolved overloading.
+toPushM2 :: (Pushy2 m vec a, Monad m) => vec -> m (Push2 m a)
+toPushM2 = return . toPush2
+
+-- | Convert to a 'Push2' with a single row
+instance (Syntax a, MonadComp m) => Pushy2 m (Manifest a)  a where toPush2 = toPush2 . toPull
+instance (Syntax a, MonadComp m) => Pushy2 m (Manifest2 a) a where toPush2 = toPush2 . toPull2
+instance MonadComp m             => Pushy2 m (Pull a)      a where toPush2 = toPush2 . toPull2
+instance (m1 ~ m2)               => Pushy2 m1 (Push2 m2 a) a where toPush2 = id
+
+instance MonadComp m => Pushy2 m (Pull2 a) a
+  where
+    toPush2 vec = Push2 r c $ \write ->
+        for (0,1,Excl r) $ \i ->
+          for (0,1,Excl c) $ \j ->
+          write i j (vec!i!j)
+      where
+        (r,c) = extent2 vec
+
+-- | Dump the contents of a 'Push2' vector
+dumpPush2
+    :: Push2 m a                                -- ^ Vector to dump
+    -> (Data Index -> Data Index -> a -> m ())  -- ^ Function that writes one element
+    -> m ()
+dumpPush2 (Push2 _ _ dump) = dump
 
 
 
@@ -739,374 +917,157 @@ instance Folding PushSeq
 -- ** Operations
 ----------------------------------------
 
--- | Create a 'Push' vector from a list of elements
-listPushSeq :: [a] -> PushSeq a
-listPushSeq as = PushSeq $ \put -> mapM_ put as
-
--- | Append two vectors to a 'PushSeq' vector
-(++) :: (PushySeq vec1, PushySeq vec2) => vec1 a -> vec2 a -> PushSeq a
-(++) v1 v2 = PushSeq $ \put ->
-    dumpPushSeq (toPushSeq v1) put >> dumpPushSeq (toPushSeq v2) put
-
--- | Flatten a vector of elements with a static structure
-flatten
-    :: PushySeq vec
-    => (a -> [b])  -- ^ Convert source element to a list of destination elements
-    -> vec a
-    -> PushSeq b
-flatten f = join . fmap (listPushSeq . f) . toPushSeq
-
-filter :: PushySeq vec => (a -> Data Bool) -> vec a -> PushSeq a
-filter pred v = PushSeq $ \put -> do
-    let put' a = iff (pred a) (put a) (return ())
-    dumpPushSeq (toPushSeq v) put'
-
-unfoldPushSeq :: Syntax a => (a -> (b,a)) -> a -> PushSeq b
-unfoldPushSeq step init = PushSeq $ \put -> do
-    r <- initRef init
-    while (return true) $ do
-      s <- unsafeFreezeRef r
-      let (a,s') = step s
-      put a
-      setRef r s'
-  -- TODO Make finite
-
-
-
---------------------------------------------------------------------------------
--- * Sequential push vectors with embedded effects
---------------------------------------------------------------------------------
-
--- | A version of 'PushSeq' with embedded effects
-data PushSeqE m a = PushSeqE
-    { dumpPushSeqE :: (a -> m ()) -> m () }
-
-instance Functor (PushSeqE m)
+-- | Turn a vector of rows into a 2-dimensional vector. All inner vectors are
+-- assumed to have the given length.
+hideRows :: (Pushy m vec1 vec2, Pushy m vec2 a, MonadComp m)
+    => Data Length  -- ^ Length of inner vectors
+    -> vec1
+    -> Push2 m a
+hideRows c vec = Push2 (length v) c $ \write ->
+    dumpPush v $ \i row ->
+      dumpPush row $ \j a -> do
+        assertLabel
+          InternalAssertion
+          (length row == c)
+          "hideRows: inner length differs"
+        write i j a
   where
-    fmap f (PushSeqE dump) = PushSeqE $ \put -> dump (put . f)
+    v = fmap toPush $ toPush vec
 
-instance Applicative (PushSeqE m)
-  where
-    pure  = return
-    (<*>) = ap
-
-instance Monad (PushSeqE m)
-  where
-    return  = PushSeqE . flip ($)
-    m >>= k = PushSeqE $ \put ->
-        dumpPushSeqE m $ \a ->
-          dumpPushSeqE (k a) put
-
-instance MonadTrans PushSeqE
-  where
-    lift m = PushSeqE $ \put -> m >>= put
-
--- | Convert a 'PushySeq' vector to 'PushSeqE'
+-- | Convert a 2-dimensional vector with effectful elements to 'Push2'
 --
--- See 'linearPush' for converting all levels of a nested structure to
--- 'PushSeqE'.
-toPushSeqE :: MonadComp m => PushySeq vec => vec a -> PushSeqE m a
-toPushSeqE = PushSeqE . dumpPushSeq . toPushSeq
+-- __WARNING:__ This function should be used with care, since is allows hiding
+-- effects inside a vector. These effects may be (seemingly) randomly
+-- interleaved with other effects when the vector is used.
+--
+-- The name 'sequens2' has to do with the similarity to the standard function
+-- 'sequence'.
+sequens2 :: (Pushy2 m vec (m a), Monad m) => vec -> Push2 m a
+sequens2 vec = Push2 (numRows v) (numCols v) $ \write ->
+    dumpPush2 v $ \i j m ->
+      m >>= write i j
+  where
+    v = toPush2 vec
 
--- Concatenate nested 'PushSeqE' vectors
-concatPushSeqE :: PushSeqE m (PushSeqE m a) -> PushSeqE m a
-concatPushSeqE (PushSeqE dump1) = PushSeqE $ \put ->
-      dump1 $ \(PushSeqE dump2) ->
-        dump2 put
+-- | Forward-permute a 'Push' vector using an index mapping. The supplied
+-- mapping must be a bijection when restricted to the domain of the vector. This
+-- property is not checked, so use with care.
+forwardPermute2 :: Pushy2 m vec a
+    => (Data Length -> Data Length -> (Data Index, Data Index) -> (Data Index, Data Index))
+    -> vec ->  Push2 m a
+forwardPermute2 p vec = Push2 r c $ \write ->
+    dumpPush2 v $ \i j a -> do
+      let (i',j') = p r c (i,j)
+      write i' j' a
+  where
+    v     = toPush2 vec
+    (r,c) = extent2 v
 
--- | Join the effect in an element with the internal effect in a 'PushSeqE'
-joinElemPushSeq :: Monad m => PushSeqE m (m a) -> PushSeqE m a
-joinElemPushSeq (PushSeqE dump) = PushSeqE $ \put ->
-    dump $ \ m ->
-      m >>= put
+transposePush :: Pushy2 m vec a => vec -> Push2 m a
+transposePush vec = Push2 c r $ \write ->
+    dumpPush2 v $ \i j a ->
+      write j i a
+  where
+    v     = toPush2 vec
+    (r,c) = extent2 v
 
 
 
 --------------------------------------------------------------------------------
--- * Materializing nested structures
+-- * Writing to memory
 --------------------------------------------------------------------------------
 
--- | Returns the dimensionality of a nested structure
---
--- For example:
---
--- @
--- `Dimensions` (`Pull` (`Manifest` (`Data` `Int32`))) = `Dim` (`Dim` ())
--- @
-type family Dimensions a
+class Manifestable m vec
   where
-    Dimensions (Comp a)       = Dimensions a
-    Dimensions (Run a)        = Dimensions a
-    Dimensions (Nest a)       = Dim (Dimensions a)
-    Dimensions (Manifest a)   = Dim (Dimensions a)
-    Dimensions (Pull a)       = Dim (Dimensions a)
-    Dimensions (Push a)       = Dim (Dimensions a)
-    Dimensions (PushE m a)    = Dim (Dimensions a)
-    Dimensions (PushSeq a)    = Dim (Dimensions a)
-    Dimensions (PushSeqE m a) = Dim (Dimensions a)
-    Dimensions a              = ()
+    -- | Write the contents of a vector to memory and get it back as a
+    -- 'Manifest' vector. The supplied array may or may not be used for storage.
+    manifest :: Syntax a
+        => Arr (Internal a)  -- ^ Where to store the vector
+        -> vec a             -- ^ Vector to store
+        -> m (Manifest a)
 
--- | The inner element type of a nested structure
-type family InnerElem a
-  where
-    InnerElem (Data a)       = Data a
-    InnerElem ()             = ()
-    InnerElem (a,b)          = (a,b)
-    InnerElem (a,b,c)        = (a,b,c)
-    InnerElem (a,b,c,d)      = (a,b,c,d)
-    InnerElem (Comp a)       = InnerElem a
-    InnerElem (Run a)        = InnerElem a
-    InnerElem (IArr a)       = Data a
-    InnerElem (Nest a)       = InnerElem a
-    InnerElem (Manifest a)   = a
-    InnerElem (Pull a)       = InnerElem a
-    InnerElem (Push a)       = InnerElem a
-    InnerElem (PushE m a)    = InnerElem a
-    InnerElem (PushSeq a)    = InnerElem a
-    InnerElem (PushSeqE m a) = InnerElem a
-
-class DirectMaterializable a
-  where
-    -- | Convert a structure directly to a flat 'Manifest' without copying. This
-    -- method is only supported for types that simply are views of 'Manifest'
-    -- vectors; e.g. @`Nest` (`Manifest` a)@.
-    maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
-    maybeToFlatManifest = Nothing
-  -- This class is kept separate from `Materializable` to avoid resolving the
-  -- `m` parameter.
-
--- | Nested structures that can be written to memory
-class
-    ( DirectMaterializable a
-    , Syntax (InnerElem a)
-    , MonadComp m
-    ) =>
-      Materializable m a
-  where
-    -- | Convert a nested structure to a flat 'PushE' vector
-    toFlatPush
-        :: InnerExtent' (Dimensions a)  -- ^ Extent of the structure
-        -> a                            -- ^ Structure to convert
-        -> m (PushE m (InnerElem a))
-      -- The reason for returning in the monad is to enable the `Materializable`
-      -- instances for `Comp` and `Run`. If the function did not return in the
-      -- monad, one would have to produce a `PushE m a` from a `m (PushE m a)`.
-      -- This is only possible if the total length is known (so knowing the
-      -- inner extent doesn't help).
-    default toFlatPush :: InnerExtent' () -> a -> m (PushE m a)
-    toFlatPush ZE = return . pure
-
-instance DirectMaterializable (Data a)
-instance DirectMaterializable ()
-instance DirectMaterializable (a,b)
-instance DirectMaterializable (a,b,c)
-instance DirectMaterializable (a,b,c,d)
-
-instance (Type a, MonadComp m)           => Materializable m (Data a)
-instance MonadComp m                     => Materializable m ()
-instance (Syntax (a,b), MonadComp m)     => Materializable m (a,b)
-instance (Syntax (a,b,c), MonadComp m)   => Materializable m (a,b,c)
-instance (Syntax (a,b,c,d), MonadComp m) => Materializable m (a,b,c,d)
-
-instance DirectMaterializable (Comp a)
-
-instance Materializable m a => Materializable m (Comp a)
-  where
-    toFlatPush e m = liftComp m >>= toFlatPush e
-
-instance DirectMaterializable (Run a)
-
-instance Materializable Run a => Materializable Run (Run a)
-  where
-    toFlatPush e m = m >>= toFlatPush e
-
-instance DirectMaterializable (IArr a)
-  where
-    maybeToFlatManifest = Just Manifest
-
-instance (Type a, MonadComp m) => Materializable m (IArr a)
-  where
-    toFlatPush e = return . toPushE . toPull
-
-instance (DirectMaterializable a, Slicable a) => DirectMaterializable (Nest a)
-  where
-    maybeToFlatManifest = do
-        f <- maybeToFlatManifest
-        return (f . unnest)
-
-instance (Materializable m a, Slicable a) => Materializable m (Nest a)
-  where
-    toFlatPush e = toFlatPush e . pullyToPush
-
-instance DirectMaterializable (Manifest a)
-  where
-    maybeToFlatManifest = Just id
-
-instance (Syntax a, MonadComp m) => Materializable m (Manifest a)
-  where
-    toFlatPush e = return . toPushE . toPull
-
-instance DirectMaterializable (Pull a)
-
-instance Materializable m a => Materializable m (Pull a)
-  where
-    toFlatPush e = toFlatPush e . toPush
-
-instance DirectMaterializable (Push a)
-
-instance Materializable m a => Materializable m (Push a)
-  where
-    toFlatPush e = toFlatPush e . (id :: PushE m a -> PushE m a) . toPushE
-
-instance DirectMaterializable (PushE m a)
-
-instance Materializable m a => Materializable m (PushE m a)
-  where
-    toFlatPush e
-        = return
-        . concatPushE innerLen
-        . joinElemPush
-        . fmap (toFlatPush $ tailExtent' e)
+    default manifest :: (Pushy m (vec a) a, Syntax a, MonadComp m) =>
+        Arr (Internal a) -> vec a -> m (Manifest a)
+    manifest loc vec = do
+        dumpPush v $ \i a -> setArr i a loc
+        iarr <- unsafeFreezeArr loc
+        return $ Manifest iarr
       where
-        innerLen = Prelude.product $ listExtent' e
+        v = toPush vec
 
--- | Convert a nested structure to a flat 'Manifest' vector. The provided
--- storage may or may not be used to hold the result.
---
--- Some example types after supplying the first two arguments (@arr@ is of type
--- @`Arr` `Double`@):
---
--- @
--- `materialize` arr (10 `:>` `ZE`) :: `DPull` `Double` -> `Comp` (`Manifest` (`Data` `Double`))
---   -- 1-dimensional Pull to 1-dimensional Manifest
---
--- `materialize` arr (10 `:>` 20 `:>` 30 `:>` `ZE`) :: `Pull` (`Pull` (`DPush` `Double`)) -> `Comp` (`Manifest` (`Data` `Double`))
---   -- 3-dimensional Pull-Pull-Push to 1-dimensional Manifest
---
--- `materialize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Manifest` (`Data` `Double`))
---   -- 2-dimensional Pull-Push /with interleaved effects/ to 1-dimensional Manifest
--- @
---
--- Note the interleaved 'Comp' effect in the last example. In general effects
--- (e.g. 'Comp' or 'Run') are allowed at any level when materializing a nested
--- structure.
-materialize :: forall a m . Materializable m a
-    => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
-    -> InnerExtent (Dimensions a)    -- ^ Extent of the structure
-    -> a                             -- ^ Structure to materialize
-    -> m (Manifest (InnerElem a))    -- ^ Flat result
-materialize _ _ a
-    | Just f <- maybeToFlatManifest :: Maybe (a -> Manifest (InnerElem a))
-    = return (f a)
-materialize arr e a = do
-    PushE _len dump <- toFlatPush (convInnerExtent e) a
-    dump $ \i a -> setArr i (desugar a) arr
-    iarr <- unsafeFreezeArr arr
-    return $ Manifest iarr
-  -- TODO Assert len = ...
+    -- | A version of 'manifest' that allocates a fresh array for the result
+    manifestFresh :: Syntax a => vec a -> m (Manifest a)
 
--- | Convert a nested structure to a corresponding nested 'Manifest' vector.
--- Memorization can be used to get a structure that supports cheap indexing
--- (i.e. operations overloaded by 'Pully'). The provided storage may or may not
--- be used to hold the result.
---
--- Some example types after supplying the first two arguments (@arr@ is of type
--- @`Arr` `Double`@):
---
--- @
--- `memorize` arr (10 `:>` `ZE`) :: `DPull` `Double` -> `Comp` (`Manifest` (`Data` `Double`))
---   -- 1-dimensional Pull to 1-dimensional Manifest
---
--- `memorize` arr (10 `:>` 20 `:>` 30 `:>` `ZE`) :: `Pull` (`Pull` (`DPush` `Double`)) -> `Comp` (`Nest` (`Nest` (`Manifest` (`Data` `Double`))))
---   -- 3-dimensional Pull-Pull-Push to 3-dimensional Manifest
---
--- `memorize` arr (10 `:>` 20 `:>` `ZE`) :: `Pull` (`Comp` (`DPush` `Double`)) -> `Comp` (`Nest` (`Manifest` (`Data` `Double`)))
---   -- 2-dimensional Pull-Push /with interleaved effects/ to 2-dimensional Manifest
--- @
---
--- Note the interleaved 'Comp' effect in the last example. In general effects
--- (e.g. 'Comp' or 'Run') are allowed at any level when memorizing a nested
--- structure.
-memorize :: forall a d m . (Materializable m a, Dimensions a ~ Dim d)
-    => Arr (Internal (InnerElem a))
-    -> InnerExtent (Dimensions a)
-    -> a
-    -> m (MultiNest (Dimensions a) (Manifest (InnerElem a)))
-memorize arr e = fmap (multiNest e) . materialize arr e
+    default manifestFresh
+        :: (Pushy m (vec a) a, Syntax a, MonadComp m)
+        => vec a -> m (Manifest a)
+    manifestFresh vec = do
+        v   <- toPushM vec
+        loc <- newArr $ length v
+        manifest loc v
 
--- | A version of 'memorize' that only stores the structure to the provided
--- array. ('memorize' is not guaranteed to store the structure.)
-memorizeStore :: forall a m . Materializable m a
-    => Arr (Internal (InnerElem a))  -- ^ Storage for the resulting vector
-    -> InnerExtent (Dimensions a)    -- ^ Extent of the structure
-    -> a                             -- ^ Structure to materialize
-    -> m ()
-memorizeStore arr e a = do
-    v <- toFlatPush (convInnerExtent e) a
-    dumpPushE v $ \i a ->
-      setArr i (desugar a) arr
+    -- | A version of 'manifest' that only stores the vector to the given array
+    -- ('manifest' is not guaranteed to use the array)
+    manifestStore :: Syntax a => Arr (Internal a) -> vec a -> m ()
 
+    default manifestStore :: (Pushy m (vec a) a, Syntax a, MonadComp m) =>
+        Arr (Internal a) -> vec a -> m ()
+    manifestStore loc = void . manifest loc . toPush
 
-
---------------------------------------------------------------------------------
--- * Linearizing nested structures
---------------------------------------------------------------------------------
-
--- Linearizable data structures
-class MonadComp m => Linearizable m a
+-- | 'manifest' and 'manifestFresh' are no-ops
+instance MonadComp m => Manifestable m Manifest
   where
-    -- | Convert a structure to a 'PushSeqE' vector
-    linearPush :: a -> PushSeqE m (InnerElem a)
-    default linearPush :: a -> PushSeqE m a
-    linearPush = return
+    manifest _    = return
+    manifestFresh = return
 
-instance MonadComp m => Linearizable m (Data a)
-instance MonadComp m => Linearizable m ()
-instance MonadComp m => Linearizable m (a,b)
-instance MonadComp m => Linearizable m (a,b,c)
-instance MonadComp m => Linearizable m (a,b,c,d)
-  -- TODO Larger tuples
+    manifestStore loc (Manifest iarr) = do
+      arr <- unsafeThawArr iarr
+      copyArr loc arr
 
-instance Linearizable m a => Linearizable m (Comp a)
+instance MonadComp m             => Manifestable m Pull
+instance (MonadComp m1, m1 ~ m2) => Manifestable m1 (Push m2)
+
+class Manifestable2 m vec
   where
-    linearPush = linearPush <=< lift . liftComp
+    -- | Write the contents of a vector to memory and get it back as a
+    -- 'Manifest2' vector
+    manifest2 :: Syntax a
+        => Arr (Internal a)  -- ^ Where to store the result
+        -> vec a             -- ^ Vector to store
+        -> m (Manifest2 a)
 
-instance Linearizable Run a => Linearizable Run (Run a)
+    default manifest2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
+        Arr (Internal a) -> vec a -> m (Manifest2 a)
+    manifest2 loc vec = do
+        dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
+        iarr <- unsafeFreezeArr loc
+        return $ Manifest2 $ nest r c $ Manifest iarr
+      where
+        v     = toPush2 vec
+        (r,c) = extent2 v
+
+    -- | A version of 'manifest2' that allocates a fresh array for the result
+    manifestFresh2 :: Syntax a => vec a -> m (Manifest2 a)
+
+    default manifestFresh2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
+        vec a -> m (Manifest2 a)
+    manifestFresh2 vec = do
+        v   <- toPushM2 vec
+        loc <- newArr (numRows v * numCols v)
+        manifest2 loc vec
+
+-- | 'manifest2' and 'manifestFresh2' are no-ops
+instance Monad m => Manifestable2 m Manifest2
   where
-    linearPush = linearPush <=< lift
+    manifest2 _    = return
+    manifestFresh2 = return
 
-instance (Type a, MonadComp m) => Linearizable m (IArr a)
-  where
-    linearPush = linearPush . toPushSeq . toPull
+instance MonadComp m             => Manifestable2 m Pull2
+instance (MonadComp m1, m1 ~ m2) => Manifestable2 m1 (Push2 m2)
 
-instance (Linearizable m a, InnerElem a ~ a, Syntax a) =>
-    Linearizable m (Manifest a)
-  where
-    linearPush = linearPush . toPushSeq . toPull
-
-instance Linearizable m a => Linearizable m (Pull a)
-  where
-    linearPush = linearPush . toPushSeq
-
-instance Linearizable m a => Linearizable m (PushSeq a)
-  where
-    linearPush v = PushSeqE $ \put ->
-        dumpPushSeq v $ \a ->
-          dumpPushSeqE (linearPush a) put
-
--- | Fold the content of a 'Linearizable' data structure
-linearFold :: (Linearizable m lin, Syntax a, MonadComp m) =>
-    (a -> InnerElem lin -> m a) -> a -> lin -> m a
-linearFold step init lin = do
-    r <- initRef init
-    let put a = do
-          s <- unsafeFreezeRef r
-          setRef r =<< step s a
-    dumpPushSeqE (linearPush lin) put
-    unsafeFreezeRef r
-
--- | Map a monadic function over the content of a 'Linearizable' data structure
-linearMapM :: (Linearizable m lin, MonadComp m) =>
-    (InnerElem lin -> m ()) -> lin -> m ()
-linearMapM f = linearFold (\_ -> f) ()
+-- | A version of 'manifest2' that only stores the vector to the given array
+-- ('manifest2' is not guaranteed to use the array)
+manifestStore2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
+    Arr (Internal a) -> vec a -> m ()
+manifestStore2 loc = void . manifest2 loc . toPush2
 

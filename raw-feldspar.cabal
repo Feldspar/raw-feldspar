@@ -64,6 +64,7 @@ library
     DeriveTraversable
     FlexibleContexts
     FlexibleInstances
+    FunctionalDependencies
     GADTs
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses

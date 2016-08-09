@@ -70,16 +70,18 @@ test_scProd1 = do
       (scProd (fmap i2n (0 ... n-1)) (fmap i2n (2 ... n+1)) :: Data Double)
 
 test_scProd2 = do
-    n <- fget stdin
-    v1 <- force $ fmap i2n (0 ... n-1)
-    v2 <- force $ fmap i2n (2 ... n+1)
+    n  <- fget stdin
+    v1 <- manifestFresh $ fmap i2n (0 ... n-1)
+    v2 <- manifestFresh $ fmap i2n (2 ... n+1)
     printf "result: %.3f\n" (scProd v1 v2 :: Data Double)
 
 map_inplace :: Run ()
 map_inplace = do
-    svec <- initStore (0...19)
-    inplace svec $ fmap (*33)
-    vec <- unsafeFreezeStore svec
+    n   <- fget stdin
+    loc <- newArr n
+    vec <- manifest loc (0 ... n-1)
+    manifestStore loc $ map (*33) vec
+    vec <- unsafeFreezeArr loc
     printf "result: %d\n" $ sum vec
 
 
@@ -91,7 +93,7 @@ testAll = do
     tag "printFib"     >> compareCompiled printFib     (runIO printFib)     "7\n"
     tag "test_scProd1" >> compareCompiled test_scProd1 (runIO test_scProd1) "20\n"
     tag "test_scProd2" >> compareCompiled test_scProd2 (runIO test_scProd2) "20\n"
-    tag "map_inplace"  >> compareCompiled map_inplace  (runIO map_inplace)  ""
+    tag "map_inplace"  >> compareCompiled map_inplace  (runIO map_inplace)  "20\n"
   where
     tag str = putStrLn $ "---------------- examples/Demo.hs/" Prelude.++ str Prelude.++ "\n"
 

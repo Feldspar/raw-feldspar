@@ -97,6 +97,8 @@ nest l w a = Nest (guard l) (guard w) a
       (l*w == length a)
       "nest: unbalanced nesting"
 
+-- TODO Should `Nest` not be exported?
+
 -- | A version of 'nest' that only takes the segment length as argument. The
 -- total number of segments is computed by division.
 --

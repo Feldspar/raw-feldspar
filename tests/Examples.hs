@@ -5,6 +5,7 @@ import qualified Prelude
 import qualified Data.Complex as Complex
 
 import Feldspar.Run
+import Feldspar.Data.Vector
 
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Monadic as QC
@@ -36,8 +37,8 @@ wrapStorage f v = do
     s2 <- newArr $ length v
     f (s1,s2) v
 
-fftS  = wrapStorage fft
-ifftS = wrapStorage ifft
+fftS  = wrapStorage fft  :: DManifest (Complex Double) -> Run (DManifest (Complex Double))
+ifftS = wrapStorage ifft :: DManifest (Complex Double) -> Run (DPull (Complex Double))
 
 prop_fft_dft dft' fft' = QC.monadicIO $ do
     n   :: Int              <- QC.pick $ QC.choose (2,5)
