@@ -37,6 +37,13 @@ import Feldspar.Run.Representation
 unsafeSwap :: IsPointer a => a -> a -> Run ()
 unsafeSwap a b = Run $ Imp.unsafeSwap a b
 
+-- | Like 'unsafeSwap' but for arrays. The why we cannot use 'unsafeSwap'
+-- directly is that 'Arr' cannot be made an instance of 'IsPointer'.
+unsafeSwapArr :: Arr a -> Arr a -> Run ()
+unsafeSwapArr arr1 arr2 = Run $ sequence_ $
+    zipListStruct Imp.unsafeSwap (unArr arr1) (unArr arr2)
+  -- An alternative would be to make a new `IsPointer` class for Feldspar
+
 
 
 --------------------------------------------------------------------------------
