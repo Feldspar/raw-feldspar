@@ -402,6 +402,7 @@ instance ( Syntax a, BulkTransferable a
         untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
       where
         len = length v
+ -- TODO Make instances for other vector types
 
 -- | Data structures that are 'Pull'-like (i.e. support '!' and 'length')
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
@@ -1014,7 +1015,8 @@ class Manifestable m vec
         Arr (Internal a) -> vec a -> m ()
     manifestStore loc = void . manifest loc . toPush
 
--- | 'manifest' and 'manifestFresh' are no-ops
+-- | 'manifest' and 'manifestFresh' are no-ops. 'manifestStore' does a proper
+-- 'arrCopy'.
 instance MonadComp m => Manifestable m Manifest
   where
     manifest _    = return
@@ -1056,18 +1058,26 @@ class Manifestable2 m vec
         loc <- newArr (numRows v * numCols v)
         manifest2 loc vec
 
--- | 'manifest2' and 'manifestFresh2' are no-ops
-instance Monad m => Manifestable2 m Manifest2
+    -- | A version of 'manifest2' that only stores the vector to the given array
+    -- ('manifest2' is not guaranteed to use the array)
+    manifestStore2 :: Syntax a => Arr (Internal a) -> vec a -> m ()
+
+    default manifestStore2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
+        Arr (Internal a) -> vec a -> m ()
+    manifestStore2 loc = void . manifest2 loc . toPush2
+
+-- | 'manifest2' and 'manifestFresh2' are no-ops. 'manifestStore2' does a proper
+-- 'arrCopy'.
+instance MonadComp m => Manifestable2 m Manifest2
   where
     manifest2 _    = return
     manifestFresh2 = return
 
+    manifestStore2 loc (Manifest2 man) = do
+      let Manifest iarr = unnest man
+      arr <- unsafeThawArr iarr
+      copyArr loc arr
+
 instance MonadComp m             => Manifestable2 m Pull2
 instance (MonadComp m1, m1 ~ m2) => Manifestable2 m1 (Push2 m2)
-
--- | A version of 'manifest2' that only stores the vector to the given array
--- ('manifest2' is not guaranteed to use the array)
-manifestStore2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
-    Arr (Internal a) -> vec a -> m ()
-manifestStore2 loc = void . manifest2 loc . toPush2
 
