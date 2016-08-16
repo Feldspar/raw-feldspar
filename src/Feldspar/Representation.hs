@@ -133,6 +133,10 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- to a struct of small references. Among other things, that would require
   -- dynamic typing.)
 
+instance Eq (Ref a)
+  where
+    Ref a == Ref b = and $ zipListStruct (==) a b
+
 -- | Mutable array
 data Arr a = Arr
     { arrOffset :: Data Index
@@ -152,12 +156,34 @@ data Arr a = Arr
   -- An array of tuples is represented as a struct of smaller arrays. See
   -- comment to `Ref`.
 
+-- | '==' checks if two 'Arr' use the same physical array. The length and offset
+-- are ignored.
+instance Eq (Arr a)
+  where
+    Arr _ _ arr1 == Arr _ _ arr2 = and (zipListStruct (==) arr1 arr2)
+
 -- | Immutable array
 data IArr a = IArr
     { iarrOffset :: Data Index
     , iarrLength :: Data Length
     , unIArr     :: Struct PrimType' (Imp.IArr Index) a
     }
+
+-- | Check if an 'Arr' and and 'IArr' use the same physical array. The length
+-- and offset are ignored. This operation may give false negatives, but never
+-- false positives. Whether or not false negatives occur may also depend on the
+-- interpretation of the program.
+--
+-- Due to this unreliability, the function should only be used to affect the
+-- non-functional properties of a program (e.g. to avoid unnecessary array
+-- copying).
+unsafeEqArrIArr :: Arr a -> IArr a -> Bool
+unsafeEqArrIArr (Arr _ _ arr1) (IArr _ _ arr2) =
+    and (zipListStruct sameId arr1 arr2)
+  where
+    sameId :: Imp.Arr Index a -> Imp.IArr Index a -> Bool
+    sameId (Imp.ArrComp a) (Imp.IArrComp i) = a==i
+    sameId _ _ = False
 
 
 
