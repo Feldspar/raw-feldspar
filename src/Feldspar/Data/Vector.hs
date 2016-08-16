@@ -1000,7 +1000,17 @@ transposePush vec = Push2 c r $ \write ->
 -- * Writing to memory
 --------------------------------------------------------------------------------
 
-class Manifestable m vec
+class ViewManifest vec
+  where
+    -- | Try to cast a vector to 'Manifest' directly
+    viewManifest :: vec a -> Maybe (Manifest a)
+    viewManifest _ = Nothing
+
+instance ViewManifest Manifest where viewManifest = Just
+instance ViewManifest Pull
+instance ViewManifest (Push m)
+
+class ViewManifest vec => Manifestable m vec
   where
     -- | Write the contents of a vector to memory and get it back as a
     -- 'Manifest' vector. The supplied array may or may not be used for storage.
@@ -1051,7 +1061,17 @@ instance MonadComp m => Manifestable m Manifest
 instance MonadComp m             => Manifestable m Pull
 instance (MonadComp m1, m1 ~ m2) => Manifestable m1 (Push m2)
 
-class Manifestable2 m vec
+class ViewManifest2 vec
+  where
+    -- | Try to cast a vector to 'Manifest2' directly
+    viewManifest2 :: vec a -> Maybe (Manifest2 a)
+    viewManifest2 _ = Nothing
+
+instance ViewManifest2 Manifest2 where viewManifest2 = Just
+instance ViewManifest2 Pull2
+instance ViewManifest2 (Push2 m)
+
+class ViewManifest2 vec => Manifestable2 m vec
   where
     -- | Write the contents of a vector to memory and get it back as a
     -- 'Manifest2' vector
