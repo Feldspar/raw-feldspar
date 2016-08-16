@@ -168,7 +168,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) => MarshalFeld (Arr a)
     type HaskellRep (Arr a) = [a]
 
     fromFeld arr = do
-        len <- force $ length arr
+        len <- shareM $ length arr
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
@@ -189,7 +189,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
     type HaskellRep (IArr a) = [a]
 
     fromFeld arr = do
-        len <- force $ length arr
+        len <- shareM $ length arr
         fput stdout "" len " "
         for (0,1,Excl len) $ \i -> do
             fromFeld (arrIx arr i :: Data a)

@@ -140,7 +140,7 @@ fft'
     -> vec (Data (Complex a))
     -> m (DManifest (Complex a))
 fft' store inv v = do
-    n <- force (ilog2 (length v) - 1)
+    n <- shareM (ilog2 (length v) - 1)
     fftCore store inv n v >>= bitRev (swapStorage store) n
 
 -- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given

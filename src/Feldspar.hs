@@ -36,8 +36,6 @@ module Feldspar
   , Border (..)
   , IxRange
   , AssertionLabel (..)
-    -- * Storable types
-  , module Feldspar.Storable
   ) where
 
 import Prelude.EDSL
@@ -59,7 +57,6 @@ import Feldspar.Primitive.Representation
 import Feldspar.Representation
 import Feldspar.Frontend
 import Feldspar.Optimize
-import Feldspar.Storable
 
 
 

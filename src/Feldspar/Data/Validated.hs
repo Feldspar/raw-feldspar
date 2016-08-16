@@ -54,13 +54,6 @@ instance Syntax a => Syntactic (Validated a)
     desugar (Validated valid a) = desugar (valid,a)
     sugar = uncurry Validated . sugar
 
--- | 'toValue' will force the value even if it's invalid
-instance Forcible a => Forcible (Validated a)
-  where
-    type ValueRep (Validated a) = (Data Bool, ValueRep a)
-    toValue (Validated valid a) = toValue (valid,a)
-    fromValue = uncurry Validated . fromValue
-
 -- | Create a validated value. Note that the value may get evaluated even if the
 -- condition is false.
 validWhen :: Data Bool -> a -> Validated a

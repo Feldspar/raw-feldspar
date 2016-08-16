@@ -34,7 +34,6 @@ library
     Feldspar.Sugar
     Feldspar.Frontend
     Feldspar.Optimize
-    Feldspar.Storable
     Feldspar
     Feldspar.Run.Representation
     Feldspar.Run.Concurrent

@@ -6,8 +6,6 @@ module Feldspar.Data.Array where
 
 import Prelude (Functor, Foldable, Traversable, error, product, reverse)
 
-import Data.Proxy
-
 import Feldspar.Run
 
 
@@ -38,28 +36,6 @@ instance Slicable a => Slicable (Nest a)
         guard = guardValLabel InternalAssertion (from+n<=l) "invalid Nest slice"
         from' = guard from
         n'    = guard n
-
-instance Forcible a => Forcible (Nest a)
-  where
-    type ValueRep (Nest a) = (Data Length, Data Length, ValueRep a)
-    toValue (Nest h w a) = toValue (h,w,a)
-    fromValue v = let (h,w,a) = fromValue v in Nest h w a
-
-instance Storable a => Storable (Nest a)
-  where
-    type StoreRep (Nest a)  = (Ref Length, Ref Length, StoreRep a)
-    type StoreSize (Nest a) = StoreSize a
-    newStoreRep _ sz =
-        newStoreRep (Proxy :: Proxy (Data Length, Data Length, a)) ((),(),sz)
-    initStoreRep (Nest h w a) = initStoreRep (h,w,a)
-    readStoreRep rep = do
-      (h,w,a) <- readStoreRep rep
-      return $ Nest h w a
-    unsafeFreezeStoreRep rep = do
-      (h,w,a) <- unsafeFreezeStoreRep rep
-      return $ Nest h w a
-    writeStoreRep rep (Nest h w a) = writeStoreRep rep (h,w,a)
-    copyStoreRep _ = copyStoreRep (Proxy :: Proxy (Data Length, Data Length, a))
 
 -- | Note that @`HaskellRep` (`Nest` a) = (`Length`, `Length`, `HaskellRep` a)@
 -- rather than @[HaskellRep a]@. This means that e.g.
