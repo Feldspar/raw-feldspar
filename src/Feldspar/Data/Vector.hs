@@ -152,6 +152,7 @@ module Feldspar.Data.Vector
 
 import qualified Prelude
 
+import Data.List (genericLength)
 import Data.Proxy
 
 import Feldspar
@@ -242,10 +243,31 @@ instance
     fromFeld = fromFeld . unManifest
     toFeld   = Manifest <$> toFeld
 
+-- | Freeze a mutable array to a 'Manifest' vector without making a copy. This
+-- is generally only safe if the the mutable array is not updated as long as the
+-- vector is alive.
+unsafeFreezeToManifest :: (Syntax a, MonadComp m) =>
+    Data Length -> Arr (Internal a) -> m (Manifest a)
+unsafeFreezeToManifest l = fmap (Manifest . slice 0 l) . unsafeFreezeArr
+
+-- | Freeze a mutable array to a 'Manifest2' vector without making a copy. This
+-- is generally only safe if the the mutable array is not updated as long as the
+-- vector is alive.
+--
+--
+unsafeFreezeToManifest2 :: (Syntax a, MonadComp m)
+    => Data Length  -- ^ Number of rows
+    -> Data Length  -- ^ Number of columns
+    -> Arr (Internal a)
+    -> m (Manifest2 a)
+unsafeFreezeToManifest2 r c =
+    fmap (Manifest2 . nest r c) . unsafeFreezeToManifest (r*c)
+
 -- | Make a constant 'Manifest' vector
-constManifest :: (PrimType (Internal a), MonadComp m) =>
+constManifest :: (Syntax a, PrimType (Internal a), MonadComp m) =>
     [Internal a] -> m (Manifest a)
-constManifest as = fmap Manifest . unsafeFreezeArr =<< initArr as
+constManifest as =
+    unsafeFreezeToManifest (value $ genericLength as) =<< initArr as
 
 -- | Make a 'Manifest' vector from a list of values
 listManifest :: forall m a . (Syntax a, MonadComp m) => [a] -> m (Manifest a)
@@ -395,7 +417,7 @@ instance ( Syntax a, BulkTransferable a
         len :: Data Length <- untypedReadChan c
         arr <- newArr len
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
-        toPull . Manifest <$> unsafeFreezeArr arr
+        toPull <$> unsafeFreezeToManifest len arr
     untypedWriteChan c v = do
         arr <- newArr len
         untypedWriteChan c len
@@ -987,12 +1009,12 @@ class Manifestable m vec
         -> vec a             -- ^ Vector to store
         -> m (Manifest a)
 
-    default manifest :: (Pushy m (vec a) a, Syntax a, MonadComp m) =>
-        Arr (Internal a) -> vec a -> m (Manifest a)
+    default manifest
+        :: (Pushy m (vec a) a, Finite (vec a), Syntax a, MonadComp m)
+        => Arr (Internal a) -> vec a -> m (Manifest a)
     manifest loc vec = do
         dumpPush v $ \i a -> setArr i a loc
-        iarr <- unsafeFreezeArr loc
-        return $ Manifest iarr
+        unsafeFreezeToManifest (length vec) loc
       where
         v = toPush vec
 
@@ -1042,8 +1064,7 @@ class Manifestable2 m vec
         Arr (Internal a) -> vec a -> m (Manifest2 a)
     manifest2 loc vec = do
         dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
-        iarr <- unsafeFreezeArr loc
-        return $ Manifest2 $ nest r c $ Manifest iarr
+        unsafeFreezeToManifest2 r c loc
       where
         v     = toPush2 vec
         (r,c) = extent2 v
