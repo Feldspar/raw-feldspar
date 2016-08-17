@@ -47,6 +47,7 @@ library
     Feldspar.Hardware
     Feldspar.Data.Array
     Feldspar.Data.Vector
+    Feldspar.Data.Buffered
     Feldspar.Data.Option
     Feldspar.Data.Validated
 
@@ -69,6 +70,7 @@ library
     MultiParamTypeClasses
     PatternSynonyms
     Rank2Types
+    RecordWildCards
     ScopedTypeVariables
     StandaloneDeriving
     TypeFamilies

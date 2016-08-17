@@ -6,6 +6,7 @@ import qualified Data.Complex as Complex
 
 import Feldspar.Run
 import Feldspar.Data.Vector
+import Feldspar.Data.Buffered
 
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Monadic as QC
@@ -30,15 +31,14 @@ almostEq a b
 
 a ~= b = Prelude.and $ Prelude.zipWith almostEq a b
 
-wrapStorage :: (Syntax a, Finite (vec a), MonadComp m) =>
-    (Storage (Internal a) -> vec a -> m b) -> vec a -> m b
-wrapStorage f v = do
-    s1 <- newArr $ length v
-    s2 <- newArr $ length v
-    f (s1,s2) v
+wrapStore :: (Syntax a, Finite (vec a), MonadComp m) =>
+    (Store a -> vec a -> m b) -> vec a -> m b
+wrapStore f v = do
+    st <- newStore $ length v
+    f st v
 
-fftS  = wrapStorage fft  :: DManifest (Complex Double) -> Run (DManifest (Complex Double))
-ifftS = wrapStorage ifft :: DManifest (Complex Double) -> Run (DPull (Complex Double))
+fftS  = wrapStore fft  :: DManifest (Complex Double) -> Run (DManifest (Complex Double))
+ifftS = wrapStore ifft :: DManifest (Complex Double) -> Run (DPull (Complex Double))
 
 prop_fft_dft dft' fft' = QC.monadicIO $ do
     n   :: Int              <- QC.pick $ QC.choose (2,5)

@@ -32,8 +32,7 @@
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 module FFT
-  ( Storage
-  , fft
+  ( fft
   , ifft
   ) where
 
@@ -43,20 +42,9 @@ import Prelude ()
 
 import Feldspar.Run
 import Feldspar.Data.Vector
+import Feldspar.Data.Buffered
 
 
-
--- | Storage for vector-to-vector operations
---
--- * The first array is the storage for the result. It should be free before
---   the operation.
---
--- * The second array is temporary storage. It can hold the argument vector, and
---   it will be free after the operation.
-type Storage a = (Arr a, Arr a)
-
-swapStorage :: Storage a -> Storage a
-swapStorage (a,b) = (b,a)
 
 rotBit :: Data Index -> Data Index -> Data Index
 rotBit k i = lefts .|. rights
@@ -69,53 +57,31 @@ rotBit k i = lefts .|. rights
 riffle :: (Pully pull a, Syntax a) => Data Index -> pull -> Pull a
 riffle = backPermute . const . rotBit
 
-stages
-    :: ( Manifestable m init
-       , Finite (init a)
-       , Pushy m vec a
-       , Syntax a
-       , MonadComp m
-       )
-    => Storage (Internal a)
-    -> Pull i                    -- ^ Vector to loop over
-    -> (i -> Manifest a -> vec)  -- ^ One stage
-    -> init a                    -- ^ Initial state
-    -> m (Manifest a)            -- ^ Final state
-stages (resLoc,tmpLoc) as body init = do
-    manifestStore resLoc init
-    for (0,1,Excl n) $ \i -> do
-        prev <- Manifest . slice 0 l <$> unsafeFreezeArr resLoc
-        manifestStore tmpLoc $ toPush $ body (as!i) prev
-        copyArr resLoc (slice 0 l tmpLoc)
-    Manifest . slice 0 l <$> unsafeFreezeArr resLoc
-  where
-    n = length as
-    l = length init
-
-bitRev :: (Manifestable m vec, Finite (vec a), Syntax a, MonadComp m)
-    => Storage (Internal a)
-    -> Data Index
+bitRev :: (Manifestable Run vec, Finite (vec a), Syntax a)
+    => Store a
+    -> Data Length
     -> vec a
-    -> m (Manifest a)
-bitRev store n = stages store (1...n) riffle
+    -> Run (Manifest a)
+bitRev st n = loopStore st (1,1,Incl n) $ \i -> return . riffle i
 
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
 fftCore
-    :: ( Manifestable m vec
+    :: ( Manifestable Run vec
        , Finite (vec (Data (Complex a)))
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
-       , MonadComp m
        )
-    => Storage (Complex a)
+    => Store (Data (Complex a))
     -> Bool  -- ^ Inverse?
-    -> Data Index
+    -> Data Length
     -> vec (Data (Complex a))
-    -> m (DManifest (Complex a))
-fftCore store inv n = stages store (reverse (0...n)) step
+    -> Run (DManifest (Complex a))
+fftCore st inv n = loopStore st (n+1,-1,Incl 1) $ \i -> return . step (i-1)
+    -- Note: Cannot loop from n to 0 because 0-1 is `maxBound`, so the loop will
+    -- go on forever.
   where
     step k vec = Pull (length vec) ixf
       where
@@ -128,49 +94,50 @@ fftCore store inv n = stages store (reverse (0...n)) step
             k2   = 1 .<<. k'
 
 fft'
-    :: ( Manifestable m vec
+    :: ( Manifestable Run vec
        , Finite (vec (Data (Complex a)))
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
-       , MonadComp m
        )
-    => Storage (Complex a)
+    => Store (Data (Complex a))
     -> Bool  -- ^ Inverse?
     -> vec (Data (Complex a))
-    -> m (DManifest (Complex a))
-fft' store inv v = do
+    -> Run (DManifest (Complex a))
+fft' st inv v = do
     n <- shareM (ilog2 (length v) - 1)
-    fftCore store inv n v >>= bitRev (swapStorage store) n
+    fftCore st inv n v >>= bitRev st n
 
 -- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
 fft
-    :: ( Manifestable m vec
+    :: ( Manifestable Run vec
        , Finite (vec (Data (Complex a)))
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
-       , MonadComp m
        )
-    => Storage (Complex a) -> vec (Data (Complex a)) -> m (DManifest (Complex a))
-fft store = fft' store False
+    => Store (Data (Complex a))
+    -> vec (Data (Complex a))
+    -> Run (DManifest (Complex a))
+fft st = fft' st False
 
 -- | Radix-2 Decimation-In-Frequency Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving 'ifft . fft == id'.
 ifft
-    :: ( Manifestable m vec
+    :: ( Manifestable Run vec
        , Finite (vec (Data (Complex a)))
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
-       , MonadComp m
        )
-    => Storage (Complex a) -> vec (Data (Complex a)) -> m (DPull (Complex a))
-ifft store v = normalize <$> fft' store True v
+    => Store (Data (Complex a))
+    -> vec (Data (Complex a))
+    -> Run (DPull (Complex a))
+ifft st v = normalize <$> fft' st True v
   where
     normalize = map (/ (i2n $ length v))
 
