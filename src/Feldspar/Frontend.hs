@@ -825,9 +825,9 @@ assertLabel c cond msg =
 ----------------------------------------
 
 -- | Force evaluation of a value and share the result (monadic version of
--- 'share'). Note that due to common sub-expression elimination, this function
--- is rarely needed in practice.
+-- 'share')
 shareM :: (Syntax a, MonadComp m) => a -> m a
 shareM = initRef >=> unsafeFreezeRef
-  -- See comment to `share`
+  -- This function is more commonly needed than `share`, since code motion
+  -- doesn't work across monadic binds.
 
