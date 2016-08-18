@@ -250,19 +250,6 @@ unsafeFreezeToManifest :: (Syntax a, MonadComp m) =>
     Data Length -> Arr (Internal a) -> m (Manifest a)
 unsafeFreezeToManifest l = fmap (Manifest . slice 0 l) . unsafeFreezeArr
 
--- | Freeze a mutable array to a 'Manifest2' vector without making a copy. This
--- is generally only safe if the the mutable array is not updated as long as the
--- vector is alive.
---
---
-unsafeFreezeToManifest2 :: (Syntax a, MonadComp m)
-    => Data Length  -- ^ Number of rows
-    -> Data Length  -- ^ Number of columns
-    -> Arr (Internal a)
-    -> m (Manifest2 a)
-unsafeFreezeToManifest2 r c =
-    fmap (Manifest2 . nest r c) . unsafeFreezeToManifest (r*c)
-
 -- | Make a constant 'Manifest' vector
 constManifest :: (Syntax a, PrimType (Internal a), MonadComp m) =>
     [Internal a] -> m (Manifest a)
@@ -1092,7 +1079,7 @@ class ViewManifest2 vec => Manifestable2 m vec
         Arr (Internal a) -> vec a -> m (Manifest2 a)
     manifest2 loc vec = do
         dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
-        unsafeFreezeToManifest2 r c loc
+        closeManifest2 . nest r c <$> unsafeFreezeToManifest (r*c) loc
       where
         v     = toPush2 vec
         (r,c) = extent2 v

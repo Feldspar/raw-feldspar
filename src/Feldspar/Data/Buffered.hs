@@ -97,7 +97,8 @@ unsafeFreezeStore2 :: (Syntax a, MonadComp m)
     -> Data Length  -- ^ Number of columns
     -> Store a
     -> m (Manifest2 a)
-unsafeFreezeStore2 r c = unsafeFreezeToManifest2 r c . activeBuf
+unsafeFreezeStore2 r c Store {..} =
+    closeManifest2 . nest r c <$> unsafeFreezeToManifest (r*c) activeBuf
 
 -- | Cheap swapping of the two buffers in a 'Store'
 swapStore :: Syntax a => Store a -> Run ()
