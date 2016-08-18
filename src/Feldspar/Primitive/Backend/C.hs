@@ -97,19 +97,12 @@ compFun fun args = do
 
 -- | Compile a call to 'abs'
 compAbs :: MonadC m => PrimTypeRep a -> ASTF PrimDomain a -> m C.Exp
-compAbs t a = do
-    addInclude "<tgmath.h>"
-    case t of
-        BoolT          -> error "compAbs: type BoolT not supported"
-        Int8T          -> compFun "abs"  (a :* Nil)
-        Int16T         -> compFun "abs"  (a :* Nil)
-        Int32T         -> compFun "abs"  (a :* Nil)
-        Int64T         -> compFun "labs" (a :* Nil)
-        FloatT         -> compFun "fabs" (a :* Nil)
-        DoubleT        -> compFun "fabs" (a :* Nil)
-        ComplexFloatT  -> compFun "fabs" (a :* Nil)
-        ComplexDoubleT -> compFun "fabs" (a :* Nil)
-        _ -> compPrim $ Prim a  -- Unsigned integers
+compAbs t a = case viewPrimTypeRep t of
+    PrimTypeBool     -> error "compAbs: type BoolT not supported"
+    PrimTypeIntWord (IntType _)  -> addInclude "<stdlib.h>" >> compFun "abs" (a :* Nil)
+    PrimTypeIntWord (WordType _) -> compPrim $ Prim a
+    _ -> addInclude "<tgmath.h>" >> compFun "fabs" (a :* Nil)
+      -- Floating and complex types
 
 complexSign_def = [cedecl|
 double _Complex feld_complexSign(double _Complex c) {
