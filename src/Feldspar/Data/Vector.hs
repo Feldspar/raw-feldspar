@@ -315,6 +315,14 @@ instance
     fromFeld = fromFeld . unManifest2
     toFeld   = Manifest2 <$> toFeld
 
+-- | Expose the representation of 'Manifest2'
+openManifest2 :: Manifest2 a -> Nest (Manifest a)
+openManifest2 = unManifest2
+
+-- | Hide the representation of 'Manifest2'
+closeManifest2 :: Nest (Manifest a) -> Manifest2 a
+closeManifest2 = Manifest2
+
 
 
 --------------------------------------------------------------------------------
