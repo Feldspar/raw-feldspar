@@ -5,6 +5,7 @@
 -- * The 'Store' representation only allows a vector to be read back as the same
 --   type as it was written. But it is usually desired to read a vector as
 --   'Manifest' regardless of what type it was written as.
+--
 --     - But this is solved by using functions that operated on 'StoreRep'
 --       instead (such as 'readStoreRep').
 --
@@ -23,6 +24,8 @@ import Data.Proxy
 
 import Feldspar
 import Feldspar.Data.Vector
+import Feldspar.Data.Option
+import Feldspar.Data.Validated
 
 
 
@@ -88,6 +91,30 @@ instance Forcible a => Forcible [a]
     type ValueRep [a] = [ValueRep a]
     toValue   = Prelude.mapM toValue
     fromValue = Prelude.map fromValue
+
+-- | 'toValue' will force the value even if it's invalid
+instance Forcible a => Forcible (Validated a)
+  where
+    type ValueRep (Validated a) = (Data Bool, ValueRep a)
+    toValue (Validated valid a) = toValue (valid,a)
+    fromValue = uncurry Validated . fromValue
+
+instance Syntax a => Forcible (Option a)
+  where
+    type ValueRep (Option a) = (Data Bool, Data (Internal a))
+    toValue o = do
+        valid <- initRef false
+        r     <- initRef (example :: a)
+        caseOptionM o
+          (\_ -> return ())
+          (\b -> setRef valid true >> setRef r b)
+        (,) <$> unsafeFreezeRef valid <*> unsafeFreezeRef r
+    fromValue (valid,a) = guarded "fromIStore: none" valid (Feldspar.sugar a)
+  -- Ideally, one should use `Storable` instead of the `Syntax` constraint, and
+  -- make `r` a `Store` instead of a reference. But the problem is that one
+  -- would have to make use of `newStore` which needs a size argument. This is
+  -- problematic because the size of the value is not known until inside
+  -- `caseOptionM`.
 
 -- Note: There are no instances for vector types, because that would require
 -- allocating a new array inside `toValue`.
@@ -311,6 +338,31 @@ instance Syntax a => Storable (Push Comp a)
     writeStoreRep (lr,arr) vec = liftComp $ do
         setRef lr $ length vec
         manifestStore arr vec
+
+instance (Storable a, Syntax a) => Storable (Option a)
+  where
+    type StoreRep (Option a)  = (Ref Bool, StoreRep a)
+    type StoreSize (Option a) = StoreSize a
+    newStoreRep _ s = do
+        valid <- initRef false
+        r     <- newStoreRep (Nothing :: Maybe a) s
+        return (valid,r)
+    initStoreRep o = do
+        valid <- initRef false
+        r     <- initStoreRep (example :: a)  -- TODO
+        caseOptionM o
+          (\_ -> return ())
+          (\b -> writeStoreRep (valid,r) (true,b))
+        return (valid,r)
+    readStoreRep oRep = do
+        (valid,a) <- readStoreRep oRep
+        return $ guarded "readStoreRep: none" valid a
+    unsafeFreezeStoreRep oRep = do
+        (valid,a) <- unsafeFreezeStoreRep oRep
+        return $ guarded "unsafeFreezeStoreRep: none" valid a
+    writeStoreRep oRep@(valid,r) o = caseOptionM o
+        (\_ -> setRef valid false)
+        (\a -> writeStoreRep oRep (true,a))
 
 
 
