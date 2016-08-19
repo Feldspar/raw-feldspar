@@ -50,6 +50,7 @@ library
     Feldspar.Data.Buffered
     Feldspar.Data.Option
     Feldspar.Data.Validated
+    Feldspar.Data.Storable
 
   other-modules:
     Data.Inhabited.TH
