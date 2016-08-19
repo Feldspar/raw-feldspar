@@ -78,7 +78,7 @@ instance (Formattable a, PrimType a, PrintfType r) => PrintfType (Data a -> r)
 fprintf :: PrintfType r => Handle -> String -> r
 fprintf h format = fprf h format []
 
--- | Put a single value to a handle
+-- | Put a primitive value to a handle
 fput :: (Formattable a, PrimType a)
     => Handle
     -> String  -- Prefix
@@ -87,7 +87,7 @@ fput :: (Formattable a, PrimType a)
     -> Run ()
 fput h pre e post = Run $ Imp.fput h pre e post
 
--- | Get a single value from a handle
+-- | Get a primitive value from a handle
 fget :: (Formattable a, PrimType a) => Handle -> Run (Data a)
 fget = Run . Imp.fget
 

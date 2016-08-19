@@ -45,12 +45,12 @@ instance Slicable a => Slicable (Nest a)
 instance MarshalFeld a => MarshalFeld (Nest a)
   where
     type HaskellRep (Nest a) = (Length, Length, HaskellRep a)
-    fromFeld hdl (Nest h w a) = fromFeld hdl (h,w,a)
-    toFeld hdl = do
-        (h,w,a) <- toFeld hdl
+    fwrite hdl (Nest h w a) = fwrite hdl (h,w,a)
+    fread hdl = do
+        (h,w,a) <- fread hdl
         return $ Nest h w a
   -- The reason for not using `HaskellRep (Nest a) = [HaskellRep a]` is that
-  -- this representation makes it impossible to implement `toFeld`.
+  -- this representation makes it impossible to implement `fread`.
 
 -- | Add a layer of nesting to a linear data structure by virtually chopping it
 -- up into segments. The nesting is virtual in the sense that
