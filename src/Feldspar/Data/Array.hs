@@ -45,9 +45,9 @@ instance Slicable a => Slicable (Nest a)
 instance MarshalFeld a => MarshalFeld (Nest a)
   where
     type HaskellRep (Nest a) = (Length, Length, HaskellRep a)
-    fromFeld (Nest h w a) = fromFeld (h,w,a)
-    toFeld = do
-        (h,w,a) <- toFeld
+    fromFeld hdl (Nest h w a) = fromFeld hdl (h,w,a)
+    toFeld hdl = do
+        (h,w,a) <- toFeld hdl
         return $ Nest h w a
   -- The reason for not using `HaskellRep (Nest a) = [HaskellRep a]` is that
   -- this representation makes it impossible to implement `toFeld`.

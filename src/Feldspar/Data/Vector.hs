@@ -60,10 +60,10 @@
 --
 -- @
 -- bad = do
---     v :: `DManifest` `Int32` <- `toFeld`  -- Read from stdin
+--     v :: `DManifest` `Int32` <- `toFeldSTD`  -- Read from stdin
 --     let v'  = `map` heavy v
 --         v'' = v' `++` `reverse` v'
---     `fromFeld` v''                    -- Write to stdout
+--     `fromFeldSTD` v''                    -- Write to stdout
 -- @
 --
 -- Since @v'@ is used twice in defining @v''@, the mapping of the @heavy@
@@ -73,10 +73,10 @@
 --
 -- @
 -- good = do
---     v :: `DManifest` `Int32` <- `toFeld`  -- Read from stdin
+--     v :: `DManifest` `Int32` <- `toFeldSTD`  -- Read from stdin
 --     v' <- `manifestFresh` $ `map` heavy v
 --     let v'' = v' `++` `reverse` v'
---     `fromFeld` v''                    -- Write to stdout
+--     `fromFeldSTD` v''                    -- Write to stdout
 -- @
 --
 -- Even though the examples are called @bad@ and @good@, there's not a clear-cut
@@ -240,8 +240,8 @@ instance
       MarshalFeld (Manifest a)
   where
     type HaskellRep (Manifest a) = HaskellRep (IArr (Internal a))
-    fromFeld = fromFeld . unManifest
-    toFeld   = Manifest <$> toFeld
+    fromFeld hdl = fromFeld hdl . unManifest
+    toFeld hdl   = Manifest <$> toFeld hdl
 
 -- | Freeze a mutable array to a 'Manifest' vector without making a copy. This
 -- is generally only safe if the the mutable array is not updated as long as the
@@ -299,8 +299,8 @@ instance
       MarshalFeld (Manifest2 a)
   where
     type HaskellRep (Manifest2 a) = HaskellRep (Nest (Manifest a))
-    fromFeld = fromFeld . unManifest2
-    toFeld   = Manifest2 <$> toFeld
+    fromFeld hdl = fromFeld hdl . unManifest2
+    toFeld hdl   = Manifest2 <$> toFeld hdl
 
 -- | Expose the representation of 'Manifest2'
 openManifest2 :: Manifest2 a -> Nest (Manifest a)
@@ -391,8 +391,8 @@ instance
       MarshalFeld (Pull a)
   where
     type HaskellRep (Pull a) = HaskellRep (Manifest a)
-    fromFeld = fromFeld . (id :: Push Run a -> Push Run a) . toPush
-    toFeld   = toPull . tManifest <$> toFeld
+    fromFeld hdl = fromFeld hdl . (id :: Push Run a -> Push Run a) . toPush
+    toFeld hdl   = toPull . tManifest <$> toFeld hdl
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -563,8 +563,8 @@ instance
       MarshalFeld (Pull2 a)
   where
     type HaskellRep (Pull2 a) = HaskellRep (Manifest2 a)
-    fromFeld = fromFeld . (id :: Push2 Run a -> Push2 Run a) . toPush2
-    toFeld   = toPull2 . tManifest2 <$> toFeld
+    fromFeld hdl = fromFeld hdl . (id :: Push2 Run a -> Push2 Run a) . toPush2
+    toFeld hdl   = toPull2 . tManifest2 <$> toFeld hdl
 
 -- | Vectors that can be converted to 'Pull2'
 class Pully2 vec a | vec -> a
@@ -741,8 +741,8 @@ instance
       MarshalFeld (Push m a)
   where
     type HaskellRep (Push m a) = HaskellRep (Manifest a)
-    fromFeld = fromFeld <=< manifestFresh
-    toFeld   = toPush . tManifest <$> toFeld
+    fromFeld hdl = fromFeld hdl <=< manifestFresh
+    toFeld hdl   = toPush . tManifest <$> toFeld hdl
 
 -- | Vectors that can be converted to 'Push'
 class Pushy m vec a | vec -> a
@@ -892,8 +892,8 @@ instance
       MarshalFeld (Push2 m a)
   where
     type HaskellRep (Push2 m a) = HaskellRep (Manifest2 a)
-    fromFeld = fromFeld <=< manifestFresh2
-    toFeld   = toPush2 . tManifest2 <$> toFeld
+    fromFeld hdl = fromFeld hdl <=< manifestFresh2
+    toFeld hdl   = toPush2 . tManifest2 <$> toFeld hdl
 
 -- | Vectors that can be converted to 'Push2'
 class Pushy2 m vec a | vec -> a
