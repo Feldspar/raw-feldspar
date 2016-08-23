@@ -1,4 +1,6 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Concurrent where
 
 
@@ -13,19 +15,19 @@ import Feldspar.Data.Vector
 -- | Waiting for thread completion.
 waiting :: Run ()
 waiting = do
-  t <- fork $ printf "Forked thread printing %d\n" (value 0 :: Data Int32)
+  t <- fork $ printf "Forked thread printing %d\n" (0 :: Data Int32)
   waitThread t
-  printf "Main thread printing %d\n" (value 1 :: Data Int32)
+  printf "Main thread printing %d\n" (1 :: Data Int32)
 
 -- | A thread kills itself using its own thread ID.
 suicide :: Run ()
 suicide = do
   tid <- forkWithId $ \tid -> do
-    printf "This is printed. %d\n" (value 0 :: Data Int32)
+    printf "This is printed. %d\n" (0 :: Data Int32)
     killThread tid
-    printf "This is not. %d\n" (value 0 :: Data Int32)
+    printf "This is not. %d\n" (0 :: Data Int32)
   waitThread tid
-  printf "The thread is dead, long live the thread! %d\n" (value 0 :: Data Int32)
+  printf "The thread is dead, long live the thread! %d\n" (0 :: Data Int32)
 
 
 
@@ -33,12 +35,12 @@ suicide = do
 primChan :: Run ()
 primChan = do
     let n = 7
-    c :: Chan Closeable (Data Word32) <- newCloseableChan (value $ n + 1)
+    c :: Chan Closeable (Data Word32) <- newCloseableChan (n + 1)
     writer <- fork $ do
         printf "Writer started\n"
-        writeChan c (value n)
+        writeChan c n
         arr <- initArr [1..n]
-        writeChanBuf c 0 (value n) arr
+        writeChanBuf c 0 n arr
         printf "Writer ended\n"
     reader <- fork $ do
         printf "Reader started\n"
