@@ -162,10 +162,6 @@ test-suite Examples
 
   default-language: Haskell2010
 
-  default-extensions:
-    FlexibleContexts
-    ScopedTypeVariables
-
   build-depends:
     base,
     QuickCheck,
