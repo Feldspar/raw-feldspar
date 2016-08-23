@@ -822,7 +822,7 @@ flatten vec = Push (r*c) $ \write ->
 -- | Embed the effects in the elements into the internal effects of a 'Push'
 -- vector
 --
--- __WARNING:__ This function should be used with care, since is allows hiding
+-- __WARNING:__ This function should be used with care, since it allows hiding
 -- effects inside a vector. These effects may be (seemingly) randomly
 -- interleaved with other effects when the vector is used.
 --
