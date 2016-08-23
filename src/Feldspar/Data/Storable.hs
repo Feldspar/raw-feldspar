@@ -311,11 +311,10 @@ instance Syntax a => Storable (Pull a)
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))
     initStoreRep  = initStoreRepVec
 
-    readStoreRep =
-        fmap (toPull . (id :: Manifest a -> Manifest a)) . readStoreRep
+    readStoreRep = fmap (toPull . (id :: Manifest a -> _)) . readStoreRep
 
     unsafeFreezeStoreRep =
-        fmap (toPull . (id :: Manifest a -> Manifest a)) . unsafeFreezeStoreRep
+        fmap (toPull . (id :: Manifest a -> _)) . unsafeFreezeStoreRep
 
     writeStoreRep = writeStoreRepVec
 
@@ -329,11 +328,10 @@ instance Syntax a => Storable (Push Comp a)
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))
     initStoreRep  = initStoreRepVec
 
-    readStoreRep =
-        fmap (toPush . (id :: Manifest a -> Manifest a)) . readStoreRep
+    readStoreRep = fmap (toPush . (id :: Manifest a -> _)) . readStoreRep
 
     unsafeFreezeStoreRep =
-        fmap (toPush . (id :: Manifest a -> Manifest a)) . unsafeFreezeStoreRep
+        fmap (toPush . (id :: Manifest a -> _)) . unsafeFreezeStoreRep
 
     writeStoreRep (lr,arr) vec = liftComp $ do
         setRef lr $ length vec

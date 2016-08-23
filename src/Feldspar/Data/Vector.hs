@@ -163,16 +163,6 @@ import qualified Language.Embedded.Concurrent as Imp
 
 
 
-tManifest :: Manifest a -> Manifest a
-tManifest = id
-  -- TODO Use patch combinators
-
-tManifest2 :: Manifest2 a -> Manifest2 a
-tManifest2 = id
-  -- TODO Use patch combinators
-
-
-
 --------------------------------------------------------------------------------
 -- * Generic operations
 --------------------------------------------------------------------------------
@@ -257,11 +247,8 @@ constManifest as =
     unsafeFreezeToManifest (value $ genericLength as) =<< initArr as
 
 -- | Make a 'Manifest' vector from a list of values
-listManifest :: forall m a . (Syntax a, MonadComp m) => [a] -> m (Manifest a)
-listManifest
-    = manifestFresh
-    . (id :: Push m a -> Push m a)
-    . listPush
+listManifest :: (Syntax a, MonadComp m) => [a] -> m (Manifest a)
+listManifest = manifestFresh . listPush
 
 
 
@@ -391,8 +378,8 @@ instance
       MarshalFeld (Pull a)
   where
     type HaskellRep (Pull a) = HaskellRep (Manifest a)
-    fwrite hdl = fwrite hdl . (id :: Push Run a -> Push Run a) . toPush
-    fread hdl  = toPull . tManifest <$> fread hdl
+    fwrite hdl = fwrite hdl . toPush
+    fread hdl  = (toPull :: Manifest a -> _) <$> fread hdl
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
 
@@ -563,8 +550,8 @@ instance
       MarshalFeld (Pull2 a)
   where
     type HaskellRep (Pull2 a) = HaskellRep (Manifest2 a)
-    fwrite hdl = fwrite hdl . (id :: Push2 Run a -> Push2 Run a) . toPush2
-    fread hdl  = toPull2 . tManifest2 <$> fread hdl
+    fwrite hdl = fwrite hdl . toPush2
+    fread hdl  = (toPull2 :: Manifest2 a -> _) <$> fread hdl
 
 -- | Vectors that can be converted to 'Pull2'
 class Pully2 vec a | vec -> a
@@ -742,7 +729,7 @@ instance
   where
     type HaskellRep (Push m a) = HaskellRep (Manifest a)
     fwrite hdl = fwrite hdl <=< manifestFresh
-    fread hdl  = toPush . tManifest <$> fread hdl
+    fread hdl  = toPush . (id :: Manifest _ -> _) <$> fread hdl
 
 -- | Vectors that can be converted to 'Push'
 class Pushy m vec a | vec -> a
@@ -893,7 +880,7 @@ instance
   where
     type HaskellRep (Push2 m a) = HaskellRep (Manifest2 a)
     fwrite hdl = fwrite hdl <=< manifestFresh2
-    fread hdl  = toPush2 . tManifest2 <$> fread hdl
+    fread hdl  = toPush2 . (id :: Manifest2 _ -> _) <$> fread hdl
 
 -- | Vectors that can be converted to 'Push2'
 class Pushy2 m vec a | vec -> a

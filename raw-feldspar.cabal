@@ -72,6 +72,7 @@ library
     PatternSynonyms
     Rank2Types
     RecordWildCards
+    PartialTypeSignatures
     ScopedTypeVariables
     StandaloneDeriving
     TypeFamilies
@@ -96,6 +97,9 @@ library
     template-haskell
 
   hs-source-dirs: src
+
+  ghc-options:
+    -fno-warn-partial-type-signatures
 
 test-suite NumSimpl
   type: exitcode-stdio-1.0
