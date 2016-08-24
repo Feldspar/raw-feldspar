@@ -759,7 +759,7 @@ dumpPush (Push _ dump) = dump
 
 -- | Create a 'Push' vector from a list of elements
 listPush :: Monad m => [a] -> Push m a
-listPush as = Push 2 $ \write ->
+listPush as = Push (value $ genericLength as) $ \write ->
     sequence_ [write (value i) a | (i,a) <- Prelude.zip [0..] as]
 
 -- | Append two vectors to make a 'Push' vector
