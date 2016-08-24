@@ -28,20 +28,20 @@ funO vec i = do
 test_option :: Run ()
 test_option = do
     vec <- manifestFresh $ fmap i2n (1...10)
-    i   <- fget stdin
+    i   <- readStd
     printf "%d\n" $ fromSome $ funO vec i
 
 test_optionM :: Run ()
 test_optionM = do
     vec <- manifestFresh $ fmap i2n (1...10)
-    i   <- fget stdin
+    i   <- readStd
     caseOptionM (funO vec i)
         printf
         (printf "%d\n")
 
 readPositive :: OptionT Run (Data Int32)
 readPositive = do
-    i <- lift $ fget stdin
+    i <- lift $ readStd
     guarded "negative" (i>=0) (i :: Data Int32)
 
 test_optionT = optionT printf (\_ -> return ()) $ do
