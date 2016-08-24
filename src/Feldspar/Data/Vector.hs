@@ -203,6 +203,16 @@ instance Finite2 (Nest a)
 --------------------------------------------------------------------------------
 
 -- | A 1-dimensional vector with a concrete representation in memory
+--
+-- There are two main reasons to use 'Manifest' when possible instead of `Pull`:
+--
+-- * The operations of the 'Manifestable' class are more efficient for
+--   'Manifest'. They either result in a no-op or an efficient memory-copy
+--   (instead of a copying loop).
+--
+-- * 'Manifest' can be freely converted to/from a 2-dimensional structure using
+--   'nest' and 'unnest'. Note that the representation of 'Manifest2' is
+--   @`Nest` (`Manifest` a)@.
 newtype Manifest a = Manifest {unManifest :: IArr (Internal a)}
 
 -- | 'Manifest' vector specialized to 'Data' elements
