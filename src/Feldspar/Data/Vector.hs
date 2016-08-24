@@ -350,26 +350,6 @@ instance Slicable (Pull a)
   where
     slice from n = take n . drop from
 
--- instance Syntax a => Storable (Pull a)
---   where
---     type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
---     type StoreSize (Pull a) = Data Length
---     newStoreRep _        = newStoreRep (Proxy :: Proxy (Manifest a))
---     readStoreRep         = fmap fromValue . readStoreRep
---     unsafeFreezeStoreRep = fmap fromValue . unsafeFreezeStoreRep
---     copyStoreRep _       = copyStoreRep (Proxy :: Proxy (Manifest a))
-
---     writeStoreRep (r,arr) v = do
---         setRef r $ length v
---         memorizeStore arr Outer $ fmap desugar v
-
---     initStoreRep v = do
---         r   <- initRef $ length v
---         arr <- newArr $ length v
---         let s = (r,arr)
---         writeStoreRep s v
---         return s
-
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
