@@ -19,7 +19,13 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-import qualified Demo
+import qualified Tut1_HelloWorld            as Tut1
+import qualified Tut2_ExpressionsAndTypes   as Tut2
+import qualified Tut3_Vectors               as Tut3
+import qualified Tut4_MemoryManagement      as Tut4
+import qualified Tut5_Matrices              as Tut5
+import qualified Tut6_Testing               as Tut6
+import qualified Tut7_ImperativeProgramming as Tut7
 -- import qualified CoDesign
 import qualified Concurrent
 import DFT
@@ -65,7 +71,13 @@ main =
     marshalledM ifftS           $ \ifft' ->
 
       defaultMain $ testGroup "tests"
-        [ testCase "Demo"       Demo.testAll
+        [ testCase "Tut1"       Tut1.testAll
+        , testCase "Tut2"       Tut2.testAll
+        , testCase "Tut3"       Tut3.testAll
+        , testCase "Tut4"       Tut4.testAll
+        , testCase "Tut5"       Tut5.testAll
+        , testCase "Tut6"       Tut6.testAll
+        , testCase "Tut7"       Tut7.testAll
         , testCase "Concurrent" Concurrent.testAll
         -- , testCase "CoDesign"   CoDesign.testAll
         , testProperty "fft_dft"  $ prop_fft_dft dft' fft'
