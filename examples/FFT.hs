@@ -57,10 +57,10 @@ rotBit k i = lefts .|. rights
 riffle :: (Pully pull a, Syntax a) => Data Index -> pull -> Pull a
 riffle = backPermute . const . rotBit
 
-bitRev :: (Manifestable Run vec, Finite (vec a), Syntax a)
+bitRev :: (Manifestable Run vec a, Finite vec, Syntax a)
     => Store a
     -> Data Length
-    -> vec a
+    -> vec
     -> Run (Manifest a)
 bitRev st n = loopStore st (1,1,Incl n) $ \i -> return . riffle i
 
@@ -68,8 +68,8 @@ testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
 fftCore
-    :: ( Manifestable Run vec
-       , Finite (vec (Data (Complex a)))
+    :: ( Manifestable Run vec (Data (Complex a))
+       , Finite vec
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
@@ -77,7 +77,7 @@ fftCore
     => Store (Data (Complex a))
     -> Bool  -- ^ Inverse?
     -> Data Length
-    -> vec (Data (Complex a))
+    -> vec
     -> Run (DManifest (Complex a))
 fftCore st inv n = loopStore st (n+1,-1,Incl 1) $ \i -> return . step (i-1)
     -- Note: Cannot loop from n to 0 because 0-1 is `maxBound`, so the loop will
@@ -94,15 +94,15 @@ fftCore st inv n = loopStore st (n+1,-1,Incl 1) $ \i -> return . step (i-1)
             k2   = 1 .<<. k'
 
 fft'
-    :: ( Manifestable Run vec
-       , Finite (vec (Data (Complex a)))
+    :: ( Manifestable Run vec (Data (Complex a))
+       , Finite vec
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
     -> Bool  -- ^ Inverse?
-    -> vec (Data (Complex a))
+    -> vec
     -> Run (DManifest (Complex a))
 fft' st inv v = do
     n <- shareM (ilog2 (length v) - 1)
@@ -112,14 +112,14 @@ fft' st inv v = do
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
 fft
-    :: ( Manifestable Run vec
-       , Finite (vec (Data (Complex a)))
+    :: ( Manifestable Run vec (Data (Complex a))
+       , Finite vec
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
-    -> vec (Data (Complex a))
+    -> vec
     -> Run (DManifest (Complex a))
 fft st = fft' st False
 
@@ -128,14 +128,14 @@ fft st = fft' st False
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving 'ifft . fft == id'.
 ifft
-    :: ( Manifestable Run vec
-       , Finite (vec (Data (Complex a)))
+    :: ( Manifestable Run vec (Data (Complex a))
+       , Finite vec
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
-    -> vec (Data (Complex a))
+    -> vec
     -> Run (DPull (Complex a))
 ifft st v = normalize <$> fft' st True v
   where

@@ -239,25 +239,25 @@ initStoreRepVec2 vec = do
     return st
 
 writeStoreRepVec
-    :: ( Manifestable m vec
-       , StoreRep (vec a) ~ (DRef Length, Arr a)
-       , Finite (vec a)
+    :: ( Manifestable m vec a
+       , StoreRep vec ~ (DRef Length, Arr a)
+       , Finite vec
        , Syntax a
        , MonadComp m
        )
-    => StoreRep (vec a) -> vec a -> m ()
+    => StoreRep vec -> vec -> m ()
 writeStoreRepVec (lr,arr) vec = do
     setRef lr $ length vec
     manifestStore arr vec
 
 writeStoreRepVec2
-    :: ( Manifestable2 m vec
-       , StoreRep (vec a) ~ (DRef Length, DRef Length, Arr a)
-       , Finite2 (vec a)
+    :: ( Manifestable2 m vec a
+       , StoreRep vec ~ (DRef Length, DRef Length, Arr a)
+       , Finite2 vec
        , Syntax a
        , MonadComp m
        )
-    => StoreRep (vec a) -> vec a -> m ()
+    => StoreRep vec -> vec -> m ()
 writeStoreRepVec2 (rr,cr,arr) vec = do
     setRef rr $ numRows vec
     setRef cr $ numCols vec
@@ -294,12 +294,12 @@ instance Syntax a => Storable (Manifest2 a)
     readStoreRep (rr,cr,arr) = do
         r <- getRef rr
         c <- getRef cr
-        Manifest2 . nest r c <$> freezeSlice (r*c) arr
+        nest r c <$> freezeSlice (r*c) arr
 
     unsafeFreezeStoreRep (rr,cr,arr) = do
         r <- unsafeFreezeRef rr
         c <- unsafeFreezeRef cr
-        Manifest2 . nest r c <$> unsafeFreezeSlice (r*c) arr
+        nest r c <$> unsafeFreezeSlice (r*c) arr
 
     writeStoreRep = writeStoreRepVec2
 
