@@ -39,7 +39,7 @@ primChan = do
     writer <- fork $ do
         printf "Writer started\n"
         writeChan c n
-        arr <- initArr [1..n]
+        arr <- constArr [1..n]
         writeChanBuf c 0 n arr
         printf "Writer ended\n"
     reader <- fork $ do

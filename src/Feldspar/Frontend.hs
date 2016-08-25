@@ -658,24 +658,22 @@ newNamedArr :: (Type (Internal a), MonadComp m)
 newNamedArr base l = liftComp $ fmap (Arr 0 l) $
     mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
 
--- | Create and initialize an array
-initArr :: (PrimType (Internal a), MonadComp m)
+-- | Create an array and initialize it with a constant list
+constArr :: (PrimType (Internal a), MonadComp m)
     => [Internal a]  -- ^ Initial contents
     -> m (Arr a)
-initArr = initNamedArr "a"
+constArr = constNamedArr "a"
 
--- It would seem
-
--- | Create and initialize a named array
+-- | Create a named array and initialize it with a constant list
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr :: (PrimType (Internal a), MonadComp m)
+constNamedArr :: (PrimType (Internal a), MonadComp m)
     => String        -- ^ Base name
     -> [Internal a]  -- ^ Initial contents
     -> m (Arr a)
-initNamedArr base as =
-    liftComp $ fmap (Arr 0 len . Single) $ Comp $ Imp.initNamedArr base as
+constNamedArr base as =
+    liftComp $ fmap (Arr 0 len . Single) $ Comp $ Imp.constNamedArr base as
   where
     len = value $ genericLength as
 
@@ -781,10 +779,10 @@ unsafeThawArr arr
     $ mapStructA (Comp . Imp.unsafeThawArr)
     $ unIArr arr
 
--- | Create and initialize an immutable array
-initIArr :: (PrimType (Internal a), MonadComp m) =>
+-- | Create an immutable array and initialize it with a constant list
+constIArr :: (PrimType (Internal a), MonadComp m) =>
     [Internal a] -> m (IArr a)
-initIArr = initArr >=> unsafeFreezeArr
+constIArr = constArr >=> unsafeFreezeArr
 
 
 

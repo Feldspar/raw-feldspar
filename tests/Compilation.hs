@@ -64,7 +64,7 @@ test_optionT = optionT printf (\_ -> return ()) $ do
 -- Test that constant folding does not attempt to fold array indexing
 test_constFoldArr :: Run ()
 test_constFoldArr = do
-    arr <- initIArr [1..10]
+    arr <- constIArr [1..10]
     let a = (arrIx arr 0 == arrIx arr 1) ? arrIx arr 100 $ arrIx arr 2
     printf "%d\n" (a :: Data Int32)
 
