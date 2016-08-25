@@ -26,7 +26,6 @@ import qualified Tut4_MemoryManagement      as Tut4
 import qualified Tut5_Matrices              as Tut5
 import qualified Tut6_Testing               as Tut6
 import qualified Tut7_ImperativeProgramming as Tut7
--- import qualified CoDesign
 import qualified Concurrent
 import DFT
 import FFT
@@ -79,7 +78,6 @@ main =
         , testCase "Tut6"       Tut6.testAll
         , testCase "Tut7"       Tut7.testAll
         , testCase "Concurrent" Concurrent.testAll
-        -- , testCase "CoDesign"   CoDesign.testAll
         , testProperty "fft_dft"  $ prop_fft_dft dft' fft'
         , testProperty "dft_idft" $ prop_inverse dft' idft'
         , testProperty "fft_ifft" $ prop_inverse fft' ifft'
