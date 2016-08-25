@@ -120,7 +120,7 @@ typeEqFun (FunT ta tb) (FunT ua ub) = do
 typeEqFun _ _ = Nothing
 
 -- | Mutable variable
-newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
+newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref (Internal a) }
   -- A reference to a tuple is a struct of smaller references. This means that
   -- creating a reference to a tuple will generate several calls to generate new
   -- references. This must be done already in the front end, which means that
@@ -132,6 +132,9 @@ newtype Ref a = Ref { unRef :: Struct PrimType' Imp.Ref a }
   -- would be to run the back end in a store that maps each front end reference
   -- to a struct of small references. Among other things, that would require
   -- dynamic typing.)
+
+-- | Reference specialized to 'Data' elements
+type DRef a = Ref (Data a)
 
 instance Eq (Ref a)
   where

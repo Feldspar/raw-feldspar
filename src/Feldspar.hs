@@ -15,7 +15,7 @@ module Feldspar
   , Type
   , Length
   , Index
-  , Ref
+  , Ref, DRef
   , Arr
   , IArr
   , Inhabited

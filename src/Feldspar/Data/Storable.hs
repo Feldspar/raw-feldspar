@@ -101,7 +101,7 @@ instance Forcible a => Forcible (Validated a)
 
 instance Syntax a => Forcible (Option a)
   where
-    type ValueRep (Option a) = (Data Bool, Data (Internal a))
+    type ValueRep (Option a) = (Data Bool, a)
     toValue o = do
         valid <- initRef false
         r     <- initRef (example :: a)
@@ -109,7 +109,7 @@ instance Syntax a => Forcible (Option a)
           (\_ -> return ())
           (\b -> setRef valid true >> setRef r b)
         (,) <$> unsafeFreezeRef valid <*> unsafeFreezeRef r
-    fromValue (valid,a) = guarded "fromIStore: none" valid (Feldspar.sugar a)
+    fromValue (valid,a) = guarded "fromIStore: none" valid a
   -- Ideally, one should use `Storable` instead of the `Syntax` constraint, and
   -- make `r` a `Store` instead of a reference. But the problem is that one
   -- would have to make use of `newStore` which needs a size argument. This is
@@ -176,7 +176,7 @@ instance Storable ()
 
 instance Type a => Storable (Data a)
   where
-    type StoreRep (Data a)  = Ref a
+    type StoreRep (Data a)  = DRef a
     type StoreSize (Data a) = ()
     newStoreRep _ _      = newRef
     initStoreRep         = initRef
@@ -240,7 +240,7 @@ initStoreRepVec2 vec = do
 
 writeStoreRepVec
     :: ( Manifestable m vec
-       , StoreRep (vec a) ~ (Ref Length, Arr (Internal a))
+       , StoreRep (vec a) ~ (DRef Length, Arr (Internal a))
        , Finite (vec a)
        , Syntax a
        , MonadComp m
@@ -252,7 +252,7 @@ writeStoreRepVec (lr,arr) vec = do
 
 writeStoreRepVec2
     :: ( Manifestable2 m vec
-       , StoreRep (vec a) ~ (Ref Length, Ref Length, Arr (Internal a))
+       , StoreRep (vec a) ~ (DRef Length, DRef Length, Arr (Internal a))
        , Finite2 (vec a)
        , Syntax a
        , MonadComp m
@@ -265,7 +265,7 @@ writeStoreRepVec2 (rr,cr,arr) vec = do
 
 instance Syntax a => Storable (Manifest a)
   where
-    type StoreRep (Manifest a)  = (Ref Length, Arr (Internal a))
+    type StoreRep (Manifest a)  = (DRef Length, Arr (Internal a))
     type StoreSize (Manifest a) = Data Length
 
     newStoreRep _ l = (,) <$> initRef l <*> newArr l
@@ -284,7 +284,7 @@ instance Syntax a => Storable (Manifest a)
 
 instance Syntax a => Storable (Manifest2 a)
   where
-    type StoreRep (Manifest2 a)  = (Ref Length, Ref Length, Arr (Internal a))
+    type StoreRep (Manifest2 a)  = (DRef Length, DRef Length, Arr (Internal a))
     type StoreSize (Manifest2 a) = (Data Length, Data Length)
 
     newStoreRep _ (r,c) = (,,) <$> initRef r <*> initRef c <*> newArr (r*c)
@@ -305,7 +305,7 @@ instance Syntax a => Storable (Manifest2 a)
 
 instance Syntax a => Storable (Pull a)
   where
-    type StoreRep (Pull a)  = (Ref Length, Arr (Internal a))
+    type StoreRep (Pull a)  = (DRef Length, Arr (Internal a))
     type StoreSize (Pull a) = Data Length
 
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))
@@ -322,7 +322,7 @@ instance Syntax a => Storable (Push Comp a)
   -- Generalizing this instance to any monad would require making the monad a
   -- parameter of the class (like for Manifestable)
   where
-    type StoreRep (Push Comp a)  = (Ref Length, Arr (Internal a))
+    type StoreRep (Push Comp a)  = (DRef Length, Arr (Internal a))
     type StoreSize (Push Comp a) = Data Length
 
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))
@@ -339,7 +339,7 @@ instance Syntax a => Storable (Push Comp a)
 
 instance (Storable a, Syntax a, StoreSize a ~ ()) => Storable (Option a)
   where
-    type StoreRep (Option a)  = (Ref Bool, StoreRep a)
+    type StoreRep (Option a)  = (DRef Bool, StoreRep a)
     type StoreSize (Option a) = ()
     newStoreRep _ _ = do
         valid <- initRef false

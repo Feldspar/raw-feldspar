@@ -46,7 +46,7 @@ sumInput = do
           (setRef done true)
           (modifyRef sum (+n))
     s <- getRef sum
-    printf "The sum of your numbers is %d.\n" (s :: Data Word32)
+    printf "The sum of your numbers is %d.\n" s
 
 
 
@@ -62,7 +62,7 @@ abort = do
 -- It possible to add C functions to the generated code and use `callProc` to
 -- call them:
 
-printRef :: Ref Word32 -> Run ()
+printRef :: DRef Word32 -> Run ()
 printRef s = do
     addInclude "<stdio.h>"
     addDefinition printRef_def

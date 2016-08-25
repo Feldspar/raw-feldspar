@@ -584,21 +584,21 @@ instance MonadComp Comp
 ----------------------------------------
 
 -- | Create an uninitialized reference
-newRef :: (Type a, MonadComp m) => m (Ref a)
+newRef :: (Syntax a, MonadComp m) => m (Ref a)
 newRef = newNamedRef "r"
 
 -- | Create an uninitialized named reference
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedRef :: (Type a, MonadComp m)
+newNamedRef :: (Syntax a, MonadComp m)
     => String  -- ^ Base name
     -> m (Ref a)
 newNamedRef base = liftComp $ fmap Ref $
     mapStructA (const $ Comp $ Imp.newNamedRef base) typeRep
 
 -- | Create an initialized named reference
-initRef :: (Syntax a, MonadComp m) => a -> m (Ref (Internal a))
+initRef :: (Syntax a, MonadComp m) => a -> m (Ref a)
 initRef = initNamedRef "r"
 
 -- | Create an initialized reference
@@ -608,16 +608,16 @@ initRef = initNamedRef "r"
 initNamedRef :: (Syntax a, MonadComp m)
     => String  -- ^ Base name
     -> a       -- ^ Initial value
-    -> m (Ref (Internal a))
+    -> m (Ref a)
 initNamedRef base =
     liftComp . fmap Ref . mapStructA (Comp . Imp.initNamedRef base) . resugar
 
 -- | Get the contents of a reference.
-getRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
+getRef :: (Syntax a, MonadComp m) => Ref a -> m a
 getRef = liftComp . fmap resugar . mapStructA (Comp . Imp.getRef) . unRef
 
 -- | Set the contents of a reference.
-setRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> a -> m ()
+setRef :: (Syntax a, MonadComp m) => Ref a -> a -> m ()
 setRef r
     = liftComp
     . sequence_
@@ -625,16 +625,12 @@ setRef r
     . resugar
 
 -- | Modify the contents of reference.
-modifyRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> (a -> a) -> m ()
+modifyRef :: (Syntax a, MonadComp m) => Ref a -> (a -> a) -> m ()
 modifyRef r f = setRef r . f =<< unsafeFreezeRef r
-
--- | A version of 'modifyRef' that fixes the value type to @`Data` a@
-modifyRefD :: (Type a, MonadComp m) => Ref a -> (Data a -> Data a) -> m ()
-modifyRefD r f = setRef r . f =<< unsafeFreezeRef r
 
 -- | Freeze the contents of reference (only safe if the reference is not updated
 --   as long as the resulting value is alive).
-unsafeFreezeRef :: (Syntax a, MonadComp m) => Ref (Internal a) -> m a
+unsafeFreezeRef :: (Syntax a, MonadComp m) => Ref a -> m a
 unsafeFreezeRef
     = liftComp
     . fmap resugar

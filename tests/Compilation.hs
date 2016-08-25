@@ -51,9 +51,9 @@ test_optionT = optionT printf (\_ -> return ()) $ do
     for (0, 1, Excl len) $ \i -> do
         lift $ printf "reading index %d\n" i
         x <- indexO vec (i2n i)
-        modifyRefD sumr (+x)
+        modifyRef sumr (+x)
     s <- unsafeFreezeRef sumr
-    lift $ printf "%d" (s :: Data Int32)
+    lift $ printf "%d" s
 
 
 

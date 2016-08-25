@@ -9,6 +9,8 @@ module Feldspar.Run.Frontend
 
 
 
+import Language.Syntactic
+
 import qualified Control.Monad.Operational.Higher as Oper
 
 import Language.Embedded.Imperative.Frontend.General hiding (Ref, Arr, IArr)
@@ -233,7 +235,7 @@ valArg :: PrimType' a => Data a -> FunArg Data PrimType'
 valArg = Imp.valArg
 
 -- | Reference argument
-refArg :: PrimType' a => Ref a -> FunArg Data PrimType'
+refArg :: PrimType' (Internal a) => Ref a -> FunArg Data PrimType'
 refArg (Ref r) = Imp.refArg (extractSingle r)
 
 -- | Mutable array argument
