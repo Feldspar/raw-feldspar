@@ -142,6 +142,8 @@ However, RAW-Feldspar also has some [limitations and lacks some features](../../
 
 See [limitations and missing features](../../wiki/Limitations-and-Missing-Features).
 
+There is also a [list of possible enhancements and fixes](../../TODOs).
+
 ## Implementation
 
 The implementation of RAW-Feldspar builds heavily on three generic packages:
