@@ -246,10 +246,10 @@ marshalled' opts eopts f body =
 --
 -- For example, given the following Feldspar function:
 --
--- > sumArr :: Fin (IArr Int32) -> Run (Data Int32)
--- > sumArr (Fin l arr) = do
--- >     r <- initRef (0 :: Data Int32)
--- >     for (0,1,Excl l) $ \i -> modifyRefD r (+ arrIx arr i)
+-- > sumArr :: DIArr Int32 -> Run (Data Int32)
+-- > sumArr arr = do
+-- >     r <- initRef 0
+-- >     for (0,1,Excl $ length arr) $ \i -> modifyRef r (+ arrIx arr i)
 -- >     unsafeFreezeRef r
 --
 -- 'marshalled' can be used as follows:
