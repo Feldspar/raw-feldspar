@@ -1,7 +1,21 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 -- | Data structures for working with arrays
-module Feldspar.Data.Array where
+module Feldspar.Data.Array
+  ( Nest (nestNumSegs, nestSegLength)
+  , nest
+  , nestEvery
+  , unnest
+  , Dim, Dim1, Dim2, Dim3, Dim4
+  , InnerExtent (..)
+  , listExtent
+  , MultiNest
+  , multiNest
+  , InnerExtent' (..)
+  , listExtent'
+  , tailExtent'
+  , convInnerExtent
+  ) where
 
 
 import Prelude (Functor, Foldable, Traversable, error, product, reverse)
@@ -14,7 +28,7 @@ import Feldspar.Run
 data Nest a = Nest
     { nestNumSegs   :: Data Length
     , nestSegLength :: Data Length
-    , nestInner     :: a
+    , _nestInner    :: a
     }
   deriving (Functor, Foldable, Traversable)
 
@@ -72,8 +86,6 @@ nest l w a = Nest (guard l) (guard w) a
       InternalAssertion
       (l*w == length a)
       "nest: unbalanced nesting"
-
--- TODO Should `Nest` not be exported?
 
 -- | A version of 'nest' that only takes the segment length as argument. The
 -- total number of segments is computed by division.

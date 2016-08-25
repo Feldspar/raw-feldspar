@@ -126,8 +126,9 @@ setStore st@Store {..} vec = case viewManifest vec of
 setStore2 :: (Manifestable2 Run vec, Finite2 (vec a), Syntax a) =>
     Store a -> vec a -> Run ()
 setStore2 st@Store {..} vec = case viewManifest2 vec of
-    Just (Manifest2 (Nest _ _ (Manifest iarr)))
-      | unsafeEqArrIArr activeBuf iarr ->
+    Just (Manifest2 arr)
+      | Manifest iarr <- unnest arr
+      , unsafeEqArrIArr activeBuf iarr ->
           iff (iarrOffset iarr == arrOffset activeBuf)
             (return ())
             saveAndSwap

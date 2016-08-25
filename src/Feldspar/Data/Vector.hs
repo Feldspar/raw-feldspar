@@ -207,7 +207,7 @@ numCols = snd . extent2
 
 instance Finite2 (Nest a)
   where
-    extent2 (Nest r c _) = (r,c)
+    extent2 n = (nestNumSegs n, nestSegLength n)
 
 
 
@@ -569,7 +569,9 @@ instance Syntax a => Pully2 (Manifest a) a
 
 instance Syntax a => Pully2 (Manifest2 a) a
   where
-    toPull2 (Manifest2 arr@(Nest r c _)) = Pull2 r c $ \i j -> arr!i!j
+    toPull2 (Manifest2 arr) = Pull2 r c $ \i j -> arr!i!j
+      where
+        (r,c) = extent2 arr
 
 -- | Convert to a 'Pull2' with a single row
 instance Pully2 (Pull a) a
