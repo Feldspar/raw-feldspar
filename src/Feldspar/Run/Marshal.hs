@@ -190,7 +190,7 @@ instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
         len <- shareM $ length arr
         fput hdl "" len " "
         for (0,1,Excl len) $ \i -> do
-            a <- getArr i arr
+            a <- getArr arr i
             fwrite hdl a
             fprintf hdl " "
 
@@ -199,7 +199,7 @@ instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
         arr <- newArr len
         for (0,1,Excl len) $ \i -> do
             a <- fread hdl
-            setArr i a arr
+            setArr arr i a
         return arr
 
 instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
@@ -219,7 +219,7 @@ instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
         arr <- newArr len
         for (0,1,Excl len) $ \i -> do
             a <- fread hdl
-            setArr i a arr
+            setArr arr i a
         iarr <- unsafeFreezeArr arr
         return iarr
 

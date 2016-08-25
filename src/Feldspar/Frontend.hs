@@ -680,21 +680,21 @@ initNamedArr base as =
     len = value $ genericLength as
 
 -- | Get an element of an array
-getArr :: (Syntax a, MonadComp m) => Data Index -> Arr a -> m a
-getArr i arr = do
+getArr :: (Syntax a, MonadComp m) => Arr a -> Data Index -> m a
+getArr arr i = do
     assertLabel
       InternalAssertion
       (i < length arr)
       "getArr: index out of bounds"
     liftComp
       $ fmap resugar
-      $ mapStructA (Comp . Imp.getArr (i + arrOffset arr))
+      $ mapStructA (Comp . flip Imp.getArr (i + arrOffset arr))
       $ unArr arr
 
 -- | Set an element of an array
 setArr :: forall m a . (Syntax a, MonadComp m) =>
-    Data Index -> a -> Arr a -> m ()
-setArr i a arr = do
+    Arr a -> Data Index -> a -> m ()
+setArr arr i a = do
     assertLabel
       InternalAssertion
       (i < length arr)
@@ -702,7 +702,7 @@ setArr i a arr = do
     liftComp
       $ sequence_
       $ zipListStruct
-          (\a' arr' -> Comp $ Imp.setArr (i + arrOffset arr) a' arr') rep
+          (\a' arr' -> Comp $ Imp.setArr arr' (i + arrOffset arr) a') rep
       $ unArr arr
   where
     rep = resugar a :: Struct PrimType' Data (Internal a)

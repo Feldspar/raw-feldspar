@@ -49,7 +49,7 @@ primChan = do
         readChanBuf c 0 v arr
         printf "Received:"
         for (0, 1, Excl v) $ \i -> do
-            e <- getArr i arr
+            e <- getArr arr i
             printf " %d" e
         printf "\n"
     waitThread reader

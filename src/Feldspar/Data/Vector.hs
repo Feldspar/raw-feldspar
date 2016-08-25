@@ -910,7 +910,7 @@ class ViewManifest vec a => Manifestable m vec a | vec -> a
     default manifest :: (Pushy m vec a, Finite vec, Syntax a, MonadComp m) =>
         Arr a -> vec -> m (Manifest a)
     manifest loc vec = do
-        dumpPush v $ \i a -> setArr i a loc
+        dumpPush v $ \i a -> setArr loc i a
         unsafeFreezeSlice (length vec) loc
       where
         v = toPush vec
@@ -966,7 +966,7 @@ class ViewManifest2 vec a => Manifestable2 m vec a | vec -> a
     default manifest2 :: (Pushy2 m vec a, Syntax a, MonadComp m) =>
         Arr a -> vec -> m (Manifest2 a)
     manifest2 loc vec = do
-        dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
+        dumpPush2 v $ \i j a -> setArr loc (i*c + j) a
         nest r c <$> unsafeFreezeSlice (r*c) loc
       where
         v     = toPush2 vec
