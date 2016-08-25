@@ -337,17 +337,17 @@ instance Syntax a => Storable (Push Comp a)
         setRef lr $ length vec
         manifestStore arr vec
 
-instance (Storable a, Syntax a) => Storable (Option a)
+instance (Storable a, Syntax a, StoreSize a ~ ()) => Storable (Option a)
   where
     type StoreRep (Option a)  = (Ref Bool, StoreRep a)
-    type StoreSize (Option a) = StoreSize a
-    newStoreRep _ s = do
+    type StoreSize (Option a) = ()
+    newStoreRep _ _ = do
         valid <- initRef false
-        r     <- newStoreRep (Nothing :: Maybe a) s
+        r     <- newStoreRep (Nothing :: Maybe a) ()
         return (valid,r)
     initStoreRep o = do
         valid <- initRef false
-        r     <- initStoreRep (example :: a)  -- TODO
+        r     <- newStoreRep (Proxy :: Proxy a) ()
         caseOptionM o
           (\_ -> return ())
           (\b -> writeStoreRep (valid,r) (true,b))
