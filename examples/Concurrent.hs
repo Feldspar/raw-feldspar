@@ -49,7 +49,7 @@ primChan = do
         readChanBuf c 0 v arr
         printf "Received:"
         for (0, 1, Excl v) $ \i -> do
-            e :: Data Word32 <- getArr i arr
+            e <- getArr i arr
             printf " %d" e
         printf "\n"
     waitThread reader
@@ -61,11 +61,11 @@ pairChan = do
     c :: Chan Closeable (Data Int32, Data Word8) <- newCloseableChan 10
     writer <- fork $ do
         printf "Writer started\n"
-        writeChan c (1337 :: Data Int32, 42 :: Data Word8)
+        writeChan c (1337,42)
         printf "Writer ended\n"
     reader <- fork $ do
         printf "Reader started\n"
-        (a :: Data Int32, b :: Data Word8) <- readChan c
+        (a,b) <- readChan c
         printf "Received: (%d, %d)\n" a b
     waitThread reader
     waitThread writer

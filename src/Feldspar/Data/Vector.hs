@@ -226,7 +226,7 @@ instance Finite2 (Nest a)
 -- * 'Manifest' can be freely converted to/from a 2-dimensional structure using
 --   'nest' and 'unnest'. Note that the representation of 'Manifest2' is
 --   @`Nest` (`Manifest` a)@.
-newtype Manifest a = Manifest {unManifest :: IArr (Internal a)}
+newtype Manifest a = Manifest {unManifest :: IArr a}
 
 -- | 'Manifest' vector specialized to 'Data' elements
 type DManifest a = Manifest (Data a)
@@ -234,7 +234,7 @@ type DManifest a = Manifest (Data a)
 instance Syntax a => Indexed (Manifest a)
   where
     type IndexedElem (Manifest a) = a
-    Manifest arr ! i = sugar (arr!i)
+    Manifest arr ! i = arr!i
 
 instance Finite (Manifest a) where length = length . unManifest
 
@@ -247,12 +247,12 @@ instance Slicable (Manifest a)
 
 instance
     ( MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     , Syntax a
     ) =>
       MarshalFeld (Manifest a)
   where
-    type HaskellRep (Manifest a) = HaskellRep (IArr (Internal a))
+    type HaskellRep (Manifest a) = HaskellRep (IArr a)
     fwrite hdl = fwrite hdl . unManifest
     fread hdl  = Manifest <$> fread hdl
 
@@ -260,7 +260,7 @@ instance
 -- is generally only safe if the the mutable array is not updated as long as the
 -- vector is alive.
 unsafeFreezeToManifest :: (Syntax a, MonadComp m) =>
-    Data Length -> Arr (Internal a) -> m (Manifest a)
+    Data Length -> Arr a -> m (Manifest a)
 unsafeFreezeToManifest l = fmap (Manifest . slice 0 l) . unsafeFreezeArr
 
 -- | Make a constant 'Manifest' vector
@@ -304,7 +304,7 @@ instance Slicable (Manifest2 a)
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     ) =>
       MarshalFeld (Manifest2 a)
   where
@@ -376,7 +376,7 @@ instance Slicable (Pull a)
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     ) =>
       MarshalFeld (Pull a)
   where
@@ -390,7 +390,7 @@ ofLength :: Data Length -> lenSpec -> VecChanSizeSpec lenSpec
 ofLength = VecChanSizeSpec
 
 instance ( Syntax a, BulkTransferable a
-         , ContainerType a ~ Arr (Internal a)
+         , ContainerType a ~ Arr a
          ) => Transferable (Pull a)
   where
     type SizeSpec (Pull a) = VecChanSizeSpec (SizeSpec a)
@@ -548,7 +548,7 @@ instance Slicable (Pull2 a)
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     ) =>
       MarshalFeld (Pull2 a)
   where
@@ -727,7 +727,7 @@ instance Finite2 (Push m a) where extent2 v = (1, length v)
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     , m ~ Run
     ) =>
       MarshalFeld (Push m a)
@@ -878,7 +878,7 @@ instance Finite2 (Push2 m a)
 instance
     ( Syntax a
     , MarshalHaskell (Internal a)
-    , MarshalFeld (Data (Internal a))
+    , MarshalFeld a
     , m ~ Run
     ) =>
       MarshalFeld (Push2 m a)
@@ -1002,13 +1002,13 @@ class ViewManifest vec => Manifestable m vec
     -- | Write the contents of a vector to memory and get it back as a
     -- 'Manifest' vector. The supplied array may or may not be used for storage.
     manifest :: Syntax a
-        => Arr (Internal a)  -- ^ Where to store the vector
-        -> vec a             -- ^ Vector to store
+        => Arr a  -- ^ Where to store the vector
+        -> vec a  -- ^ Vector to store
         -> m (Manifest a)
 
     default manifest
         :: (Pushy m (vec a) a, Finite (vec a), Syntax a, MonadComp m)
-        => Arr (Internal a) -> vec a -> m (Manifest a)
+        => Arr a -> vec a -> m (Manifest a)
     manifest loc vec = do
         dumpPush v $ \i a -> setArr i a loc
         unsafeFreezeToManifest (length vec) loc
@@ -1028,10 +1028,10 @@ class ViewManifest vec => Manifestable m vec
 
     -- | A version of 'manifest' that only stores the vector to the given array
     -- ('manifest' is not guaranteed to use the array)
-    manifestStore :: Syntax a => Arr (Internal a) -> vec a -> m ()
+    manifestStore :: Syntax a => Arr a -> vec a -> m ()
 
     default manifestStore :: (Pushy m (vec a) a, Syntax a, MonadComp m) =>
-        Arr (Internal a) -> vec a -> m ()
+        Arr a -> vec a -> m ()
     manifestStore loc = void . manifest loc . toPush
 
 -- | 'manifest' and 'manifestFresh' are no-ops. 'manifestStore' does a proper
@@ -1063,12 +1063,12 @@ class ViewManifest2 vec => Manifestable2 m vec
     -- | Write the contents of a vector to memory and get it back as a
     -- 'Manifest2' vector
     manifest2 :: Syntax a
-        => Arr (Internal a)  -- ^ Where to store the result
-        -> vec a             -- ^ Vector to store
+        => Arr a  -- ^ Where to store the result
+        -> vec a  -- ^ Vector to store
         -> m (Manifest2 a)
 
     default manifest2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
-        Arr (Internal a) -> vec a -> m (Manifest2 a)
+        Arr a -> vec a -> m (Manifest2 a)
     manifest2 loc vec = do
         dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
         closeManifest2 . nest r c <$> unsafeFreezeToManifest (r*c) loc
@@ -1088,10 +1088,10 @@ class ViewManifest2 vec => Manifestable2 m vec
 
     -- | A version of 'manifest2' that only stores the vector to the given array
     -- ('manifest2' is not guaranteed to use the array)
-    manifestStore2 :: Syntax a => Arr (Internal a) -> vec a -> m ()
+    manifestStore2 :: Syntax a => Arr a -> vec a -> m ()
 
     default manifestStore2 :: (Pushy2 m (vec a) a, Syntax a, MonadComp m) =>
-        Arr (Internal a) -> vec a -> m ()
+        Arr a -> vec a -> m ()
     manifestStore2 loc = void . manifest2 loc . toPush2
 
 -- | 'manifest2' and 'manifestFresh2' are no-ops. 'manifestStore2' does a proper

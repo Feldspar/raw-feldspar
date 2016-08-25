@@ -181,16 +181,17 @@ instance (MarshalFeld a, MarshalFeld b, MarshalFeld c, MarshalFeld d) => Marshal
         >> fwrite hdl d
     fread hdl = (,,,) <$> fread hdl <*> fread hdl <*> fread hdl <*> fread hdl
 
-instance (MarshalHaskell a, MarshalFeld (Data a), Type a) => MarshalFeld (Arr a)
+instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
+    MarshalFeld (Arr a)
   where
-    type HaskellRep (Arr a) = [a]
+    type HaskellRep (Arr a) = [Internal a]
 
     fwrite hdl arr = do
         len <- shareM $ length arr
         fput hdl "" len " "
         for (0,1,Excl len) $ \i -> do
             a <- getArr i arr
-            fwrite hdl (a :: Data a)
+            fwrite hdl a
             fprintf hdl " "
 
     fread hdl = do
@@ -198,19 +199,19 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) => MarshalFeld (Arr a)
         arr <- newArr len
         for (0,1,Excl len) $ \i -> do
             a <- fread hdl
-            setArr i (a :: Data a) arr
+            setArr i a arr
         return arr
 
-instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
+instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
     MarshalFeld (IArr a)
   where
-    type HaskellRep (IArr a) = [a]
+    type HaskellRep (IArr a) = [Internal a]
 
     fwrite hdl arr = do
         len <- shareM $ length arr
         fput hdl "" len " "
         for (0,1,Excl len) $ \i -> do
-            fwrite hdl (arrIx arr i :: Data a)
+            fwrite hdl $ arrIx arr i
             fprintf hdl " "
 
     fread hdl = do
@@ -218,7 +219,7 @@ instance (MarshalHaskell a, MarshalFeld (Data a), Type a) =>
         arr <- newArr len
         for (0,1,Excl len) $ \i -> do
             a <- fread hdl
-            setArr i (a :: Data a) arr
+            setArr i a arr
         iarr <- unsafeFreezeArr arr
         return iarr
 

@@ -240,7 +240,7 @@ initStoreRepVec2 vec = do
 
 writeStoreRepVec
     :: ( Manifestable m vec
-       , StoreRep (vec a) ~ (DRef Length, Arr (Internal a))
+       , StoreRep (vec a) ~ (DRef Length, Arr a)
        , Finite (vec a)
        , Syntax a
        , MonadComp m
@@ -252,7 +252,7 @@ writeStoreRepVec (lr,arr) vec = do
 
 writeStoreRepVec2
     :: ( Manifestable2 m vec
-       , StoreRep (vec a) ~ (DRef Length, DRef Length, Arr (Internal a))
+       , StoreRep (vec a) ~ (DRef Length, DRef Length, Arr a)
        , Finite2 (vec a)
        , Syntax a
        , MonadComp m
@@ -265,7 +265,7 @@ writeStoreRepVec2 (rr,cr,arr) vec = do
 
 instance Syntax a => Storable (Manifest a)
   where
-    type StoreRep (Manifest a)  = (DRef Length, Arr (Internal a))
+    type StoreRep (Manifest a)  = (DRef Length, Arr a)
     type StoreSize (Manifest a) = Data Length
 
     newStoreRep _ l = (,) <$> initRef l <*> newArr l
@@ -284,7 +284,7 @@ instance Syntax a => Storable (Manifest a)
 
 instance Syntax a => Storable (Manifest2 a)
   where
-    type StoreRep (Manifest2 a)  = (DRef Length, DRef Length, Arr (Internal a))
+    type StoreRep (Manifest2 a)  = (DRef Length, DRef Length, Arr a)
     type StoreSize (Manifest2 a) = (Data Length, Data Length)
 
     newStoreRep _ (r,c) = (,,) <$> initRef r <*> initRef c <*> newArr (r*c)
@@ -305,7 +305,7 @@ instance Syntax a => Storable (Manifest2 a)
 
 instance Syntax a => Storable (Pull a)
   where
-    type StoreRep (Pull a)  = (DRef Length, Arr (Internal a))
+    type StoreRep (Pull a)  = (DRef Length, Arr a)
     type StoreSize (Pull a) = Data Length
 
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))
@@ -322,7 +322,7 @@ instance Syntax a => Storable (Push Comp a)
   -- Generalizing this instance to any monad would require making the monad a
   -- parameter of the class (like for Manifestable)
   where
-    type StoreRep (Push Comp a)  = (DRef Length, Arr (Internal a))
+    type StoreRep (Push Comp a)  = (DRef Length, Arr a)
     type StoreSize (Push Comp a) = Data Length
 
     newStoreRep _ = newStoreRep (Proxy :: Proxy (Manifest a))

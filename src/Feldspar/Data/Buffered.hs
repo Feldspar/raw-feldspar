@@ -72,8 +72,8 @@ import Feldspar.Data.Vector
 
 -- | Double-buffered storage
 data Store a = Store
-    { activeBuf :: Arr (Internal a)
-    , freeBuf   :: Arr (Internal a)
+    { activeBuf :: Arr a
+    , freeBuf   :: Arr a
     }
 
 -- | Create a new double-buffered 'Store', initialized to a 0x0 matrix

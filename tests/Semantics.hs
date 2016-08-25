@@ -1,4 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
+
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 import qualified Prelude
 
@@ -40,7 +43,7 @@ property_marshalFeld f a = QC.monadicIO $ do
 
 -- | Indexing in a 3-dimensional structure
 nestIndex
-    :: ( IArr Int32
+    :: ( DIArr Int32
        , (Data Length, Data Length, Data Length)
        , (Data Index,  Data Index,  Data Index)
        )
@@ -65,11 +68,11 @@ property_nestIndex f =
 
 -- | Indexing in a 3-dimensional structure
 nestIndexLength
-    :: ( IArr Int32
+    :: ( DIArr Int32
        , (Data Length, Data Length, Data Length)
        , (Data Index, Data Index)
        )
-    -> Run (IArr Int32)
+    -> Run (DIArr Int32)
 nestIndexLength (arr,(l1,l2,l3),(i1,i2)) = return $ nestedArr ! i1 ! i2
   where
     nestedArr = multiNest (Outer :> l2 :> l3) arr
@@ -88,25 +91,23 @@ property_nestIndexLength f =
         i <- choose (0,l-1)
         return (l,i)
 
-type Pass a = a -> Run a
-
 main =
-    marshalled (return :: Pass (Data Int8))             $ \f_Int8 ->
-    marshalled (return :: Pass (Data Int16))            $ \f_Int16 ->
-    marshalled (return :: Pass (Data Int32))            $ \f_Int32 ->
-    marshalled (return :: Pass (Data Int64))            $ \f_Int64 ->
-    marshalled (return :: Pass (Data Word8))            $ \f_Word8 ->
-    marshalled (return :: Pass (Data Word16))           $ \f_Word16 ->
-    marshalled (return :: Pass (Data Word32))           $ \f_Word32 ->
-    marshalled (return :: Pass (Data Word64))           $ \f_Word64 ->
-    marshalled (return :: Pass (Data Float))            $ \f_Float  ->
-    marshalled (return :: Pass (Data Double))           $ \f_Double ->
-    marshalled (return :: Pass (Data (Complex Float)))  $ \f_CompFloat ->
-    marshalled (return :: Pass (Data (Complex Double))) $ \f_CompDouble ->
-    marshalled (return :: Pass (Arr Double))            $ \f_Arr ->
-    marshalled (return :: Pass (IArr Int32))            $ \f_IArr ->
-    marshalled (return :: Pass (Data Word8, Data Double)) $ \f_Pair ->
-    marshalled (return :: Pass (IArr Double, (Data Int8, Arr (Complex Float)))) $ \f_Nested ->
+    marshalled (return :: _ -> Run (Data Int8))               $ \f_Int8 ->
+    marshalled (return :: _ -> Run (Data Int16))              $ \f_Int16 ->
+    marshalled (return :: _ -> Run (Data Int32))              $ \f_Int32 ->
+    marshalled (return :: _ -> Run (Data Int64))              $ \f_Int64 ->
+    marshalled (return :: _ -> Run (Data Word8))              $ \f_Word8 ->
+    marshalled (return :: _ -> Run (Data Word16))             $ \f_Word16 ->
+    marshalled (return :: _ -> Run (Data Word32))             $ \f_Word32 ->
+    marshalled (return :: _ -> Run (Data Word64))             $ \f_Word64 ->
+    marshalled (return :: _ -> Run (Data Float))              $ \f_Float  ->
+    marshalled (return :: _ -> Run (Data Double))             $ \f_Double ->
+    marshalled (return :: _ -> Run (Data (Complex Float)))    $ \f_CompFloat ->
+    marshalled (return :: _ -> Run (Data (Complex Double)))   $ \f_CompDouble ->
+    marshalled (return :: _ -> Run (DArr Double))             $ \f_Arr ->
+    marshalled (return :: _ -> Run (DIArr Int32))             $ \f_IArr ->
+    marshalled (return :: _ -> Run (Data Word8, Data Double)) $ \f_Pair ->
+    marshalled (return :: _ -> Run (DIArr Double, (Data Int8, DArr (Complex Float)))) $ \f_Nested ->
 
     marshalled nestIndex       $ \nestIndex_c ->
     marshalled nestIndexLength $ \nestIndexLength_c ->

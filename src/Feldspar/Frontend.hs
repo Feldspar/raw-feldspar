@@ -441,7 +441,7 @@ ilog2 a = guardValLabel InternalAssertion (a >= 1) "ilog2: argument < 1" $
 ----------------------------------------
 
 -- | Index into an array
-arrIx :: Syntax a => IArr (Internal a) -> Data Index -> a
+arrIx :: Syntax a => IArr a -> Data Index -> a
 arrIx arr i = resugar $ mapStruct ix $ unIArr arr
   where
     ix :: forall b . PrimType' b => Imp.IArr Index b -> Data b
@@ -480,9 +480,9 @@ class Slicable a
         -> a            -- ^ Structure to slice
         -> a
 
-instance Type a => Indexed (IArr a)
+instance Syntax a => Indexed (IArr a)
   where
-    type IndexedElem (IArr a) = Data a
+    type IndexedElem (IArr a) = a
     (!) = arrIx
 
 instance Slicable (Arr a)
@@ -644,14 +644,14 @@ unsafeFreezeRef
 ----------------------------------------
 
 -- | Create an uninitialized array
-newArr :: (Type a, MonadComp m) => Data Length -> m (Arr a)
+newArr :: (Type (Internal a), MonadComp m) => Data Length -> m (Arr a)
 newArr = newNamedArr "a"
 
 -- | Create an uninitialized named array
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-newNamedArr :: (Type a, MonadComp m)
+newNamedArr :: (Type (Internal a), MonadComp m)
     => String  -- ^ Base name
     -> Data Length
     -> m (Arr a)
@@ -659,8 +659,8 @@ newNamedArr base l = liftComp $ fmap (Arr 0 l) $
     mapStructA (const (Comp $ Imp.newNamedArr base l)) typeRep
 
 -- | Create and initialize an array
-initArr :: (PrimType a, MonadComp m)
-    => [a]  -- ^ Initial contents
+initArr :: (PrimType (Internal a), MonadComp m)
+    => [Internal a]  -- ^ Initial contents
     -> m (Arr a)
 initArr = initNamedArr "a"
 
@@ -670,9 +670,9 @@ initArr = initNamedArr "a"
 --
 -- The provided base name may be appended with a unique identifier to avoid name
 -- collisions.
-initNamedArr :: (PrimType a, MonadComp m)
-    => String  -- ^ Base name
-    -> [a]     -- ^ Initial contents
+initNamedArr :: (PrimType (Internal a), MonadComp m)
+    => String        -- ^ Base name
+    -> [Internal a]  -- ^ Initial contents
     -> m (Arr a)
 initNamedArr base as =
     liftComp $ fmap (Arr 0 len . Single) $ Comp $ Imp.initNamedArr base as
@@ -680,7 +680,7 @@ initNamedArr base as =
     len = value $ genericLength as
 
 -- | Get an element of an array
-getArr :: (Syntax a, MonadComp m) => Data Index -> Arr (Internal a) -> m a
+getArr :: (Syntax a, MonadComp m) => Data Index -> Arr a -> m a
 getArr i arr = do
     assertLabel
       InternalAssertion
@@ -693,7 +693,7 @@ getArr i arr = do
 
 -- | Set an element of an array
 setArr :: forall m a . (Syntax a, MonadComp m) =>
-    Data Index -> a -> Arr (Internal a) -> m ()
+    Data Index -> a -> Arr a -> m ()
 setArr i a arr = do
     assertLabel
       InternalAssertion
@@ -712,7 +712,7 @@ setArr i a arr = do
 --
 -- In order to copy only a part of an array, use 'slice' before calling
 -- 'copyArr'.
-copyArr :: (Type a, MonadComp m)
+copyArr :: MonadComp m
     => Arr a  -- ^ Destination
     -> Arr a  -- ^ Source
     -> m ()
@@ -734,7 +734,7 @@ copyArr arr1 arr2 = do
 
 -- | Freeze a mutable array to an immutable one. This involves copying the array
 -- to a newly allocated one.
-freezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
+freezeArr :: (Type (Internal a), MonadComp m) => Arr a -> m (IArr a)
 freezeArr arr = liftComp $ do
     arr2 <- newArr (length arr)
     copyArr arr2 arr
@@ -745,7 +745,7 @@ freezeArr arr = liftComp $ do
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeFreezeArr :: (Type a, MonadComp m) => Arr a -> m (IArr a)
+unsafeFreezeArr :: MonadComp m => Arr a -> m (IArr a)
 unsafeFreezeArr arr
     = liftComp
     $ fmap (IArr (arrOffset arr) (length arr))
@@ -754,7 +754,7 @@ unsafeFreezeArr arr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
-thawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
+thawArr :: (Type (Internal a), MonadComp m) => IArr a -> m (Arr a)
 thawArr arr = liftComp $ do
     arr2 <- unsafeThawArr arr
     arr3 <- newArr (length arr)
@@ -764,7 +764,7 @@ thawArr arr = liftComp $ do
 -- | Thaw an immutable array to a mutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
-unsafeThawArr :: (Type a, MonadComp m) => IArr a -> m (Arr a)
+unsafeThawArr :: MonadComp m => IArr a -> m (Arr a)
 unsafeThawArr arr
     = liftComp
     $ fmap (Arr (iarrOffset arr) (length arr))
@@ -772,10 +772,9 @@ unsafeThawArr arr
     $ unIArr arr
 
 -- | Create and initialize an immutable array
-initIArr :: (PrimType a, MonadComp m) => [a] -> m (IArr a)
-initIArr as = liftComp $ fmap (IArr 0 len . Single) $ Comp $ Imp.initIArr as
-  where
-    len = value $ genericLength as
+initIArr :: (PrimType (Internal a), MonadComp m) =>
+    [Internal a] -> m (IArr a)
+initIArr = initArr >=> unsafeFreezeArr
 
 
 

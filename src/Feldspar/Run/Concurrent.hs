@@ -176,7 +176,7 @@ instance PrimType' a => Transferable (Data a)
 
 instance PrimType' a => BulkTransferable (Data a)
   where
-    type ContainerType (Data a) = Arr a
+    type ContainerType (Data a) = DArr a
     untypedReadChanBuf  _ c off len arr = do
       r <- sequence $ listStruct (Run . Imp.readChanBuf' c off len) (unArr arr)
       return $ foldl1 (&&) r

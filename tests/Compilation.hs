@@ -41,8 +41,8 @@ test_optionM = do
 
 readPositive :: OptionT Run (Data Int32)
 readPositive = do
-    i <- lift $ readStd
-    guarded "negative" (i>=0) (i :: Data Int32)
+    i <- lift readStd
+    guarded "negative" (i>=0) i
 
 test_optionT = optionT printf (\_ -> return ()) $ do
     vec  <- manifestFresh $ fmap i2n (1...10)
@@ -65,8 +65,8 @@ test_optionT = optionT printf (\_ -> return ()) $ do
 test_constFoldArr :: Run ()
 test_constFoldArr = do
     arr <- initIArr [1..10]
-    let a :: Data Int32 = (arrIx arr 0 == arrIx arr 1) ? arrIx arr 100 $ arrIx arr 2
-    printf "%d\n" a
+    let a = (arrIx arr 0 == arrIx arr 1) ? arrIx arr 100 $ arrIx arr 2
+    printf "%d\n" (a :: Data Int32)
 
 
 

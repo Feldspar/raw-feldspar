@@ -16,8 +16,8 @@ module Feldspar
   , Length
   , Index
   , Ref, DRef
-  , Arr
-  , IArr
+  , Arr, DArr
+  , IArr, DIArr
   , Inhabited
   , Syntactic
   , Domain
