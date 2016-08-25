@@ -15,6 +15,10 @@ module Feldspar.Data.Array
   , listExtent'
   , tailExtent'
   , convInnerExtent
+    -- * 2-dimensional arrays
+  , Finite2 (..)
+  , numRows
+  , numCols
   ) where
 
 
@@ -212,4 +216,39 @@ convInnerExtent e = go e (listExtent e)
     go Outer    _      = OE
     go (e :> _) (l:ls) = SE l $ go e ls
     go (_ :> _) _      = error "convInnerExtent: impossible"
+
+
+
+--------------------------------------------------------------------------------
+-- * 2-dimensional arrays
+--------------------------------------------------------------------------------
+
+class Finite2 a
+  where
+    -- | Get the extent of a 2-dimensional vector
+    --
+    -- It must hold that:
+    --
+    -- @
+    -- `numRows` == `length`
+    -- @
+    extent2
+        :: a
+        -> (Data Length, Data Length)  -- ^ @(rows,columns)@
+
+-- | Get the number of rows of a two-dimensional structure
+--
+-- @
+-- `numRows` == `length`
+-- @
+numRows :: Finite2 a => a -> Data Length
+numRows = fst . extent2
+
+-- | Get the number of columns of a two-dimensional structure
+numCols :: Finite2 a => a -> Data Length
+numCols = snd . extent2
+
+instance Finite2 (Nest a)
+  where
+    extent2 n = (nestNumSegs n, nestSegLength n)
 
