@@ -10,6 +10,10 @@ description:         An implementation of the Feldspar EDSL with focus on
                      .
                      For more information, see the README:
                      <https://github.com/Feldspar/raw-feldspar/blob/master/README.md>
+                     .
+                     To see which GHC versions RAW-Feldspar can be built with,
+                     consult the Travis status page:
+                     <https://travis-ci.org/Feldspar/raw-feldspar>
 license:             BSD3
 license-file:        LICENSE
 author:              Emil Axelsson
@@ -22,7 +26,6 @@ bug-reports:         https://github.com/Feldspar/raw-feldspar/issues
 category:            Language
 build-type:          Simple
 cabal-version:       >=1.10
-tested-with:         GHC == 7.10.3
 
 extra-source-files:
     README.md
