@@ -742,6 +742,11 @@ freezeArr arr = liftComp $ do
   -- This is better than calling `freezeArr` from imperative-edsl, since that
   -- one copies without offset.
 
+-- | A version of 'freezeArr' that slices the array from 0 to the given length
+freezeSlice :: (Type (Internal a), MonadComp m) =>
+    Data Length -> Arr a -> m (IArr a)
+freezeSlice len = fmap (slice 0 len) . freezeArr
+
 -- | Freeze a mutable array to an immutable one without making a copy. This is
 -- generally only safe if the the mutable array is not updated as long as the
 -- immutable array is alive.
@@ -751,6 +756,11 @@ unsafeFreezeArr arr
     $ fmap (IArr (arrOffset arr) (length arr))
     $ mapStructA (Comp . Imp.unsafeFreezeArr)
     $ unArr arr
+
+-- | A version of 'unsafeFreezeArr' that slices the array from 0 to the given
+-- length
+unsafeFreezeSlice :: MonadComp m => Data Length -> Arr a -> m (IArr a)
+unsafeFreezeSlice len = fmap (slice 0 len) . unsafeFreezeArr
 
 -- | Thaw an immutable array to a mutable one. This involves copying the array
 -- to a newly allocated one.
