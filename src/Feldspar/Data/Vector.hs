@@ -297,7 +297,7 @@ instance ( Syntax a, BulkTransferable a
         len :: Data Length <- untypedReadChan c
         arr <- newArr len
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
-        toPull <$> unsafeFreezeSlice len arr
+        toPull <$> unsafeFreezeArr arr
     untypedWriteChan c v = do
         arr <- newArr len
         untypedWriteChan c len
