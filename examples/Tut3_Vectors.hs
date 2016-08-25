@@ -169,7 +169,7 @@ comp_quirk = icompile quirkRun
 -- different ways; e.g.:
 --
 -- * By reading from a file using `readStd` or `fread`
--- * By freezing a mutable vector using `unsafeFreezeToManifest`
+-- * By freezing a mutable vector using `unsafeFreezeSlice`
 -- * By writing another vector to memory using `manifest` or `manifestFresh`
 
 -- Writing a vector to memory is often forced by the types. For example, if we

@@ -226,48 +226,13 @@ instance Finite2 (Nest a)
 -- * 'Manifest' can be freely converted to/from a 2-dimensional structure using
 --   'nest' and 'unnest'. Note that the representation of 'Manifest2' is
 --   @`Nest` (`Manifest` a)@.
-newtype Manifest a = Manifest {unManifest :: IArr a}
+type Manifest = IArr
 
 -- | 'Manifest' vector specialized to 'Data' elements
-type DManifest a = Manifest (Data a)
-
-instance Syntax a => Indexed (Manifest a)
-  where
-    type IndexedElem (Manifest a) = a
-    Manifest arr ! i = arr!i
-
-instance Finite (Manifest a) where length = length . unManifest
+type DManifest a = DIArr a
 
 -- | Treated as a row vector
 instance Finite2 (Manifest a) where extent2 v = (1, length v)
-
-instance Slicable (Manifest a)
-  where
-    slice from n = Manifest . slice from n . unManifest
-
-instance
-    ( MarshalHaskell (Internal a)
-    , MarshalFeld a
-    , Syntax a
-    ) =>
-      MarshalFeld (Manifest a)
-  where
-    type HaskellRep (Manifest a) = HaskellRep (IArr a)
-    fwrite hdl = fwrite hdl . unManifest
-    fread hdl  = Manifest <$> fread hdl
-
--- | Freeze a mutable array to a 'Manifest' vector without making a copy. This
--- is generally only safe if the the mutable array is not updated as long as the
--- vector is alive.
-unsafeFreezeToManifest :: (Syntax a, MonadComp m) =>
-    Data Length -> Arr a -> m (Manifest a)
-unsafeFreezeToManifest l = fmap (Manifest . slice 0 l) . unsafeFreezeArr
-
--- | Make a constant 'Manifest' vector
-constManifest :: (Syntax a, PrimType (Internal a), MonadComp m) =>
-    [Internal a] -> m (Manifest a)
-constManifest as =
-    unsafeFreezeToManifest (value $ genericLength as) =<< initArr as
 
 -- | Make a 'Manifest' vector from a list of values
 listManifest :: (Syntax a, MonadComp m) => [a] -> m (Manifest a)
@@ -402,7 +367,7 @@ instance ( Syntax a, BulkTransferable a
         len :: Data Length <- untypedReadChan c
         arr <- newArr len
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
-        toPull <$> unsafeFreezeToManifest len arr
+        toPull <$> unsafeFreezeSlice len arr
     untypedWriteChan c v = do
         arr <- newArr len
         untypedWriteChan c len
@@ -1011,7 +976,7 @@ class ViewManifest vec => Manifestable m vec
         => Arr a -> vec a -> m (Manifest a)
     manifest loc vec = do
         dumpPush v $ \i a -> setArr i a loc
-        unsafeFreezeToManifest (length vec) loc
+        unsafeFreezeSlice (length vec) loc
       where
         v = toPush vec
 
@@ -1038,12 +1003,9 @@ class ViewManifest vec => Manifestable m vec
 -- 'arrCopy'.
 instance MonadComp m => Manifestable m Manifest
   where
-    manifest _    = return
-    manifestFresh = return
-
-    manifestStore loc (Manifest iarr) = do
-      arr <- unsafeThawArr iarr
-      copyArr loc arr
+    manifest _        = return
+    manifestFresh     = return
+    manifestStore loc = copyArr loc <=< unsafeThawArr
 
 instance MonadComp m             => Manifestable m Pull
 instance (MonadComp m1, m1 ~ m2) => Manifestable m1 (Push m2)
@@ -1071,7 +1033,7 @@ class ViewManifest2 vec => Manifestable2 m vec
         Arr a -> vec a -> m (Manifest2 a)
     manifest2 loc vec = do
         dumpPush2 v $ \i j a -> setArr (i*c + j) a loc
-        closeManifest2 . nest r c <$> unsafeFreezeToManifest (r*c) loc
+        closeManifest2 . nest r c <$> unsafeFreezeSlice (r*c) loc
       where
         v     = toPush2 vec
         (r,c) = extent2 v
@@ -1098,13 +1060,9 @@ class ViewManifest2 vec => Manifestable2 m vec
 -- 'arrCopy'.
 instance MonadComp m => Manifestable2 m Manifest2
   where
-    manifest2 _    = return
-    manifestFresh2 = return
-
-    manifestStore2 loc (Manifest2 man) = do
-      let Manifest iarr = unnest man
-      arr <- unsafeThawArr iarr
-      copyArr loc arr
+    manifest2 _        = return
+    manifestFresh2     = return
+    manifestStore2 loc = copyArr loc <=< unsafeThawArr . unnest . unManifest2
 
 instance MonadComp m             => Manifestable2 m Pull2
 instance (MonadComp m1, m1 ~ m2) => Manifestable2 m1 (Push2 m2)

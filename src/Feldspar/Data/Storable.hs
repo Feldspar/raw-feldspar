@@ -274,11 +274,11 @@ instance Syntax a => Storable (Manifest a)
 
     readStoreRep (lr,arr) = do
         l <- getRef lr
-        Manifest . slice 0 l <$> freezeArr arr
+        freezeSlice l arr
 
     unsafeFreezeStoreRep (lr,arr) = do
         l <- unsafeFreezeRef lr
-        unsafeFreezeToManifest l arr
+        unsafeFreezeSlice l arr
 
     writeStoreRep = writeStoreRepVec
 
@@ -294,12 +294,12 @@ instance Syntax a => Storable (Manifest2 a)
     readStoreRep (rr,cr,arr) = do
         r <- getRef rr
         c <- getRef cr
-        Manifest2 . nest r c . Manifest . slice 0 (r*c) <$> freezeArr arr
+        Manifest2 . nest r c <$> freezeSlice (r*c) arr
 
     unsafeFreezeStoreRep (rr,cr,arr) = do
         r <- unsafeFreezeRef rr
         c <- unsafeFreezeRef cr
-        Manifest2 . nest r c <$> unsafeFreezeToManifest (r*c) arr
+        Manifest2 . nest r c <$> unsafeFreezeSlice (r*c) arr
 
     writeStoreRep = writeStoreRepVec2
 

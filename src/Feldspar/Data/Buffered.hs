@@ -87,7 +87,7 @@ newStore l = Store <$> newNamedArr "store" l <*> newNamedArr "store" l
 -- is alive.
 unsafeFreezeStore :: (Syntax a, MonadComp m) =>
     Data Length -> Store a -> m (Manifest a)
-unsafeFreezeStore l = unsafeFreezeToManifest l . activeBuf
+unsafeFreezeStore l = unsafeFreezeSlice l . activeBuf
 
 -- | Read the contents of a 'Store' without making a copy (2-dimensional
 -- version). This is generally only safe if the the 'Store' is not updated as
@@ -98,7 +98,7 @@ unsafeFreezeStore2 :: (Syntax a, MonadComp m)
     -> Store a
     -> m (Manifest2 a)
 unsafeFreezeStore2 r c Store {..} =
-    closeManifest2 . nest r c <$> unsafeFreezeToManifest (r*c) activeBuf
+    closeManifest2 . nest r c <$> unsafeFreezeSlice (r*c) activeBuf
 
 -- | Cheap swapping of the two buffers in a 'Store'
 swapStore :: Syntax a => Store a -> Run ()
@@ -109,7 +109,7 @@ swapStore Store {..} = unsafeSwapArr activeBuf freeBuf
 setStore :: (Manifestable Run vec, Finite (vec a), Syntax a) =>
     Store a -> vec a -> Run ()
 setStore st@Store {..} vec = case viewManifest vec of
-    Just (Manifest iarr)
+    Just iarr
       | unsafeEqArrIArr activeBuf iarr ->
           iff (iarrOffset iarr == arrOffset activeBuf)
             (return ())
@@ -127,7 +127,7 @@ setStore2 :: (Manifestable2 Run vec, Finite2 (vec a), Syntax a) =>
     Store a -> vec a -> Run ()
 setStore2 st@Store {..} vec = case viewManifest2 vec of
     Just (Manifest2 arr)
-      | Manifest iarr <- unnest arr
+      | let iarr = unnest arr
       , unsafeEqArrIArr activeBuf iarr ->
           iff (iarrOffset iarr == arrOffset activeBuf)
             (return ())
