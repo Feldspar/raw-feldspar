@@ -112,17 +112,17 @@ Note how the whole `sumSq` computation has been fused into a single loop without
 
 ### Zeldspar
 
-[Zeldspar](../../../../koengit/zeldspar) is an implementation of the [Ziria DSL](http://dx.doi.org/10.1145/2694344.2694368) for wireless programming on top of RAW-Feldspar.
+[Zeldspar](https://github.com/koengit/zeldspar) is an implementation of the [Ziria DSL](http://dx.doi.org/10.1145/2694344.2694368) for wireless programming on top of RAW-Feldspar.
 
 ### raw-feldspar-mcs
 
-[raw-feldspar-mcs](../../../../kmate/raw-feldspar-mcs) extends RAW-Feldspar and Zeldspar with multicore and scratchpad support.
+[raw-feldspar-mcs](https://github.com/kmate/raw-feldspar-mcs) extends RAW-Feldspar and Zeldspar with multicore and scratchpad support.
 
-The repository contains many [examples](../../../../kmate/raw-feldspar-mcs/tree/master/examples) written for the [Parallella](http://www.parallella.org) multicore architecture.
+The repository contains many [examples](https://github.com/kmate/raw-feldspar-mcs/tree/master/examples) written for the [Parallella](http://www.parallella.org) multicore architecture.
 
 ### feldspar-synch
 
-[feldspar-synch](../../../../emilaxelsson/feldspar-synch) is a library that extends Feldspar with Yampa-style synchronous streams.
+[feldspar-synch](https://github.com/emilaxelsson/feldspar-synch) is a library that extends Feldspar with Yampa-style synchronous streams.
 
 It contains a simple polyphonic synthesizer as a demonstration. The synthesizer may serve as a simple example of a complete (toy) application written in RAW-Feldspar. It also demonstrates how to make bindings to an external C library (the ALSA sound library).
 
@@ -132,7 +132,7 @@ The previous Feldspar implementation was split over three packages:
 
   * [feldspar-language](http://hackage.haskell.org/package/feldspar-language) -- the language front end
   * [feldspar-compiler](http://hackage.haskell.org/package/feldspar-compiler) -- the C-generating back end
-  * [feldspar-io](../../../../emilaxelsson/feldspar-io) -- a monadic "IO" layer
+  * [feldspar-io](https://github.com/emilaxelsson/feldspar-io) -- a monadic "IO" layer
 
 (`feldspar-io`, which is still at an early stage of development, adds support for writing interactive programs calling external functions, etc.)
 
@@ -146,13 +146,13 @@ RAW-Feldspar is essentially a replacement of all three packages. It emerged as a
 
 RAW-Feldspar has since become a respectable replacement of the previous implementation. RAW-Feldspar typically generates slicker code based on native types and functions. Due to the new design, the user also has more control over array allocations, leading to lower memory usage and fewer array copies.
 
-However, RAW-Feldspar also has some [limitations and lacks some features](../../wiki/Limitations-and-Missing-Features) compared to the previous version. Some features are missing simply because they have not been ported yet; others are missing for more fundamental reasons.
+However, RAW-Feldspar also has some [limitations and lacks some features](https://github.com/Feldspar/raw-feldspar/wiki/Limitations-and-Missing-Features) compared to the previous version. Some features are missing simply because they have not been ported yet; others are missing for more fundamental reasons.
 
 ## Limitations and missing features
 
-See [limitations and missing features](../../wiki/Limitations-and-Missing-Features).
+See [limitations and missing features](https://github.com/Feldspar/raw-feldspar/wiki/Limitations-and-Missing-Features).
 
-There is also a [list of possible enhancements and fixes](../../wiki/TODOs).
+There is also a [list of possible enhancements and fixes](https://github.com/Feldspar/raw-feldspar/wiki/TODOs).
 
 ## Implementation
 
@@ -175,5 +175,5 @@ The implementation also makes heavy use of the philosophy described in [Combinin
 
 A prime example of the technique is the [vector library](http://hackage.haskell.org/package/raw-feldspar/docs/Feldspar-Data-Vector.html), which provides high-level vector representations with a rich programming interface. These vectors only exist in the meta-language (i.e. Haskell), and by the time the Feldspar compiler is called, the vectors are already gone and what is left is imperative code with highly optimized loops. We saw an example of this when compiling the `sumSq` example above.
 
-Another example is [feldspar-synch](../../../../emilaxelsson/feldspar-synch), which extends Feldspar with synchronous streams. The whole package is implemented as a shallow extension on top of RAW-Feldspar.
+Another example is [feldspar-synch](https://github.com/emilaxelsson/feldspar-synch), which extends Feldspar with synchronous streams. The whole package is implemented as a shallow extension on top of RAW-Feldspar.
 
