@@ -12,7 +12,7 @@ RAW-Feldspar can be installed directly from [Hackage](http://hackage.haskell.org
 
 The installation can be sped up a bit (and the size of the installation reduced) by adding a flag to `language-c-quote` (a dependency of RAW-Feldspar):
 
-    cabal install --constraint="language-c-quote -full-haskell-antiquotes"
+    cabal install --constraint="language-c-quote -full-haskell-antiquotes" raw-feldspar
 
 However, this flag should normally only be used when installing in a sandbox that has no other packages depending `language-c-quote`.
 
