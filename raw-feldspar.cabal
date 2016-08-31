@@ -55,11 +55,12 @@ library
     Feldspar.Run.Marshal
     Feldspar.Run
     Feldspar.Data.Array
-    Feldspar.Data.Vector
     Feldspar.Data.Buffered
     Feldspar.Data.Option
-    Feldspar.Data.Validated
+    Feldspar.Data.Queue
     Feldspar.Data.Storable
+    Feldspar.Data.Validated
+    Feldspar.Data.Vector
 
   other-modules:
     Data.Inhabited.TH
