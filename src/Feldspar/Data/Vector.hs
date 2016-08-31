@@ -276,7 +276,7 @@ instance
       MarshalFeld (Pull a)
   where
     type HaskellRep (Pull a) = HaskellRep (Manifest a)
-    fwrite hdl = fwrite hdl . toPush
+    fwrite hdl = fwrite hdl . toSeq
     fread hdl  = (toPull :: Manifest a -> _) <$> fread hdl
 
 data VecChanSizeSpec lenSpec = VecChanSizeSpec (Data Length) lenSpec
