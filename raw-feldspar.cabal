@@ -62,6 +62,7 @@ library
     Feldspar.Data.Storable
     Feldspar.Data.Validated
     Feldspar.Data.Vector
+    Feldspar.Processing.Filters
 
   other-modules:
     Data.Inhabited.TH
