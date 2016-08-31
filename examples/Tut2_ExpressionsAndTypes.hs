@@ -82,7 +82,7 @@ run_dist = runCompiled' def mathOpts distRun
 -- A function computing the nth Fibonacci number can be written using `forLoop`:
 
 fib :: Data Word32 -> Data Word32
-fib n = fst $ forLoop n (0,1) $ \i (a,b) -> (b,a+b)
+fib n = fst $ forLoop n (0,1) $ \_ (a,b) -> (b,a+b)
 
 -- The arguments to `forLoop` are as follows, in order:
 --

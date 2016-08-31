@@ -26,6 +26,7 @@ import qualified Tut4_MemoryManagement      as Tut4
 import qualified Tut5_Matrices              as Tut5
 import qualified Tut6_Testing               as Tut6
 import qualified Tut7_ImperativeProgramming as Tut7
+import qualified Tut8_SequentialVectors     as Tut8
 import qualified Concurrent
 import DFT
 import FFT
@@ -63,11 +64,20 @@ prop_inverse f fi = QC.monadicIO $ do
     out2 <- QC.run $ fi out1
     QC.assert (inp ~= out2)
 
+prop_fib fb1 fb2 = QC.monadicIO $ do
+    n   <- QC.pick $ QC.choose (0,40)
+    fs1 <- QC.run $ fb1 n
+    fs2 <- QC.run $ fb2 n
+    QC.assert (fs1 Prelude.== fs2)
+
 main =
     marshalledM (return . dft)  $ \dft'  ->
     marshalledM (return . idft) $ \idft' ->
     marshalledM fftS            $ \fft'  ->
     marshalledM ifftS           $ \ifft' ->
+
+    marshalled (return . Tut8.fibSeq) $ \fb1 ->
+    marshalled (\n -> return $ Pull n Tut2.fib) $ \fb2 ->
 
       defaultMain $ testGroup "tests"
         [ testCase "Tut1"       Tut1.testAll
@@ -77,10 +87,12 @@ main =
         , testCase "Tut5"       Tut5.testAll
         , testCase "Tut6"       Tut6.testAll
         , testCase "Tut7"       Tut7.testAll
+        , testCase "Tut8"       Tut8.testAll
         , testCase "Concurrent" Concurrent.testAll
         , testProperty "fft_dft"  $ prop_fft_dft dft' fft'
         , testProperty "dft_idft" $ prop_inverse dft' idft'
         , testProperty "fft_ifft" $ prop_inverse fft' ifft'
+        , testProperty "fib"      $ prop_fib fb1 fb2
         ]
 
   where
