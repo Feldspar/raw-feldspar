@@ -227,6 +227,21 @@ instance (MarshalHaskell (Internal a), MarshalFeld a, Syntax a) =>
 connectStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
 connectStdIO f = (readStd >>= f) >>= writeStd
 
+-- | Connect a Feldspar function between serializable types to @stdin@/@stdout@.
+-- The input/output will be in the form of a list as recognized by 'toHaskell' /
+-- 'fromHaskell' (i.e. the length followed by the elements in sequence).
+--
+-- The function will be mapped over the input list in a lazy manner.
+streamStdIO :: (MarshalFeld a, MarshalFeld b) => (a -> Run b) -> Run ()
+streamStdIO f = do
+    n :: Data Length <- readStd
+    writeStd n
+    for (0,1,Excl n) $ \_ ->
+      connectStdIO $ \a -> printf " " >> f a
+  -- TODO Better to continue until EOF, but I wasn't able to make this work.
+  -- Presumably, one needs to check for EOF inside each `fread` and signal that
+  -- somehow.
+
 -- | A version of 'marshalled' that takes 'ExternalCompilerOpts' as additional
 -- argument
 marshalled' :: (MarshalFeld a, MarshalFeld b)
@@ -261,4 +276,29 @@ marshalled :: (MarshalFeld a, MarshalFeld b)
          -- ^ Function that has access to the compiled executable as a function
     -> IO c
 marshalled = marshalled' def def
+
+-- | A version of 'marshalledStream' that takes 'ExternalCompilerOpts' as
+-- additional argument
+marshalledStream' :: (MarshalFeld a, MarshalFeld b)
+    => CompilerOpts
+    -> ExternalCompilerOpts
+    -> (a -> Run b)  -- ^ Function to compile
+    -> (([HaskellRep a] -> IO [HaskellRep b]) -> IO c)
+         -- ^ Function that has access to the compiled executable as a function
+    -> IO c
+marshalledStream' opts eopts f body =
+    withCompiled' opts eopts (streamStdIO f) $ \g ->
+      body $ \is -> do
+        parse toHaskell <$> g (fromHaskell is)
+
+-- | Compile a function and make it available as an 'IO' function. The compiled
+-- function will be applied repeatedly over the list of inputs producing a list
+-- of outputs. Note that compilation only happens once, even if the function is
+-- used many times in the body.
+marshalledStream :: (MarshalFeld a, MarshalFeld b)
+    => (a -> Run b)  -- ^ Function to compile
+    -> (([HaskellRep a] -> IO [HaskellRep b]) -> IO c)
+         -- ^ Function that has access to the compiled executable as a function
+    -> IO c
+marshalledStream = marshalledStream' def def
 
