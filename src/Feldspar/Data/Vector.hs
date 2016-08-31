@@ -918,12 +918,11 @@ class ViewManifest vec a => Manifestable m vec a | vec -> a
     -- | A version of 'manifest' that allocates a fresh array for the result
     manifestFresh :: Syntax a => vec -> m (Manifest a)
 
-    default manifestFresh :: (Pushy m vec a, Syntax a, MonadComp m) =>
+    default manifestFresh :: (Finite vec, Syntax a, MonadComp m) =>
         vec -> m (Manifest a)
     manifestFresh vec = do
-        v   <- toPushM vec
-        loc <- newArr $ length v
-        manifest loc v
+        loc <- newArr $ length vec
+        manifest loc vec
 
     -- | A version of 'manifest' that only stores the vector to the given array
     -- ('manifest' is not guaranteed to use the array)
@@ -975,11 +974,10 @@ class ViewManifest2 vec a => Manifestable2 m vec a | vec -> a
     -- | A version of 'manifest2' that allocates a fresh array for the result
     manifestFresh2 :: Syntax a => vec -> m (Manifest2 a)
 
-    default manifestFresh2 :: (Pushy2 m vec a, Syntax a, MonadComp m) =>
+    default manifestFresh2 :: (Finite2 vec, Syntax a, MonadComp m) =>
         vec -> m (Manifest2 a)
     manifestFresh2 vec = do
-        v   <- toPushM2 vec
-        loc <- newArr (numRows v * numCols v)
+        loc <- newArr (numRows vec * numCols vec)
         manifest2 loc vec
 
     -- | A version of 'manifest2' that only stores the vector to the given array
