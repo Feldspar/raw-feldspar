@@ -655,6 +655,14 @@ instance MonadComp m => Pushy m (Pull a) a
       where
         len = length vec
 
+instance (MonadComp m1, m1 ~ m2) => Pushy m1 (Seq m2 a) a
+  where
+    toPush (Seq len init) = Push len $ \write -> do
+      next <- init
+      for (0,1,Excl len) $ \i -> do
+        a <- next i
+        write i a
+
 -- | Dump the contents of a 'Push' vector
 dumpPush
     :: Push m a                   -- ^ Vector to dump
@@ -880,6 +888,130 @@ transposePush vec = Push2 c r $ \write ->
 
 
 --------------------------------------------------------------------------------
+-- * Sequential vectors
+--------------------------------------------------------------------------------
+
+-- | Finite sequential vector
+--
+-- Users interested in infinite streams are referred to the library:
+-- <https://github.com/emilaxelsson/feldspar-synch>
+data Seq m a
+  where
+    Seq :: Data Length -> m (Data Index -> m a) -> Seq m a
+
+-- | 'Seq' vector specialized to 'Data' elements
+type DSeq m a = Seq m (Data a)
+
+instance Monad m => Functor (Seq m)
+  where
+    fmap f (Seq len init) = Seq len $ do
+      next <- init
+      return $ fmap f . next
+
+instance Finite (Seq m a)
+  where
+    length (Seq len _) = len
+
+instance
+    ( Syntax a
+    , MarshalHaskell (Internal a)
+    , MarshalFeld a
+    , m ~ Run
+    ) =>
+      MarshalFeld (Seq m a)
+  where
+    type HaskellRep (Seq m a) = HaskellRep (Manifest a)
+
+    fwrite hdl (Seq len init) = do
+      next <- init
+      fwrite hdl len >> printf " "
+      for (0,1,Excl len) $ \i -> next i >>= fwrite hdl >> printf " "
+
+    fread hdl = toSeq . (id :: Manifest _ -> _) <$> fread hdl
+      -- Need to go through a temporary array to avoid embedding side-effects in
+      -- the resulting vector. E.g. we don't want to duplicate the reads if the
+      -- vector is duplicated.
+
+-- | Vectors that can be converted to 'Seq'
+class Seqy m vec a | vec -> a
+  where
+    -- | Convert a vector to 'Seq'
+    toSeq :: vec -> Seq m a
+
+-- | A version of 'toSeq' that constrains the @m@ argument of 'Seq' to that of
+-- the monad in which the result is returned. This can be a convenient way to
+-- avoid unresolved overloading.
+toSeqM :: (Seqy m vec a, Monad m) => vec -> m (Seq m a)
+toSeqM = return . toSeq
+
+instance (Syntax a, MonadComp m) => Seqy m (Manifest a) a where toSeq = toSeq . toPull
+instance (m1 ~ m2)               => Seqy m1 (Seq m2 a) a  where toSeq = id
+
+instance MonadComp m => Seqy m (Pull a) a
+  where
+    toSeq vec = Seq (length vec) $ return $ \i -> return $ vec!i
+
+zipWithSeq :: Monad m => (a -> b -> c) -> Seq m a -> Seq m b -> Seq m c
+zipWithSeq f (Seq l1 init1) (Seq l2 init2) = Seq (min l1 l2) $ do
+    next1 <- init1
+    next2 <- init2
+    return $ \i -> f <$> next1 i <*> next2 i
+
+unfold :: (Syntax b, MonadComp m) => Data Length -> (b -> (b,a)) -> b -> Seq m a
+unfold len step init = Seq len $ do
+    r <- initRef init
+    return $ \_ -> do
+      acc <- getRef r
+      let (acc',a) = step acc
+      setRef r acc'
+      return a
+
+scan :: (Seqy m vec b, Syntax a, MonadComp m) =>
+    (a -> b -> a) -> a -> vec -> Seq m a
+scan step a vec = Seq (len+1) $ do
+    next <- init
+    r    <- initRef a
+    return $ \i -> do
+      a   <- next i
+      acc <- getRef r
+      setRef r $ step acc a
+      return acc
+  where
+    Seq len init = toSeq vec
+
+scan1 :: (Seqy m vec a, Syntax a, MonadComp m) =>
+    (a -> a -> a) -> vec -> Seq m a
+scan1 step vec = Seq len $ do
+    assertLabel InternalAssertion (len > 0) "scan1: empty vector"
+    next <- init
+    a    <- next 0
+    r    <- initRef a
+    return $ \i -> do
+      a <- getRef r
+      b <- next (i + 1)
+      let c = step a b
+      setRef r c
+      return c
+  where
+    Seq len init = toSeq vec
+
+mapAccum :: (Seqy m vec a, Syntax acc, MonadComp m) =>
+    (acc -> a -> (acc,b)) -> acc -> vec -> Seq m b
+mapAccum step acc0 vec = Seq len $ do
+    next <- init
+    r    <- initRef acc0
+    return $ \i -> do
+      a   <- next i
+      acc <- getRef r
+      let (acc',b) = step acc a
+      setRef r acc'
+      return b
+  where
+    Seq len init = toSeq vec
+
+
+
+--------------------------------------------------------------------------------
 -- * Writing to memory
 --------------------------------------------------------------------------------
 
@@ -897,6 +1029,7 @@ class ViewManifest vec a | vec -> a
 instance ViewManifest (Manifest a) a where viewManifest = Just
 instance ViewManifest (Pull a) a
 instance ViewManifest (Push m a) a
+instance ViewManifest (Seq m a) a
 
 class ViewManifest vec a => Manifestable m vec a | vec -> a
   where
@@ -942,6 +1075,8 @@ instance MonadComp m => Manifestable m (Manifest a) a
 
 instance MonadComp m             => Manifestable m (Pull a) a
 instance (MonadComp m1, m1 ~ m2) => Manifestable m1 (Push m2 a) a
+instance (MonadComp m1, m1 ~ m2) => Manifestable m1 (Seq m2 a) a
+
 
 class ViewManifest2 vec a | vec -> a
   where

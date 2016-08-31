@@ -19,7 +19,8 @@ license-file:        LICENSE
 author:              Emil Axelsson
 maintainer:          emax@chalmers.se
 copyright:           Copyright (c) 2016 Anders Persson, Anton Ekblad, Emil Axelsson,
-                                        Koen Claessen, Markus Aronsson, Máté Karácsony
+                                        Josef Svenningsson, Koen Claessen, Markus Aronsson,
+                                        Máté Karácsony
                      Copyright (c) 2015 Emil Axelsson
 homepage:            https://github.com/Feldspar/raw-feldspar
 bug-reports:         https://github.com/Feldspar/raw-feldspar/issues
