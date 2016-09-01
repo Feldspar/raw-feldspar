@@ -970,29 +970,21 @@ unfold len step init = Seq len $ do
       setRef r acc'
       return a
 
--- | This function behaves slightly differently from the standard @scanl@ for
--- lists:
---
--- * The initial element is not included in the output
--- * Thus, the output has the same length as the input
-scan :: (Seqy m vec b, Syntax a, MonadComp m) =>
-    (a -> b -> a) -> a -> vec -> Seq m a
-scan step acc0 vec = Seq len $ do
+mapAccum' :: (Seqy m vec a, Syntax acc, MonadComp m) =>
+    (acc -> a -> (acc,b)) -> acc -> vec -> Seq m (acc,b)
+mapAccum' step acc0 vec = Seq len $ do
     next <- init
     r    <- initRef acc0
     return $ \i -> do
-      b   <- next i
-      acc <- unsafeFreezeRef r
-      let a = step acc b
-      setRef r a
-      getRef r
-        -- Read from the reference to avoid duplicating `a`
+      a   <- next i
+      acc <- getRef r
+      let (acc',b) = step acc a
+      setRef r acc'
+      acc'' <- getRef r
+        -- Read from the reference to avoid duplicating `acc'`
+      return (acc'',b)
   where
     Seq len init = toSeq vec
-  -- The reason for the discrepancy towards `Data.List.scanl` is that if we want
-  -- to avoid conditionals in the returned vector, we need to pull one input
-  -- element for each output element. Thus it's not possible for the output
-  -- vector to be longer than the input.
 
 mapAccum :: (Seqy m vec a, Syntax acc, MonadComp m) =>
     (acc -> a -> (acc,b)) -> acc -> vec -> Seq m b
@@ -1007,6 +999,18 @@ mapAccum step acc0 vec = Seq len $ do
       return b
   where
     Seq len init = toSeq vec
+
+-- | This function behaves slightly differently from the standard @scanl@ for
+-- lists:
+--
+-- * The initial element is not included in the output
+-- * Thus, the output has the same length as the input
+scan :: (Seqy m vec b, Syntax a, MonadComp m) =>
+    (a -> b -> a) -> a -> vec -> Seq m a
+scan step acc0 = fmap fst . mapAccum' (\acc a -> (step acc a, ())) acc0
+  -- The reason for the discrepancy towards `Data.List.scanl` is that it's
+  -- generally not possible for a `Seq` of length `l+1` to read elements from a
+  -- `Seq` of length `l` without a conditional in the body.
 
 
 
