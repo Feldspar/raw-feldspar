@@ -299,7 +299,8 @@ instance ( Syntax a, BulkTransferable a
         untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
         toPull <$> unsafeFreezeArr arr
     untypedWriteChan c v = do
-        arr <- newArr len
+        -- TODO: can we avoid an array copy here if v is already manifest?
+        arr <- unsafeThawArr =<< manifestFresh v
         untypedWriteChan c len
         untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
       where
