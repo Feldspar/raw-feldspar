@@ -307,6 +307,47 @@ instance ( Syntax a, BulkTransferable a
         len = length v
  -- TODO Make instances for other vector types
 
+instance ( Syntax a, BulkTransferable a
+         , ContainerType a ~ Arr a
+         ) => Transferable (IArr a)
+  where
+    type SizeSpec (IArr a) = VecChanSizeSpec (SizeSpec a)
+    calcChanSize _ (VecChanSizeSpec n m) =
+        let hsz = n `Imp.timesSizeOf` (Proxy :: Proxy Length)
+            bsz = calcChanSize (Proxy :: Proxy a) m
+        in  hsz `Imp.plusSize` (n `Imp.timesSize` bsz)
+    untypedReadChan c = do
+        len :: Data Length <- untypedReadChan c
+        arr <- newArr len
+        untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
+        unsafeFreezeArr arr
+    untypedWriteChan c v = do
+        arr <- unsafeThawArr v
+        untypedWriteChan c len
+        untypedWriteChanBuf (Proxy :: Proxy a) c 0 len arr
+      where
+        len = length v
+
+instance ( Syntax a, BulkTransferable a
+         , ContainerType a ~ Arr a
+         ) => Transferable (Arr a)
+  where
+    type SizeSpec (Arr a) = VecChanSizeSpec (SizeSpec a)
+    calcChanSize _ (VecChanSizeSpec n m) =
+        let hsz = n `Imp.timesSizeOf` (Proxy :: Proxy Length)
+            bsz = calcChanSize (Proxy :: Proxy a) m
+        in  hsz `Imp.plusSize` (n `Imp.timesSize` bsz)
+    untypedReadChan c = do
+        len :: Data Length <- untypedReadChan c
+        arr <- newArr len
+        untypedReadChanBuf (Proxy :: Proxy a) c 0 len arr
+        pure arr
+    untypedWriteChan c v = do
+        untypedWriteChan c len
+        untypedWriteChanBuf (Proxy :: Proxy a) c 0 len v
+      where
+        len = length v
+
 -- | Data structures that are 'Pull'-like (i.e. support '!' and 'length')
 class    (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
 instance (Indexed vec, Finite vec, IndexedElem vec ~ a) => Pully vec a
