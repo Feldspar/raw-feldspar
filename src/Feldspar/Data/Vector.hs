@@ -951,11 +951,15 @@ instance MonadComp m => Seqy m (Pull a) a
   where
     toSeq vec = Seq (length vec) $ return $ \i -> return $ vec!i
 
-zipWithSeq :: Monad m => (a -> b -> c) -> Seq m a -> Seq m b -> Seq m c
-zipWithSeq f (Seq l1 init1) (Seq l2 init2) = Seq (min l1 l2) $ do
+zipWithSeq :: (Seqy m vec1 a, Seqy m vec2 b, Monad m) =>
+    (a -> b -> c) -> vec1 -> vec2 -> Seq m c
+zipWithSeq f vec1 vec2 = Seq (min l1 l2) $ do
     next1 <- init1
     next2 <- init2
     return $ \i -> f <$> next1 i <*> next2 i
+  where
+    Seq l1 init1 = toSeq vec1
+    Seq l2 init2 = toSeq vec2
 
 unfold :: (Syntax b, MonadComp m) => Data Length -> (b -> (b,a)) -> b -> Seq m a
 unfold len step init = Seq len $ do
