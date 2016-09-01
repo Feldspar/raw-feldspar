@@ -970,34 +970,29 @@ unfold len step init = Seq len $ do
       setRef r acc'
       return a
 
+-- | This function behaves slightly differently from the standard @scanl@ for
+-- lists:
+--
+-- * The initial element is not included in the output
+-- * Thus, the output has the same length as the input
 scan :: (Seqy m vec b, Syntax a, MonadComp m) =>
     (a -> b -> a) -> a -> vec -> Seq m a
-scan step a vec = Seq (len+1) $ do
+scan step acc0 vec = Seq len $ do
     next <- init
-    r    <- initRef a
+    r    <- initRef acc0
     return $ \i -> do
-      a   <- next i
-      acc <- getRef r
-      setRef r $ step acc a
-      return acc
+      b   <- next i
+      acc <- unsafeFreezeRef r
+      let a = step acc b
+      setRef r a
+      getRef r
+        -- Read from the reference to avoid duplicating `a`
   where
     Seq len init = toSeq vec
-
-scan1 :: (Seqy m vec a, Syntax a, MonadComp m) =>
-    (a -> a -> a) -> vec -> Seq m a
-scan1 step vec = Seq len $ do
-    assertLabel InternalAssertion (len > 0) "scan1: empty vector"
-    next <- init
-    a    <- next 0
-    r    <- initRef a
-    return $ \i -> do
-      a <- getRef r
-      b <- next (i + 1)
-      let c = step a b
-      setRef r c
-      return c
-  where
-    Seq len init = toSeq vec
+  -- The reason for the discrepancy towards `Data.List.scanl` is that if we want
+  -- to avoid conditionals in the returned vector, we need to pull one input
+  -- element for each output element. Thus it's not possible for the output
+  -- vector to be longer than the input.
 
 mapAccum :: (Seqy m vec a, Syntax acc, MonadComp m) =>
     (acc -> a -> (acc,b)) -> acc -> vec -> Seq m b
