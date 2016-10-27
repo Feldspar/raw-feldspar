@@ -26,7 +26,7 @@ import Feldspar.Primitive.Representation
 import Feldspar.Representation
 
 
-
+{-
 witInteger :: ASTF FeldDomain a -> Maybe (Dict (Integral a, Ord a))
 witInteger a = case getDecor a of
     ValT (Single Int8T)   -> Just Dict
@@ -353,8 +353,10 @@ cmInterface = defaultInterfaceDecor
     sharable (SymP _ I2N :$ _) _ = False
     sharable (SymP _ (ArrIx _) :$ _) _ = False
     sharable _ _ = True
-
+-}
 -- | Optimize a Feldspar expression
 optimize :: OptEnv -> ASTF FeldDomain a -> ASTF FeldDomain a
-optimize env = codeMotion cmInterface . simplify env
+optimize _ = id
+--optimize env = codeMotion cmInterface . simplify env
 
+type OptEnv = Selection AssertionLabel
