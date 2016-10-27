@@ -3,10 +3,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Internal representation of Feldspar programs
-
 module Feldspar.Representation where
-
-
 
 import Control.Monad.Reader
 import Data.Complex
@@ -33,15 +30,62 @@ import qualified Language.Embedded.Backend.C.Expression as Imp
 import Data.Inhabited
 import Data.Selection
 import Data.TypedStruct
-import Feldspar.Primitive.Representation
-import Feldspar.Primitive.Backend.C ()
 
-
+--import Feldspar.Primitive.Representation
+--import Feldspar.Primitive.Backend.C ()
 
 --------------------------------------------------------------------------------
--- * Object-language types
+-- * Object-language types.
 --------------------------------------------------------------------------------
 
+data IntTypeRep a
+  where
+    Int8Type  :: IntTypeRep Int8
+    Int16Type :: IntTypeRep Int16
+    Int32Type :: IntTypeRep Int32
+    Int64Type :: IntTypeRep Int64
+
+data WordTypeRep a
+  where
+    Word8Type  :: WordTypeRep Word8
+    Word16Type :: WordTypeRep Word16
+    Word32Type :: WordTypeRep Word32
+    Word64Type :: WordTypeRep Word64
+
+data IntWordTypeRep a
+  where
+    IntType  :: IntTypeRep a -> IntWordTypeRep a
+    WordType :: WordTypeRep a -> IntWordTypeRep a
+
+data FloatingTypeRep a
+  where
+    FloatType  :: FloatingTypeRep Float
+    DoubleType :: FloatingTypeRep Double
+
+data ComplexTypeRep a
+  where
+    ComplexFloatType  :: ComplexTypeRep (Complex Float)
+    ComplexDoubleType :: ComplexTypeRep (Complex Double)
+
+--------------------------------------------------------------------------------
+
+-- | A different view of 'PrimTypeRep' that allows matching on similar types
+data PrimTypeView a
+  where
+    PrimTypeBool     :: PrimTypeView Bool
+    PrimTypeIntWord  :: IntWordTypeRep a -> PrimTypeView a
+    PrimTypeFloating :: FloatingTypeRep a -> PrimTypeView a
+    PrimTypeComplex  :: ComplexTypeRep a -> PrimTypeView a
+
+deriving instance Show (IntTypeRep a)
+deriving instance Show (WordTypeRep a)
+deriving instance Show (IntWordTypeRep a)
+deriving instance Show (FloatingTypeRep a)
+deriving instance Show (ComplexTypeRep a)
+deriving instance Show (PrimTypeView a)
+
+--------------------------------------------------------------------------------
+{-
 -- | Representation of all supported types
 type TypeRep = Struct PrimType' PrimTypeRep
 
@@ -431,3 +475,4 @@ deriveEquality  ''ForLoop
 
 deriveSymbol ''Unsafe
 
+-}
