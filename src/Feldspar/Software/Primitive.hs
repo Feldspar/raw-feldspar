@@ -12,8 +12,6 @@
 -- | Primitive software expressions.
 module Feldspar.Software.Primitive where
 
-import Feldspar.Representation
-
 import Data.Array
 import Data.Bits
 import Data.Complex
@@ -30,9 +28,16 @@ import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
 
+import Data.Inhabited
+
+import Feldspar.Representation
+
 --------------------------------------------------------------------------------
 -- * Types.
 --------------------------------------------------------------------------------
+
+type Length = Word32
+type Index  = Word32
 
 -- | Representation of primitive supported types.
 data SoftwarePrimTypeRep a
@@ -99,8 +104,71 @@ primTypeIntWidth Word64ST = Just 64
 primTypeIntWidth _        = Nothing
 
 --------------------------------------------------------------------------------
+-- ** ... todo: subsection ...
 
-type Length = Word32
-type Index  = Word32
+-- | Class of supported software types.
+class (Eq a, Show a, Typeable a, Inhabited a) => SoftwarePrimType a
+  where
+    softwareTypeRep :: SoftwarePrimTypeRep a
+
+instance SoftwarePrimType Bool             where softwareTypeRep = BoolST
+instance SoftwarePrimType Int8             where softwareTypeRep = Int8ST
+instance SoftwarePrimType Int16            where softwareTypeRep = Int16ST
+instance SoftwarePrimType Int32            where softwareTypeRep = Int32ST
+instance SoftwarePrimType Int64            where softwareTypeRep = Int64ST
+instance SoftwarePrimType Word8            where softwareTypeRep = Word8ST
+instance SoftwarePrimType Word16           where softwareTypeRep = Word16ST
+instance SoftwarePrimType Word32           where softwareTypeRep = Word32ST
+instance SoftwarePrimType Word64           where softwareTypeRep = Word64ST
+instance SoftwarePrimType Float            where softwareTypeRep = FloatST
+instance SoftwarePrimType Double           where softwareTypeRep = DoubleST
+instance SoftwarePrimType (Complex Float)  where softwareTypeRep = ComplexFloatST
+instance SoftwarePrimType (Complex Double) where softwareTypeRep = ComplexDoubleST
+
+--------------------------------------------------------------------------------
+
+-- | Convenience function; like 'softwareRep' but with an extra argument to
+-- constrain the type parameter. The extra argument is ignored.
+softwareTypeOf :: SoftwarePrimType a => a -> SoftwarePrimTypeRep a
+softwareTypeOf _ = softwareTypeRep
+
+-- | Check whether two software type representations are equal.
+softwareTypeEq :: SoftwarePrimTypeRep a -> SoftwarePrimTypeRep b -> Maybe (Dict (a ~ b))
+softwareTypeEq BoolST          BoolST          = Just Dict
+softwareTypeEq Int8ST          Int8ST          = Just Dict
+softwareTypeEq Int16ST         Int16ST         = Just Dict
+softwareTypeEq Int32ST         Int32ST         = Just Dict
+softwareTypeEq Int64ST         Int64ST         = Just Dict
+softwareTypeEq Word8ST         Word8ST         = Just Dict
+softwareTypeEq Word16ST        Word16ST        = Just Dict
+softwareTypeEq Word32ST        Word32ST        = Just Dict
+softwareTypeEq Word64ST        Word64ST        = Just Dict
+softwareTypeEq FloatST         FloatST         = Just Dict
+softwareTypeEq DoubleST        DoubleST        = Just Dict
+softwareTypeEq ComplexFloatST  ComplexFloatST  = Just Dict
+softwareTypeEq ComplexDoubleST ComplexDoubleST = Just Dict
+softwareTypeEq _ _ = Nothing
+
+-- | Reflect a 'SoftwarePrimTypeRep' to a 'SoftwarePrimType' constraint.
+witSoftwarePrimType :: SoftwarePrimTypeRep a -> Dict (SoftwarePrimType a)
+witSoftwarePrimType BoolST          = Dict
+witSoftwarePrimType Int8ST          = Dict
+witSoftwarePrimType Int16ST         = Dict
+witSoftwarePrimType Int32ST         = Dict
+witSoftwarePrimType Int64ST         = Dict
+witSoftwarePrimType Word8ST         = Dict
+witSoftwarePrimType Word16ST        = Dict
+witSoftwarePrimType Word32ST        = Dict
+witSoftwarePrimType Word64ST        = Dict
+witSoftwarePrimType FloatST         = Dict
+witSoftwarePrimType DoubleST        = Dict
+witSoftwarePrimType ComplexFloatST  = Dict
+witSoftwarePrimType ComplexDoubleST = Dict
+
+--------------------------------------------------------------------------------
+-- * Expressions.
+--------------------------------------------------------------------------------
+
+
 
 --------------------------------------------------------------------------------
