@@ -86,6 +86,14 @@ instance MonadComp Software
     
     liftComp = Software . lift
 
+class Monad m => MonadSoftware m
+  where
+    liftRun :: Software a -> m a
+
+instance MonadSoftware Software
+  where
+    liftRun = id
+
 --------------------------------------------------------------------------------
 
 -- | Mutable variable.
