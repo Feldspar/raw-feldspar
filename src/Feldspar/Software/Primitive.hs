@@ -7,6 +7,8 @@
 {-# language MultiParamTypeClasses #-}
 {-# language TypeFamilies #-}
 
+{-# LANGUAGE TemplateHaskell #-}
+
 {-# options_ghc -fwarn-incomplete-patterns #-}
 
 -- | Primitive software expressions.
@@ -169,6 +171,265 @@ witSoftwarePrimType ComplexDoubleST = Dict
 -- * Expressions.
 --------------------------------------------------------------------------------
 
+-- | Primitive operations
+data SoftwarePrim sig
+  where
+    FreeVar :: SoftwarePrimType a => String -> SoftwarePrim (Full a)
+    Lit     :: (Eq a, Show a) => a -> SoftwarePrim (Full a)
 
+    Add  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    Sub  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    Mul  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    Neg  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Abs  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Sign :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+
+    Quot :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
+    Rem  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
+    Div  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
+    Mod  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
+    FDiv :: (Fractional a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+
+    Pi    :: (Floating a, SoftwarePrimType a) => SoftwarePrim (Full a)
+    Exp   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Log   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Sqrt  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Pow   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    Sin   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Cos   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Tan   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Asin  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Acos  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Atan  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Sinh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Cosh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Tanh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Asinh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Acosh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Atanh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+
+    Complex   :: (Num a, SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (a :-> a :-> Full (Complex a))
+    Polar     :: (Floating a, SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (a :-> a :-> Full (Complex a))
+    Real      :: (SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (Complex a :-> Full a)
+    Imag      :: (SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (Complex a :-> Full a)
+    Magnitude :: (RealFloat a, SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (Complex a :-> Full a)
+    Phase     :: (RealFloat a, SoftwarePrimType a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (Complex a :-> Full a)
+    Conjugate :: (Num a, SoftwarePrimType (Complex a))
+              => SoftwarePrim (Complex a :-> Full (Complex a))
+
+    I2N   :: (Integral a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrim (a :-> Full b)
+    I2B   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrim (a :-> Full Bool)
+    B2I   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrim (Bool :-> Full a)
+    Round :: (RealFrac a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrim (a :-> Full b)
+
+    Not :: SoftwarePrim (Bool :-> Full Bool)
+    And :: SoftwarePrim (Bool :-> Bool :-> Full Bool)
+    Or  :: SoftwarePrim (Bool :-> Bool :-> Full Bool)
+    Eq  :: (Eq a, SoftwarePrimType a)  => SoftwarePrim (a :-> a :-> Full Bool)
+    NEq :: (Eq a, SoftwarePrimType a)  => SoftwarePrim (a :-> a :-> Full Bool)
+    Lt  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
+    Gt  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
+    Le  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
+    Ge  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
+
+    BitAnd   :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    BitOr    :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    BitXor   :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    BitCompl :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    ShiftL   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrim (a :-> b :-> Full a)
+    ShiftR   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrim (a :-> b :-> Full a)
+
+    ArrIx :: SoftwarePrimType a => IArr Index a -> SoftwarePrim (Index :-> Full a)
+
+    Cond :: SoftwarePrim (Bool :-> a :-> a :-> Full a)
+
+--deriving instance Eq       (SoftwarePrim a)
+deriving instance Show     (SoftwarePrim a)
+deriving instance Typeable (SoftwarePrim a)
+
+-- The `SoftfwarePrimType` constraints on certain symbols require an explanation:
+-- They guarantee to the compiler that these symbols don't operate on tuples.
+--
+-- It would seem more consistent to have a `SoftwarePrimType` constraint on all
+-- polymorphic symbols. However, this would prevent using some symbols for
+-- non-primitive types in `Feldspar.Software.Representation`. For example, `Lit`
+-- and `Cond` are used `Feldspar.Software.Representation`, and there they can
+-- also be used for tuple types. The current design was chosen because it
+-- "just works".
+--------------------------------------------------------------------------------
+
+-- | Software primitive symbols.
+type SoftwarePrimConstructs = SoftwarePrim
+
+-- | Software primitive symbols tagged with their type representation.
+type SoftwarePrimDomain = SoftwarePrimConstructs :&: SoftwarePrimTypeRep
+
+-- | Software primitive expressions.
+newtype SPrim a = SPrim { unSPrim :: ASTF SoftwarePrimDomain a }
+
+--------------------------------------------------------------------------------
+
+-- | Evaluate a closed software expression.
+evalSPrim :: SPrim a -> a
+evalSPrim = go . unSPrim
+  where
+    go :: AST SoftwarePrimDomain sig -> Denotation sig
+    go (Sym (s :&: _)) = evalSym s
+    go (f :$ a)        = go f $ go a
+
+--------------------------------------------------------------------------------
+
+instance Syntactic (SPrim a)
+  where
+    type Domain   (SPrim a) = SoftwarePrimDomain
+    type Internal (SPrim a) = a
+    desugar = unSPrim
+    sugar   = SPrim
+
+sugarSymSPrim
+  :: ( Signature sig
+     , fi  ~ SmartFun dom sig
+     , sig ~ SmartSig fi
+     , dom ~ SmartSym fi
+     , dom ~ SoftwarePrimDomain
+     , SyntacticN f fi
+     , sub :<: SoftwarePrimConstructs
+     , SoftwarePrimType (DenResult sig)
+     )
+  => sub sig -> f
+sugarSymSPrim = sugarSymDecor softwareTypeRep
+
+--------------------------------------------------------------------------------
+-- ** Interface.
+
+instance (SoftwarePrimType a, Num a) => Num (SPrim a)
+  where
+    fromInteger = constExp . fromInteger
+    (+)         = sugarSymSPrim Add
+    (-)         = sugarSymSPrim Sub
+    (*)         = sugarSymSPrim Mul
+    negate      = sugarSymSPrim Neg
+    abs         = sugarSymSPrim Abs
+    signum      = sugarSymSPrim Sign
+
+--------------------------------------------------------------------------------
+-- imperative-edsl instances.
+
+instance FreeExp SPrim
+  where
+    type FreePred SPrim = SoftwarePrimType
+    constExp = sugarSymSPrim . Lit
+    varExp   = sugarSymSPrim . FreeVar
+
+instance EvalExp SPrim
+  where
+    evalExp = evalSPrim
+
+--------------------------------------------------------------------------------
+-- syntactic instances.
+
+deriveSymbol ''SoftwarePrim
+
+instance Render SoftwarePrim
+  where
+    renderSym (FreeVar v) = v
+    renderSym (Lit a)     = show a
+    renderSym (ArrIx (IArrComp arr)) = "ArrIx " ++ arr
+    renderSym (ArrIx _)              = "ArrIx ..."
+    renderSym s = show s
+
+    renderArgs = renderArgsSmart
+
+instance StringTree SoftwarePrim
+
+instance Eval SoftwarePrim
+  where
+    evalSym (FreeVar v) = error $ "evaluating free variable " ++ show v
+    evalSym (Lit a)     = a
+    evalSym Add         = (+)
+    evalSym Sub         = (-)
+    evalSym Mul         = (*)
+    evalSym Neg         = negate
+    evalSym Abs         = abs
+    evalSym Sign        = signum
+    evalSym Quot        = quot
+    evalSym Rem         = rem
+    evalSym Div         = div
+    evalSym Mod         = mod
+    evalSym FDiv        = (/)
+    evalSym Pi          = pi
+    evalSym Exp         = exp
+    evalSym Log         = log
+    evalSym Sqrt        = sqrt
+    evalSym Pow         = (**)
+    evalSym Sin         = sin
+    evalSym Cos         = cos
+    evalSym Tan         = tan
+    evalSym Asin        = asin
+    evalSym Acos        = acos
+    evalSym Atan        = atan
+    evalSym Sinh        = sinh
+    evalSym Cosh        = cosh
+    evalSym Tanh        = tanh
+    evalSym Asinh       = asinh
+    evalSym Acosh       = acosh
+    evalSym Atanh       = atanh
+    evalSym Complex     = (:+)
+    evalSym Polar       = mkPolar
+    evalSym Real        = realPart
+    evalSym Imag        = imagPart
+    evalSym Magnitude   = magnitude
+    evalSym Phase       = phase
+    evalSym Conjugate   = conjugate
+    evalSym I2N         = fromInteger . toInteger
+    evalSym I2B         = (/=0)
+    evalSym B2I         = \a -> if a then 1 else 0
+    evalSym Round       = fromInteger . round
+    evalSym Not         = not
+    evalSym And         = (&&)
+    evalSym Or          = (||)
+    evalSym Eq          = (==)
+    evalSym NEq         = (/=)
+    evalSym Lt          = (<)
+    evalSym Gt          = (>)
+    evalSym Le          = (<=)
+    evalSym Ge          = (>=)
+    evalSym BitAnd      = (.&.)
+    evalSym BitOr       = (.|.)
+    evalSym BitXor      = xor
+    evalSym BitCompl    = complement
+    evalSym ShiftL      = \a -> shiftL a . fromIntegral
+    evalSym ShiftR      = \a -> shiftR a . fromIntegral
+    evalSym Cond        = \c t f -> if c then t else f
+    evalSym (ArrIx (IArrRun arr)) = \i ->
+        if i<l || i>h
+          then error $ "ArrIx: index "
+                    ++ show (toInteger i)
+                    ++ " out of bounds "
+                    ++ show (toInteger l, toInteger h)
+          else arr!i
+      where
+        (l,h) = bounds arr
+    evalSym (ArrIx (IArrComp arr)) = error $ "evaluating symbolic array " ++ arr
+
+-- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
+instance EvalEnv SoftwarePrim env
+
+instance Equality SoftwarePrim
+  where
+    equal s1 s2 = show s1 == show s2
+      -- NOTE: It is very important not to use `renderSym` here, because it will
+      -- render all concrete arrays equal.
+
+      -- This method uses string comparison. It is probably slightly more
+      -- efficient to pattern match directly on the constructors. Unfortunately
+      -- `deriveEquality ''Primitive` doesn't work, so it gets quite tedious to
+      -- write it with pattern matching.
 
 --------------------------------------------------------------------------------
