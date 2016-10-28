@@ -84,7 +84,12 @@ instance MonadComp Software
     type Pred Software = SoftwarePrimType
     type TRep Software = SoftwarePrimTypeRep
     
-    liftComp = Software . lift
+    liftComp        = Software . lift
+    iff c t f       = Software $ Imp.iff c (unSoftware t) (unSoftware f)
+    for range body  = Software $ Imp.for (undefined, 1, Imp.Incl range) (unSoftware . body)
+    while cont body = Software $ Imp.while (unSoftware cont) (unSoftware body)
+
+--------------------------------------------------------------------------------
 
 class Monad m => MonadSoftware m
   where

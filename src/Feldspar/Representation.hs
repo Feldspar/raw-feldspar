@@ -30,7 +30,7 @@ import Data.Word
 import Data.Constraint (Constraint, Dict (..))
 
 -- syntactic.
-import Language.Syntactic
+import Language.Syntactic hiding (Typed)
 import Language.Syntactic.Functional
 import Language.Syntactic.Functional.Tuple
 import Language.Syntactic.TH
@@ -46,9 +46,6 @@ import qualified Language.Embedded.Backend.C.Expression as Imp
 import Data.Inhabited
 import Data.Selection
 import Data.TypedStruct
-
---import Feldspar.Primitive.Representation
---import Feldspar.Primitive.Backend.C ()
 
 --------------------------------------------------------------------------------
 -- * Object-language.
@@ -91,14 +88,19 @@ onlyUserAssertions = selectBy $ \l -> case l of
 
 --------------------------------------------------------------------------------
 
--- set of purely computational instructions.
+-- Set of purely computational instructions.
 type CompCMD =    Imp.RefCMD
   Operational.:+: Imp.ArrCMD
   Operational.:+: Imp.ControlCMD
   Operational.:+: AssertCMD
   
--- short-hand for programs made of computational instructions.
+-- Short-hand for programs made of computational instructions.
 type Prog expr pred = Operational.Program CompCMD (Operational.Param2 expr pred)
+
+-- Short-hand for conjunction of language's predicate and `Type` constraints,
+-- unifies the method for extracting a type representation of a language with
+-- that of `typeRep`.
+type PrimType m a = (Type (Pred m) (TRep m) a, Pred m a)
 
 -- | Class of monads that support lifting of computational programs.
 class Monad m => MonadComp m
@@ -112,6 +114,12 @@ class Monad m => MonadComp m
 
     -- | Lift a computational progam.
     liftComp :: Prog (Expr m) (Pred m) a -> m a
+    -- | Conditional statement.
+    iff :: Expr m Bool -> m () -> m () -> m ()
+    -- | For loop.
+    for :: (Integral n, PrimType m n) => Expr m n -> (Expr m n -> m ()) -> m ()
+    -- | While loop.
+    while :: m (Expr m Bool) -> m () -> m ()    
 
 --------------------------------------------------------------------------------
 -- ** Object-language types.
