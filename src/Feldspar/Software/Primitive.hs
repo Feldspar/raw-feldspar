@@ -134,6 +134,28 @@ instance SoftwarePrimType (Complex Double) where softwareTypeRep = ComplexDouble
 softwareTypeOf :: SoftwarePrimType a => a -> SoftwarePrimTypeRep a
 softwareTypeOf _ = softwareTypeRep
 
+-- | Reflect a 'SoftwarePrimTypeRep' to a 'SoftwarePrimType' constraint.
+witSoftwarePrimType :: SoftwarePrimTypeRep a -> Dict (SoftwarePrimType a)
+witSoftwarePrimType BoolST          = Dict
+witSoftwarePrimType Int8ST          = Dict
+witSoftwarePrimType Int16ST         = Dict
+witSoftwarePrimType Int32ST         = Dict
+witSoftwarePrimType Int64ST         = Dict
+witSoftwarePrimType Word8ST         = Dict
+witSoftwarePrimType Word16ST        = Dict
+witSoftwarePrimType Word32ST        = Dict
+witSoftwarePrimType Word64ST        = Dict
+witSoftwarePrimType FloatST         = Dict
+witSoftwarePrimType DoubleST        = Dict
+witSoftwarePrimType ComplexFloatST  = Dict
+witSoftwarePrimType ComplexDoubleST = Dict
+
+--------------------------------------------------------------------------------
+
+instance PrimTypeEq SoftwarePrimTypeRep
+  where
+    primTypeEq = softwareTypeEq
+
 -- | Check whether two software type representations are equal.
 softwareTypeEq :: SoftwarePrimTypeRep a -> SoftwarePrimTypeRep b -> Maybe (Dict (a ~ b))
 softwareTypeEq BoolST          BoolST          = Just Dict
@@ -150,22 +172,6 @@ softwareTypeEq DoubleST        DoubleST        = Just Dict
 softwareTypeEq ComplexFloatST  ComplexFloatST  = Just Dict
 softwareTypeEq ComplexDoubleST ComplexDoubleST = Just Dict
 softwareTypeEq _ _ = Nothing
-
--- | Reflect a 'SoftwarePrimTypeRep' to a 'SoftwarePrimType' constraint.
-witSoftwarePrimType :: SoftwarePrimTypeRep a -> Dict (SoftwarePrimType a)
-witSoftwarePrimType BoolST          = Dict
-witSoftwarePrimType Int8ST          = Dict
-witSoftwarePrimType Int16ST         = Dict
-witSoftwarePrimType Int32ST         = Dict
-witSoftwarePrimType Int64ST         = Dict
-witSoftwarePrimType Word8ST         = Dict
-witSoftwarePrimType Word16ST        = Dict
-witSoftwarePrimType Word32ST        = Dict
-witSoftwarePrimType Word64ST        = Dict
-witSoftwarePrimType FloatST         = Dict
-witSoftwarePrimType DoubleST        = Dict
-witSoftwarePrimType ComplexFloatST  = Dict
-witSoftwarePrimType ComplexDoubleST = Dict
 
 --------------------------------------------------------------------------------
 -- * Expressions.
