@@ -178,86 +178,86 @@ softwareTypeEq _ _ = Nothing
 --------------------------------------------------------------------------------
 
 -- | Primitive operations
-data SoftwarePrim sig
+data SoftwarePrimitive sig
   where
-    FreeVar :: SoftwarePrimType a => String -> SoftwarePrim (Full a)
-    Lit     :: (Eq a, Show a) => a -> SoftwarePrim (Full a)
+    FreeVar :: SoftwarePrimType a => String -> SoftwarePrimitive (Full a)
+    Lit     :: (Eq a, Show a) => a -> SoftwarePrimitive (Full a)
 
-    Add  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    Sub  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    Mul  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    Neg  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Abs  :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Sign :: (Num a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Add  :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    Sub  :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    Mul  :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    Neg  :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Abs  :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Sign :: (Num a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
 
-    Quot :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
-    Rem  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
-    Div  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
-    Mod  :: (Integral a, SoftwarePrimType a)   => SoftwarePrim (a :-> a :-> Full a)
-    FDiv :: (Fractional a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
+    Quot :: (Integral a, SoftwarePrimType a)   => SoftwarePrimitive (a :-> a :-> Full a)
+    Rem  :: (Integral a, SoftwarePrimType a)   => SoftwarePrimitive (a :-> a :-> Full a)
+    Div  :: (Integral a, SoftwarePrimType a)   => SoftwarePrimitive (a :-> a :-> Full a)
+    Mod  :: (Integral a, SoftwarePrimType a)   => SoftwarePrimitive (a :-> a :-> Full a)
+    FDiv :: (Fractional a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
 
-    Pi    :: (Floating a, SoftwarePrimType a) => SoftwarePrim (Full a)
-    Exp   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Log   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Sqrt  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Pow   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    Sin   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Cos   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Tan   :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Asin  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Acos  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Atan  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Sinh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Cosh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Tanh  :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Asinh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Acosh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    Atanh :: (Floating a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
+    Pi    :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (Full a)
+    Exp   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Log   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Sqrt  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Pow   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    Sin   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Cos   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Tan   :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Asin  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Acos  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Atan  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Sinh  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Cosh  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Tanh  :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Asinh :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Acosh :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    Atanh :: (Floating a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
 
     Complex   :: (Num a, SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (a :-> a :-> Full (Complex a))
+              => SoftwarePrimitive (a :-> a :-> Full (Complex a))
     Polar     :: (Floating a, SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (a :-> a :-> Full (Complex a))
+              => SoftwarePrimitive (a :-> a :-> Full (Complex a))
     Real      :: (SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (Complex a :-> Full a)
+              => SoftwarePrimitive (Complex a :-> Full a)
     Imag      :: (SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (Complex a :-> Full a)
+              => SoftwarePrimitive (Complex a :-> Full a)
     Magnitude :: (RealFloat a, SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (Complex a :-> Full a)
+              => SoftwarePrimitive (Complex a :-> Full a)
     Phase     :: (RealFloat a, SoftwarePrimType a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (Complex a :-> Full a)
+              => SoftwarePrimitive (Complex a :-> Full a)
     Conjugate :: (Num a, SoftwarePrimType (Complex a))
-              => SoftwarePrim (Complex a :-> Full (Complex a))
+              => SoftwarePrimitive (Complex a :-> Full (Complex a))
 
-    I2N   :: (Integral a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrim (a :-> Full b)
-    I2B   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrim (a :-> Full Bool)
-    B2I   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrim (Bool :-> Full a)
-    Round :: (RealFrac a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrim (a :-> Full b)
+    I2N   :: (Integral a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrimitive (a :-> Full b)
+    I2B   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrimitive (a :-> Full Bool)
+    B2I   :: (Integral a, SoftwarePrimType a)                            => SoftwarePrimitive (Bool :-> Full a)
+    Round :: (RealFrac a, Num b, SoftwarePrimType a, SoftwarePrimType b) => SoftwarePrimitive (a :-> Full b)
 
-    Not :: SoftwarePrim (Bool :-> Full Bool)
-    And :: SoftwarePrim (Bool :-> Bool :-> Full Bool)
-    Or  :: SoftwarePrim (Bool :-> Bool :-> Full Bool)
-    Eq  :: (Eq a, SoftwarePrimType a)  => SoftwarePrim (a :-> a :-> Full Bool)
-    NEq :: (Eq a, SoftwarePrimType a)  => SoftwarePrim (a :-> a :-> Full Bool)
-    Lt  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
-    Gt  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
-    Le  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
-    Ge  :: (Ord a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full Bool)
+    Not :: SoftwarePrimitive (Bool :-> Full Bool)
+    And :: SoftwarePrimitive (Bool :-> Bool :-> Full Bool)
+    Or  :: SoftwarePrimitive (Bool :-> Bool :-> Full Bool)
+    Eq  :: (Eq a, SoftwarePrimType a)  => SoftwarePrimitive (a :-> a :-> Full Bool)
+    NEq :: (Eq a, SoftwarePrimType a)  => SoftwarePrimitive (a :-> a :-> Full Bool)
+    Lt  :: (Ord a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full Bool)
+    Gt  :: (Ord a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full Bool)
+    Le  :: (Ord a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full Bool)
+    Ge  :: (Ord a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full Bool)
 
-    BitAnd   :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    BitOr    :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    BitXor   :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> a :-> Full a)
-    BitCompl :: (Bits a, SoftwarePrimType a) => SoftwarePrim (a :-> Full a)
-    ShiftL   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrim (a :-> b :-> Full a)
-    ShiftR   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrim (a :-> b :-> Full a)
+    BitAnd   :: (Bits a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    BitOr    :: (Bits a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    BitXor   :: (Bits a, SoftwarePrimType a) => SoftwarePrimitive (a :-> a :-> Full a)
+    BitCompl :: (Bits a, SoftwarePrimType a) => SoftwarePrimitive (a :-> Full a)
+    ShiftL   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrimitive (a :-> b :-> Full a)
+    ShiftR   :: (Bits a, SoftwarePrimType a, Integral b, SoftwarePrimType b) => SoftwarePrimitive (a :-> b :-> Full a)
 
-    ArrIx :: SoftwarePrimType a => IArr Index a -> SoftwarePrim (Index :-> Full a)
+    ArrIx :: SoftwarePrimType a => IArr Index a -> SoftwarePrimitive (Index :-> Full a)
 
-    Cond :: SoftwarePrim (Bool :-> a :-> a :-> Full a)
+    Cond :: SoftwarePrimitive (Bool :-> a :-> a :-> Full a)
 
---deriving instance Eq       (SoftwarePrim a)
-deriving instance Show     (SoftwarePrim a)
-deriving instance Typeable (SoftwarePrim a)
+--deriving instance Eq       (SoftwarePrimitive a)
+deriving instance Show     (SoftwarePrimitive a)
+deriving instance Typeable (SoftwarePrimitive a)
 
 -- The `SoftfwarePrimType` constraints on certain symbols require an explanation:
 -- They guarantee to the compiler that these symbols don't operate on tuples.
@@ -271,7 +271,7 @@ deriving instance Typeable (SoftwarePrim a)
 --------------------------------------------------------------------------------
 
 -- | Software primitive symbols.
-type SoftwarePrimConstructs = SoftwarePrim
+type SoftwarePrimConstructs = SoftwarePrimitive
 
 -- | Software primitive symbols tagged with their type representation.
 type SoftwarePrimDomain = SoftwarePrimConstructs :&: SoftwarePrimTypeRep
@@ -340,9 +340,9 @@ instance EvalExp SPrim
 --------------------------------------------------------------------------------
 -- syntactic instances.
 
-deriveSymbol ''SoftwarePrim
+deriveSymbol ''SoftwarePrimitive
 
-instance Render SoftwarePrim
+instance Render SoftwarePrimitive
   where
     renderSym (FreeVar v) = v
     renderSym (Lit a)     = show a
@@ -352,9 +352,9 @@ instance Render SoftwarePrim
 
     renderArgs = renderArgsSmart
 
-instance StringTree SoftwarePrim
+instance StringTree SoftwarePrimitive
 
-instance Eval SoftwarePrim
+instance Eval SoftwarePrimitive
   where
     evalSym (FreeVar v) = error $ "evaluating free variable " ++ show v
     evalSym (Lit a)     = a
@@ -425,9 +425,9 @@ instance Eval SoftwarePrim
     evalSym (ArrIx (IArrComp arr)) = error $ "evaluating symbolic array " ++ arr
 
 -- | Assumes no occurrences of 'FreeVar' and concrete representation of arrays
-instance EvalEnv SoftwarePrim env
+instance EvalEnv SoftwarePrimitive env
 
-instance Equality SoftwarePrim
+instance Equality SoftwarePrimitive
   where
     equal s1 s2 = show s1 == show s2
       -- NOTE: It is very important not to use `renderSym` here, because it will
