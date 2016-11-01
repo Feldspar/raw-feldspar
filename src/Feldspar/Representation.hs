@@ -51,6 +51,10 @@ import Data.TypedStruct
 -- * Object-language.
 --------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- ** Object-language instructions.
+--------------------------------------------------------------------------------
+
 -- | Assertion labels
 data AssertionLabel
     = InternalAssertion
@@ -103,6 +107,8 @@ type Prog expr pred = Operational.Program CompCMD (Operational.Param2 expr pred)
 type PrimType m a = (Type (Pred m) (TRep m) a, Pred m a)
 
 -- | Class of monads that support lifting of computational programs.
+--
+-- *** todo: TRep might not be needed here, since its determined by Pred.
 class Monad m => MonadComp m
   where
     -- | Expressions.

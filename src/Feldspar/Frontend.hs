@@ -13,29 +13,144 @@ import Data.Complex (Complex)
 import Data.Int
 import Data.List (genericLength)
 
-import Language.Syntactic (Internal)
+-- syntactic.
+import Language.Syntactic
 import Language.Syntactic.Functional
 import qualified Language.Syntactic as Syntactic
 
+-- operational-higher.
 import qualified Control.Monad.Operational.Higher as Oper
+
+-- imperative-edsl.
 import Language.Embedded.Imperative (IxRange)
 import qualified Language.Embedded.Imperative as Imp
 
-import qualified Data.Inhabited as Inhabited
 import Data.TypedStruct
+import Data.Inhabited (Inhabited)
+import qualified Data.Inhabited as Inhabited
+
 import Feldspar.Primitive.Representation
 import Feldspar.Representation
-import Feldspar.Sugar ()
-
-
+--import Feldspar.Sugar ()
 
 --------------------------------------------------------------------------------
 -- * Pure expressions
 --------------------------------------------------------------------------------
 
-----------------------------------------
--- ** General constructs
-----------------------------------------
+-- | Literal values.
+class Value pred dom | dom -> pred
+  where
+    value :: (pred (Internal a), dom ~ Domain a, Syntactic a) => Internal a -> a
+
+-- | Example value.
+--
+-- 'example' can be used similarly to 'undefined' in normal Haskell, i.e. to
+-- create an expression whose value is irrelevant.
+--
+-- Note that it is generally not possible to use 'undefined' in Feldspar
+-- expressions, as this will crash the compiler.
+example
+  :: ( Value pred dom
+     , pred (Internal a), dom ~ Domain a, Syntactic a
+     , Inhabited (Internal a)
+     )
+  => a
+example = value Inhabited.example
+
+--------------------------------------------------------------------------------
+
+-- | Force evaluation of a value and share the result with explicit tagging.
+--
+-- Note that due to common sub-expression elimination, this function is rarely
+-- needed in practice.
+class Share pred dom | dom -> pred
+  where
+    shareTag
+      :: ( pred (Internal a), dom ~ Domain a, Syntactic a
+         , pred (Internal b), dom ~ Domain b, Syntactic b
+         )
+      => String   -- ^ A tag (that may be empty). May be used by a back end to
+                  --   generate a sensible variable name.
+      -> a        -- ^ Value to share
+      -> (a -> b) -- ^ Body in which to share the value
+      -> b
+
+-- | Sharing of a tagless value.
+share
+  :: ( Share pred dom
+     , pred (Internal a), dom ~ Domain a, Syntactic a
+     , pred (Internal b), dom ~ Domain b, Syntactic b
+     )
+  => a -> (a -> b) -> b
+share = shareTag ""
+
+--------------------------------------------------------------------------------
+
+-- | Multi-way conditional expression.
+--
+-- The first association @(a,b)@ in the list of cases for which @a@ is equal to
+-- the scrutinee is selected, and the associated @b@ is returned as the result.
+-- If no case matches, the default value is returned.
+class Switch pred dom | dom -> pred
+  where
+    switch
+      :: ( pred (Internal a), dom ~ Domain a, Syntactic a
+         , pred (Internal b), dom ~ Domain b, Syntactic b
+         )
+      => b        -- ^ Default result
+      -> [(a,b)]  -- ^ Cases (match, result)
+      -> a        -- ^ Scrutinee
+      -> b        -- ^ Result
+
+--------------------------------------------------------------------------------
+
+-- | Conditional expressions.
+class Cond pred expr | expr -> pred
+  where
+    cond
+      :: (pred (Internal a), Domain (expr Bool) ~ Domain a, Syntactic a)
+      => expr Bool -- ^ Conditions.
+      -> a         -- ^ True branch.
+      -> a         -- ^ False branch.
+      -> a
+
+-- | Condition operator; use as follows:
+--
+-- @
+-- cond1 `?` a $
+-- cond2 `?` b $
+-- cond3 `?` c $
+--         default
+-- @
+(?)
+  :: ( Cond pred expr
+     , dom ~ Domain (expr Bool)
+     , pred (Internal a), dom ~ Domain a, Syntactic a
+     )
+  => expr Bool  -- ^ Condition
+  -> a          -- ^ True branch
+  -> a          -- ^ False branch
+  -> a
+(?) = cond
+
+infixl 1 ?
+
+--------------------------------------------------------------------------------
+-- ** Primitive functions.
+--------------------------------------------------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+-- ** General constructs.
+--------------------------------------------------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+
+{-
+
 
 -- | Force evaluation of a value and share the result. Note that due to common
 -- sub-expression elimination, this function is rarely needed in practice.
@@ -550,8 +665,8 @@ guardValLabel c cond msg = sugarSymFeld (GuardVal c msg) cond
 unsafePerform :: Syntax a => Comp a -> a
 unsafePerform = sugarSymFeld . UnsafePerform . fmap desugar
 
-
-
+-}
+{-
 --------------------------------------------------------------------------------
 -- * Programs with computational effects
 --------------------------------------------------------------------------------
@@ -833,4 +948,4 @@ shareM :: (Syntax a, MonadComp m) => a -> m a
 shareM = initRef >=> unsafeFreezeRef
   -- This function is more commonly needed than `share`, since code motion
   -- doesn't work across monadic binds.
-
+-}
