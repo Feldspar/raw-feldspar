@@ -187,6 +187,8 @@ simplifyUp (SymP _ Cond :$ LitP _ True  :$ t :$ _) = t
 simplifyUp (SymP _ Cond :$ LitP _ False :$ _ :$ f) = f
 simplifyUp (SymP _ Cond :$ c :$ t :$ f) | equal t f = t
 
+simplifyUp (SymP _ BitCompl :$ (SymP _ BitCompl :$ a)) = a
+
 -- simplifyUp (SymP _ ForLoop :$ LitP _ 0 :$ init :$ _) = init
   -- This triggers the bug: <https://ghc.haskell.org/trac/ghc/ticket/11336>. The
   -- line below is a workaround:
