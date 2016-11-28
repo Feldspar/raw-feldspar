@@ -44,6 +44,7 @@
 module Feldspar.Data.Buffered
   ( Store
   , newStore
+  , unsafeInplaceStore
   , unsafeFreezeStore
   , unsafeFreezeStore2
   , setStore
@@ -76,11 +77,20 @@ data Store a = Store
     , freeBuf   :: Arr a
     }
 
--- | Create a new double-buffered 'Store', initialized to a 0x0 matrix
+-- | Create a new double-buffered 'Store'
 --
 -- This operation allocates two arrays of the given length.
 newStore :: (Syntax a, MonadComp m) => Data Length -> m (Store a)
 newStore l = Store <$> newNamedArr "store" l <*> newNamedArr "store" l
+
+-- | Create a new single-buffered 'Store'
+--
+-- Using 'unsafeInplaceStore' instead of 'newStore' allows double-buffered
+-- algorithms to run inplace.
+unsafeInplaceStore :: (Syntax a, MonadComp m) => Data Length -> m (Store a)
+unsafeInplaceStore l = do
+    arr <- newNamedArr "store" l
+    return $ Store arr arr
 
 -- | Read the contents of a 'Store' without making a copy. This is generally
 -- only safe if the the 'Store' is not updated as long as the resulting vector
