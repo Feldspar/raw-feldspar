@@ -20,6 +20,10 @@ However, this flag should normally only be used when installing in a sandbox tha
 
 The best way to learn how to use RAW-Feldspar at the moment is to look through the [examples](examples/). We suggest going through the files named "TutN_..." in ascending order. The files are well-documented.
 
+The easiest way for users of `cabal` to get access to the examples is to run
+
+    cabal unpack raw-feldspar
+
 There is also some guidance in the [Haddock documentation](http://hackage.haskell.org/package/raw-feldspar).
 
 The vector library is central to programming in Feldspar. Its general operation is explained in the [Haddock documentation](http://hackage.haskell.org/package/raw-feldspar/docs/Feldspar-Data-Vector.html), and many [examples](examples/) are using vectors.
