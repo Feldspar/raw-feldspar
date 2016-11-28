@@ -162,15 +162,17 @@ store2 st vec = setStore2 st vec >> unsafeFreezeStore2 r c st
     (r,c) = extent2 vec
 
 loopStore
-    :: ( Syntax a
+    :: ( Integral i
+       , PrimType i
+       , Syntax a
        , Manifestable Run vec1 a
        , Finite vec1
        , Manifestable Run vec2 a
        , Finite vec2
        )
     => Store a
-    -> IxRange (Data Length)
-    -> (Data Index -> Manifest a -> Run vec1)
+    -> IxRange (Data i)
+    -> (Data i -> Manifest a -> Run vec1)
     -> vec2
     -> Run (Manifest a)
 loopStore st rng body init = do
@@ -185,15 +187,17 @@ loopStore st rng body init = do
     unsafeFreezeStore l st
 
 loopStore2
-    :: ( Syntax a
+    :: ( Integral i
+       , PrimType i
+       , Syntax a
        , Manifestable2 Run vec1 a
        , Finite2 vec1
        , Manifestable2 Run vec2 a
        , Finite2 vec2
        )
     => Store a
-    -> IxRange (Data Length)
-    -> (Data Index -> Manifest2 a -> Run vec1)
+    -> IxRange (Data i)
+    -> (Data i -> Manifest2 a -> Run vec1)
     -> vec2
     -> Run (Manifest2 a)
 loopStore2 st rng body init = do
