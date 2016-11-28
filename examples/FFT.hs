@@ -1,38 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
 
--- Copyright (c) 2013, Emil Axelsson, Peter Jonsson, Anders Persson and
---                     Josef Svenningsson
--- Copyright (c) 2012, Emil Axelsson, Gergely Dévai, Anders Persson and
---                     Josef Svenningsson
--- Copyright (c) 2009-2011, ERICSSON AB
--- All rights reserved.
+-- | FFT implementation inspired by the paper "Feldspar: Application and
+-- implementation":
 --
--- Redistribution and use in source and binary forms, with or without
--- modification, are permitted provided that the following conditions are met:
+-- <http://publications.lib.chalmers.se/records/fulltext/local_156271.pdf>
 --
---     * Redistributions of source code must retain the above copyright notice,
---       this list of conditions and the following disclaimer.
---     * Redistributions in binary form must reproduce the above copyright
---       notice, this list of conditions and the following disclaimer in the
---       documentation and/or other materials provided with the distribution.
---     * Neither the name of the ERICSSON AB nor the names of its contributors
---       may be used to endorse or promote products derived from this software
---       without specific prior written permission.
---
--- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
--- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
--- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
--- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
--- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
--- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
--- SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
--- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
--- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
--- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-- There are a few differences, partly due to the paper using a different
+-- Feldspar implementation. But regardless, the best way to understand the
+-- definitions in this file is by reading the paper.
 
 module FFT
-  ( fft
+  ( tw  -- Exported to allow pre-computation
+  , fftCore
+  , fft
   , ifft
   ) where
 
@@ -40,11 +20,17 @@ module FFT
 
 import Prelude ()
 
+import Data.Bool (bool)
+
 import Feldspar.Run
 import Feldspar.Data.Vector
 import Feldspar.Data.Buffered
 
 
+
+----------------------------------------
+-- * Helper functions
+----------------------------------------
 
 rotBit :: Data Index -> Data Index -> Data Index
 rotBit k i = lefts .|. rights
@@ -57,56 +43,98 @@ rotBit k i = lefts .|. rights
 riffle :: (Pully pull a, Syntax a) => Data Index -> pull -> Pull a
 riffle = backPermute . const . rotBit
 
+testBit :: (Bits a, Integral a, PrimType a) => Data a -> Data Index -> Data Bool
+testBit a i = i2b (a .&. (1 .<<. i2n i))
+
+-- | @2^n@
+twoTo :: (Num a, Bits a, PrimType a) => Data Index -> Data a
+twoTo n = 1 .<<. i2n n
+
+flipBit :: (Num a, Bits a, PrimType a) => Data a -> Data Index -> Data a
+flipBit i k = i `xor` twoTo k
+
+
+
+----------------------------------------
+-- * Bit-reversal permutation
+----------------------------------------
+
 bitRev :: (Manifestable Run vec a, Finite vec, Syntax a)
     => Store a
     -> Data Length
     -> vec
     -> Run (Manifest a)
-bitRev st n = loopStore st (1,1,Incl n) $ \i -> return . riffle i
+bitRev st n = loopStore st (1,1,Excl n) $ \i -> return . riffle i
 
-testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
-testBit a i = a .&. (1 .<<. i2n i) /= 0
 
-fftCore
-    :: ( Manifestable Run vec (Data (Complex a))
-       , Finite vec
+
+----------------------------------------
+-- * FFT
+----------------------------------------
+
+tw :: (Floating a, PrimType a, PrimType (Complex a))
+    => Bool  -- ^ Inverse FFT?
+    -> Data Index
+    -> Data Index
+    -> Data (Complex a)
+tw inv n k = polar 1 (bool (-2) 2 inv * π * i2n k / i2n n)
+
+twids
+    :: ( Pully ts (Data (Complex a))
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
+       , Pully vec (Data (Complex a))
        )
-    => Store (Data (Complex a))
-    -> Bool  -- ^ Inverse?
+    => ts
+    -> Data Index
+    -> Data Index
     -> Data Length
     -> vec
-    -> Run (DManifest (Complex a))
-fftCore st inv n = loopStore st (n+1,-1,Incl 1) $ \i -> return . step (i-1)
-    -- Note: Cannot loop from n to 0 because 0-1 is `maxBound`, so the loop will
-    -- go on forever.
+    -> DPull (Complex a)
+twids ts n k l vec = Pull l $ \i ->
+    let j = (lsbs (i2n k) i) .<<. (n'-1-k')
+    in  (testBit i k) ? ((ts!j) * (vec!i)) $ (vec!i)
   where
-    step k vec = Pull (length vec) ixf
-      where
-        ixf i = testBit i k ? (twid * (b - a)) $ (a+b)
-          where
-            k'   = i2n k
-            a    = vec ! i
-            b    = vec ! (i `xor` k2)
-            twid = polar 1 ((if inv then π else -π) * i2n (lsbs k' i) / i2n k2)
-            k2   = 1 .<<. k'
+    n' = i2n n
+    k' = i2n k
 
-fft'
-    :: ( Manifestable Run vec (Data (Complex a))
+bfly
+    :: ( Pully vec (Data (Complex a))
+       , RealFloat a
+       , PrimType a
+       , PrimType (Complex a)
+       )
+    => Data Index -> vec -> DPull (Complex a)
+bfly k as = Pull (length as) $ \i ->
+    let a = as ! i
+        b = as ! flipBit i k
+    in  (testBit i k) ? (b-a) $ (a+b)
+
+-- | Core of the FFT
+--
+-- It is normally better to use 'fft' or 'ifft' than this functon; however, for
+-- doing repeated FFT on vectors of the same size, 'fftCore' can be used to
+-- avoid recomputing the twiddle factors and the number of stages.
+fftCore
+    :: ( Pully ts (Data (Complex a))
+       , Manifestable Run vec (Data (Complex a))
        , Finite vec
        , RealFloat a
        , PrimType a
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
-    -> Bool  -- ^ Inverse?
+    -> ts           -- ^ Twiddle factors
+    -> Data Length  -- ^ Number of stages
     -> vec
     -> Run (DManifest (Complex a))
-fft' st inv v = do
-    n <- shareM (ilog2 (length v) - 1)
-    fftCore st inv n v >>= bitRev st n
+fftCore st ts n vec = do
+    let step i = return . twids ts n i (length vec) . bfly i
+    loopStore st ((i2n n :: Data Int32)-1,-1,Incl 0) (step . i2n) vec >>= bitRev st n
+      -- `i2n` is used to make the loop index a signed number. Otherwise the
+      -- index will wrap to maxBound before the loop test after the final
+      -- iteration.
 
 -- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
@@ -121,12 +149,17 @@ fft
     => Store (Data (Complex a))
     -> vec
     -> Run (DManifest (Complex a))
-fft st = fft' st False
+fft st vec = do
+    n  <- shareM (ilog2 (length vec))
+    ts <- manifestFresh $ Pull (twoTo (n-1)) (tw False (twoTo n))
+      -- Change `manifestFresh` to `return` to avoid pre-computing twiddle
+      -- factors
+    fftCore st ts n vec
 
 -- | Radix-2 Decimation-In-Frequency Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
--- thus giving 'ifft . fft == id'.
+-- thus giving @`ifft` . `fft` == id@.
 ifft
     :: ( Manifestable Run vec (Data (Complex a))
        , Finite vec
@@ -137,7 +170,12 @@ ifft
     => Store (Data (Complex a))
     -> vec
     -> Run (DPull (Complex a))
-ifft st v = normalize <$> fft' st True v
+ifft st vec = do
+    n  <- shareM (ilog2 (length vec))
+    ts <- manifestFresh $ Pull (twoTo (n-1)) (tw True (twoTo n))
+      -- Change `manifestFresh` to `return` to avoid pre-computing twiddle
+      -- factors
+    normalize <$> fftCore st ts n vec
   where
-    normalize = map (/ (i2n $ length v))
+    normalize = map (/ (i2n $ length vec))
 
