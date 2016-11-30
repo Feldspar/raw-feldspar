@@ -64,7 +64,8 @@ benchmark n = do
     callProc "printTime" [objArg start, objArg end]
 
 runBenchmark n = runCompiled'
-    def
+    def {compilerAssertions = select []}
+      -- Note: important to turn off assertions when running the benchmarks
     def {externalFlagsPre = ["-O3"], externalFlagsPost = ["-lm"]}
     (benchmark n)
 
