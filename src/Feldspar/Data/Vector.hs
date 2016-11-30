@@ -799,11 +799,13 @@ unroll n vec = Push len $ \write -> do
       ((len `mod` value n) == 0)
       ("unroll: length not divisible by " Prelude.++ show n)
     for (0,n',Excl len) $ \i ->
-      Prelude.sequence_
-        [ do k <- shareM (i + value j)
-             write k (vec!k)
-          | j <- [0..n-1]
-        ]
+      if n Prelude.== 1
+        then write i (vec!i)
+        else Prelude.sequence_
+          [ do k <- shareM (i + value j)
+               write k (vec!k)
+            | j <- [0..n-1]
+          ]
   where
     n'  = Prelude.fromIntegral n
     len = length vec
