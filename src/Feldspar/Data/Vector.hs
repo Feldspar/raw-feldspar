@@ -785,6 +785,29 @@ forwardPermute p vec = Push len $ \write ->
     v   = toPush vec
     len = length v
 
+-- | Convert a vector to a push vector that computes @n@ elements in each step.
+-- This can be used to achieve loop unrolling.
+--
+-- The length of the vector must be divisible by the number of unrolling steps.
+unroll :: (Pully vec a, MonadComp m)
+    => Length  -- ^ Number of steps to unroll
+    -> vec
+    -> Push m a
+unroll 0 _   = Prelude.error "unroll: cannot unroll 0 steps"
+unroll n vec = Push len $ \write -> do
+    assert
+      ((len `mod` value n) == 0)
+      ("unroll: length not divisible by " Prelude.++ show n)
+    for (0,n',Excl len) $ \i ->
+      Prelude.sequence_
+        [ do k <- shareM (i + value j)
+             write k (vec!k)
+          | j <- [0..n-1]
+        ]
+  where
+    n'  = Prelude.fromIntegral n
+    len = length vec
+
 
 
 --------------------------------------------------------------------------------
