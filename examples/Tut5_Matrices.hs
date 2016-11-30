@@ -101,7 +101,7 @@ fftCols vec = do
       $ transposePush
       $ hideRows (numRows vec)
       $ sequens
-      $ map (fft st)
+      $ map (fft st 1)
       $ exposeRows
       $ transpose
       $ vec

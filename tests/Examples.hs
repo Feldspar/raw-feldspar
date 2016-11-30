@@ -47,8 +47,8 @@ wrapStore f v = do
     st <- newStore $ length v
     f st v
 
-fftS  = wrapStore fft  :: DManifest (Complex Double) -> _
-ifftS = wrapStore ifft :: DManifest (Complex Double) -> _
+fftS u = wrapStore (flip fft u)  :: DManifest (Complex Double) -> _
+ifftS  = wrapStore (flip ifft 1) :: DManifest (Complex Double) -> _
 
 prop_fft_dft dft' fft' = QC.monadicIO $ do
     n   :: Int              <- QC.pick $ QC.choose (2,5)
@@ -73,7 +73,8 @@ prop_fib fb1 fb2 = QC.monadicIO $ do
 main =
     marshalledM (return . dft)  $ \dft'  ->
     marshalledM (return . idft) $ \idft' ->
-    marshalledM fftS            $ \fft'  ->
+    marshalledM (fftS 1)        $ \fft1  ->
+    marshalledM (fftS 2)        $ \fft2  ->
     marshalledM ifftS           $ \ifft' ->
 
     marshalled (return . Tut8.fibSeq) $ \fb1 ->
@@ -89,9 +90,10 @@ main =
         , testCase "Tut7"       Tut7.testAll
         , testCase "Tut8"       Tut8.testAll
         , testCase "Concurrent" Concurrent.testAll
-        , testProperty "fft_dft"  $ prop_fft_dft dft' fft'
+        , testProperty "fft1_dft" $ prop_fft_dft dft' fft1
+        , testProperty "fft2_dft" $ prop_fft_dft dft' fft2
         , testProperty "dft_idft" $ prop_inverse dft' idft'
-        , testProperty "fft_ifft" $ prop_inverse fft' ifft'
+        , testProperty "fft_ifft" $ prop_inverse fft1 ifft'
         , testProperty "fib"      $ prop_fib fb1 fb2
         ]
 

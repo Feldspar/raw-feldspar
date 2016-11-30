@@ -61,10 +61,11 @@ flipBit i k = i `xor` twoTo k
 
 bitRev :: (Manifestable Run vec a, Finite vec, Syntax a)
     => Store a
+    -> Length  -- ^ Unrolling steps in inner loops (1 means no unrolling)
     -> Data Length
     -> vec
     -> Run (Manifest a)
-bitRev st n = loopStore st (1,1,Excl n) $ \i -> return . riffle i
+bitRev st u n = loopStore st (1,1,Excl n) $ \i -> return . unroll u . riffle i
 
 
 
@@ -125,20 +126,32 @@ fftCore
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
+    -> Length       -- ^ Unrolling steps in inner loops (1 means no unrolling)
     -> ts           -- ^ Twiddle factors
     -> Data Length  -- ^ Number of stages
     -> vec
     -> Run (DManifest (Complex a))
-fftCore st ts n vec = do
-    let step i = return . twids ts n i (length vec) . bfly i
-    loopStore st ((i2n n :: Data Int32)-1,-1,Incl 0) (step . i2n) vec >>= bitRev st n
+fftCore st u ts n vec = do
+    let step i = return . unroll u . twids ts n i (length vec) . bfly i
+    loopStore st ((i2n n :: Data Int32)-1,-1,Incl 0) (step . i2n) vec
+      >>= bitRev st u n
       -- `i2n` is used to make the loop index a signed number. Otherwise the
       -- index will wrap to maxBound before the loop test after the final
       -- iteration.
+      --
+      -- An alternative is to use:
+      --
+      --     loopStore st (n,-1,Excl 0) (step . subtract 1) vec
 
 -- | Radix-2 Decimation-In-Frequency Fast Fourier Transformation of the given
 -- complex vector. The given vector must be power-of-two sized, (for example 2,
 -- 4, 8, 16, 32, etc.) The output is non-normalized.
+--
+-- The length of the vector must be divisible by the number of unrolling steps.
+--
+-- The optimal amount of unrolling depends on the target architecture, but a
+-- value of 2 might be a reasonable default that gives some performance
+-- improvements on many systems and doesn't lead to too much code size increase.
 fft
     :: ( Manifestable Run vec (Data (Complex a))
        , Finite vec
@@ -147,19 +160,26 @@ fft
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
+    -> Length  -- ^ Unrolling steps in inner loops (1 means no unrolling)
     -> vec
     -> Run (DManifest (Complex a))
-fft st vec = do
+fft st u vec = do
     n  <- shareM (ilog2 (length vec))
     ts <- manifestFresh $ Pull (twoTo (n-1)) (tw False (twoTo n))
       -- Change `manifestFresh` to `return` to avoid pre-computing twiddle
       -- factors
-    fftCore st ts n vec
+    fftCore st u ts n vec
 
 -- | Radix-2 Decimation-In-Frequency Inverse Fast Fourier Transformation of the
 -- given complex vector. The given vector must be power-of-two sized, (for
 -- example 2, 4, 8, 16, 32, etc.) The output is divided with the input size,
 -- thus giving @`ifft` . `fft` == id@.
+--
+-- The length of the vector must be divisible by the number of unrolling steps.
+--
+-- The optimal amount of unrolling depends on the target architecture, but a
+-- value of 2 might be a reasonable default that gives some performance
+-- improvements on many systems and doesn't lead to too much code size increase.
 ifft
     :: ( Manifestable Run vec (Data (Complex a))
        , Finite vec
@@ -168,14 +188,15 @@ ifft
        , PrimType (Complex a)
        )
     => Store (Data (Complex a))
+    -> Length  -- ^ Unrolling steps in inner loops (1 means no unrolling)
     -> vec
     -> Run (DPull (Complex a))
-ifft st vec = do
+ifft st u vec = do
     n  <- shareM (ilog2 (length vec))
     ts <- manifestFresh $ Pull (twoTo (n-1)) (tw True (twoTo n))
       -- Change `manifestFresh` to `return` to avoid pre-computing twiddle
       -- factors
-    normalize <$> fftCore st ts n vec
+    normalize <$> fftCore st u ts n vec
   where
     normalize = map (/ (i2n $ length vec))
 

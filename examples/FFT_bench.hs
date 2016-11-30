@@ -17,7 +17,7 @@ import FFT
 sizeOf_double_complex :: Data Length
 sizeOf_double_complex = 16
   -- Checked on an x86_64 system
-  -- TODO Feldspar should be a built-in `sizeof` function
+  -- TODO Feldspar should have a built-in `sizeof` function
 
 -- | @2^n@
 twoTo :: (Num a, Bits a, PrimType a) => Data Index -> Data a
@@ -52,11 +52,13 @@ benchmark n = do
 
     n  <- shareM (ilog2 (length inp))
     ts <- manifestFresh $ Pull (twoTo (n-1)) (tw True (twoTo n))
+      -- Change `manifestFresh` to `return` to avoid pre-computing twiddle
+      -- factors
 
     callProcAssign start "clock" []
 
     for (0,1,Excl 100) $ \(_ :: Data Index) ->
-      void $ fftCore st ts n inp
+      void $ fftCore st 2 ts n inp
 
     callProcAssign end "clock" []
     callProc "printTime" [objArg start, objArg end]
