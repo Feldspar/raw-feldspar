@@ -1,3 +1,9 @@
+**NOTE:** This is an old snapshot of RAW-Feldspar, made for [this article](https://arxiv.org/abs/1603.08865).
+
+The latest version, with a much more informative README, is found [here](https://github.com/Feldspar/raw-feldspar).
+
+
+
 # Resource-Aware Feldspar
 
 This package is a prototype for a new design for Feldspar. It tries two things:
