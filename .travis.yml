@@ -30,11 +30,9 @@ install:
   - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
   - travis_retry cabal update -v
   - git clone https://github.com/emilaxelsson/imperative-edsl
-  #- git clone https://github.com/markus-git/hardware-edsl
   - echo "packages:"         >  cabal.project &&
     echo "  ./"              >> cabal.project &&
     echo "  imperative-edsl" >> cabal.project
-    #&& echo "  hardware-edsl"   >> cabal.project
   - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" --dependencies
 
 script:
