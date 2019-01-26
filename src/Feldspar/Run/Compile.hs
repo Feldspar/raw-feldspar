@@ -180,11 +180,13 @@ translateExp a = do
         | Just Pair <- prj tup = Two <$> goAST a <*> goAST b
     go t sel (ab :* Nil)
         | Just Fst <- prj sel = do
-            Two a _ <- goAST ab
-            return a
+            ast <- goAST ab
+            case ast of
+              Two a _ -> return a
         | Just Snd <- prj sel = do
-            Two _ b <- goAST ab
-            return b
+            ast <- goAST ab
+            case ast of
+              Two _ b -> return b
     go _ c Nil
         | Just Pi <- prj c = return $ Single $ sugarSymPrim Pi
     go _ op (a :* Nil)
@@ -299,8 +301,8 @@ translateExp a = do
 -- | Translate an expression that is assumed to fulfill @`PrimType` a@
 unsafeTransSmallExp :: Monad m => Data a -> TargetT m (Prim a)
 unsafeTransSmallExp a = do
-    Single b <- translateExp a
-    return b
+    exp <- translateExp a
+    case exp of Single b -> return b
   -- This function should ideally have a `PrimType' a` constraint, but that is
   -- not allowed when passing it to `reexpressEnv`. It should be possible to
   -- make it work by changing the interface to `reexpressEnv`.

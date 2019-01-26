@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | Monad for running Feldspar programs
 
 module Feldspar.Run.Representation where

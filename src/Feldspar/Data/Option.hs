@@ -1,4 +1,5 @@
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE DataKinds #-}
 
 -- | Optional values
 
