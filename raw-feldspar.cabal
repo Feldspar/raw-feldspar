@@ -99,7 +99,6 @@ library
     data-default-class,
     data-hash,
     imperative-edsl >= 0.7,
-    -- hardware-edsl >= 0.1.0.2,
     language-c-quote,
     mtl,
     operational-alacarte,
