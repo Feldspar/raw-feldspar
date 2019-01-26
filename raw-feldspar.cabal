@@ -17,7 +17,7 @@ description:         An implementation of the Feldspar EDSL with focus on
 license:             BSD3
 license-file:        LICENSE
 author:              Emil Axelsson
-maintainer:          emax@chalmers.se
+maintainer:          78emil@gmail.com
 copyright:           Copyright (c) 2016 Anders Persson, Anton Ekblad, Emil Axelsson,
                                         Josef Svenningsson, Koen Claessen, Markus Aronsson,
                                         Máté Karácsony
