@@ -163,9 +163,6 @@ translateExp a = do
     go t lit Nil
         | Just (Lit a) <- prj lit
         = return $ mapStruct (constExp . runIdentity) $ toStruct t a
-    go t lit Nil
-        | Just (Literal a) <- prj lit
-        = return $ mapStruct (constExp . runIdentity) $ toStruct t a
     go t var Nil
         | Just (VarT v) <- prj var
         = lookAlias t v
