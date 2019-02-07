@@ -15,7 +15,6 @@ import Prelude ()
 import Feldspar.Run
 
 
-
 --------------------------------------------------------------------------------
 
 -- A function that doubles its argument:

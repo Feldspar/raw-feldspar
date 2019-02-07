@@ -37,7 +37,7 @@ import Data.TypedStruct
 import Feldspar.Primitive.Representation
 import Feldspar.Primitive.Backend.C ()
 
-
+import qualified Language.Syntactic as Syn
 
 --------------------------------------------------------------------------------
 -- * Object-language types
@@ -432,3 +432,52 @@ deriveEquality  ''ForLoop
 
 deriveSymbol ''Unsafe
 
+--------------------------------------------------------------------------------
+-- Temp. Datatypes a la carte fix.
+--------------------------------------------------------------------------------
+
+instance {-# OVERLAPPING #-} Project sub FeldConstructs => Project sub (AST FeldDomain)
+  where
+    prj (Sym s) = Syn.prj s
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project sub FeldConstructs => Project sub FeldDomain
+  where
+    prj (expr :&: info) = Syn.prj expr
+
+instance {-# OVERLAPPING #-} Project BindingT FeldConstructs
+  where
+    prj (InjL a) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project Let FeldConstructs
+  where
+    prj (InjR (InjL a)) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project Tuple FeldConstructs
+  where
+    prj (InjR (InjR (InjL a))) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project Primitive FeldConstructs
+  where
+    prj (InjR (InjR (InjR (InjL a)))) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project ExtraPrimitive FeldConstructs
+  where
+    prj (InjR (InjR (InjR (InjR (InjL a))))) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project ForLoop FeldConstructs
+  where
+    prj (InjR (InjR (InjR (InjR (InjR (InjL a)))))) = Just a
+    prj _ = Nothing
+
+instance {-# OVERLAPPING #-} Project Unsafe FeldConstructs
+  where
+    prj (InjR (InjR (InjR (InjR (InjR (InjR a)))))) = Just a
+    prj _ = Nothing
+
+--------------------------------------------------------------------------------

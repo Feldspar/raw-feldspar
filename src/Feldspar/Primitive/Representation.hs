@@ -24,8 +24,6 @@ import Language.Syntactic
 import Language.Syntactic.TH
 import Language.Syntactic.Functional
 
-
-
 --------------------------------------------------------------------------------
 -- * Types
 --------------------------------------------------------------------------------
@@ -441,3 +439,4 @@ instance (Num a, PrimType' a) => Num (Prim a)
     abs         = sugarSymPrim Abs
     signum      = sugarSymPrim Sign
 
+--------------------------------------------------------------------------------
