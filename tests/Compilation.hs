@@ -76,9 +76,9 @@ main = do
     tag "test_option"       >> compareCompiled test_option  (runIO test_option)  "5\n"
     tag "test_option"       >> compareCompiled test_option  (runIO test_option)  "6\n"
     tag "test_optionM"      >> compareCompiled test_optionM (runIO test_option)  "5\n"
-    tag "test_optionM"      >> compareCompiled test_optionM (runIO test_optionM) "6\n"
+    tag "test_optionM"      >> compareCompiled test_optionM (runIO test_optionM) "5\n"
     tag "test_optionT"      >> compareCompiled test_optionT (runIO test_optionT) "10\n"
     tag "test_constFoldArr" >> compareCompiled test_constFoldArr (runIO test_constFoldArr) ""
   where
-    tag str = putStrLn $ "---------------- examples/Demo.hs/" Prelude.++ str Prelude.++ "\n"
+    tag str = putStrLn $ "---------------- tests/Compilation.hs/" Prelude.++ str Prelude.++ "\n"
 

@@ -66,7 +66,7 @@ feof = Run . Imp.feof
 
 class PrintfType r
   where
-    fprf :: Handle -> String -> [Imp.PrintfArg Data PrimType'] -> r
+    fprf :: Handle -> String -> [Imp.PrintfArg Data] -> r
 
 instance (a ~ ()) => PrintfType (Run a)
   where

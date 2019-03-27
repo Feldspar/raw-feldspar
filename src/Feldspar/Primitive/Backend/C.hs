@@ -362,8 +362,5 @@ compPrim = simpleMatch (\(s :&: t) -> go t s) . unPrim
         f' <- compPrim $ Prim f
         return $ C.Cond c' t' f' mempty
 
-    go _ s _ = error $ "compPrim: no handling of symbol " ++ renderSym s
-      -- Should not occur, but the completeness checker doesn't know that
-
 instance CompExp Prim where compExp = compPrim
 

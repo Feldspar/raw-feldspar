@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Data structure for describing selections of values
 
 module Data.Selection
@@ -18,9 +20,11 @@ module Data.Selection
 -- | Selection: description of a set of values
 data Selection a = Selection (a -> Bool)
 
+#if MIN_VERSION_base(4,11,0)
 instance Semigroup (Selection a)
   where
     (<>) = mappend
+#endif
 
 -- |
 -- @

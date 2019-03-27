@@ -70,7 +70,10 @@ prop_fib fb1 fb2 = QC.monadicIO $ do
     fs2 <- QC.run $ fb2 n
     QC.assert (fs1 Prelude.== fs2)
 
-main =
+main = (Concurrent.testAll >>) $
+      -- It doesn't work to have `Concurrent.testAll` as a test case on
+      -- GHC 8.4.2. But it works on GHC 8.0.2.
+
     marshalledM (return . dft)  $ \dft'  ->
     marshalledM (return . idft) $ \idft' ->
     marshalledM (fftS 1)        $ \fft1  ->
@@ -89,7 +92,6 @@ main =
         , testCase "Tut6"       Tut6.testAll
         , testCase "Tut7"       Tut7.testAll
         , testCase "Tut8"       Tut8.testAll
-        , testCase "Concurrent" Concurrent.testAll
         , testProperty "fft1_dft" $ prop_fft_dft dft' fft1
         , testProperty "fft2_dft" $ prop_fft_dft dft' fft2
         , testProperty "dft_idft" $ prop_inverse dft' idft'

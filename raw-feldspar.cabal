@@ -1,5 +1,5 @@
 name:                raw-feldspar
-version:             0.2.1
+version:             0.3
 synopsis:            Resource-Aware Feldspar
 description:         An implementation of the Feldspar EDSL with focus on
                      resource-awareness.
@@ -98,14 +98,20 @@ library
     containers,
     data-default-class,
     data-hash,
-    imperative-edsl >= 0.7,
+    imperative-edsl >= 0.8 && < 0.9,
     language-c-quote,
     mtl,
     operational-alacarte,
     prelude-edsl >= 0.4,
-    syntactic >= 3.6.1,
-      -- Smallest version that has `instD`
+    syntactic >= 3.8,
+      -- That version fixes overlap bugs
     template-haskell
+
+  if impl(ghc == 8.0.*)
+    build-depends:
+      language-c-quote < 0.12
+      -- ,
+      -- mainland-pretty >= 0.6
 
   hs-source-dirs: src
 
@@ -143,6 +149,8 @@ test-suite Compilation
     mtl,
     raw-feldspar
 
+  ghc-options: -Wno-simplifiable-class-constraints
+
 test-suite Semantics
   type: exitcode-stdio-1.0
 
@@ -164,12 +172,27 @@ test-suite Semantics
     tasty-quickcheck,
     tasty-th
 
+  ghc-options: -Wno-simplifiable-class-constraints
+
 test-suite Examples
   type: exitcode-stdio-1.0
 
   hs-source-dirs: tests examples
 
   main-is: Examples.hs
+
+  other-modules:
+    Concurrent
+    DFT
+    FFT
+    Tut1_HelloWorld
+    Tut2_ExpressionsAndTypes
+    Tut3_Vectors
+    Tut4_MemoryManagement
+    Tut5_Matrices
+    Tut6_Testing
+    Tut7_ImperativeProgramming
+    Tut8_SequentialVectors
 
   default-language: Haskell2010
 
@@ -180,4 +203,6 @@ test-suite Examples
     tasty,
     tasty-hunit,
     tasty-quickcheck
+
+  ghc-options: -Wno-simplifiable-class-constraints
 
