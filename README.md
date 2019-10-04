@@ -6,15 +6,15 @@ This package is a complete reimplementation and partly a redesign of the Feldspa
 
 ## Installation
 
-RAW-Feldspar can be installed directly from [Hackage](http://hackage.haskell.org/package/raw-feldspar), preferably in a [sandbox](https://www.haskell.org/cabal/users-guide/installing-packages.html#developing-with-sandboxes):
+RAW-Feldspar can be installed directly from [Hackage](http://hackage.haskell.org/package/raw-feldspar):
 
-    cabal install raw-feldspar
+    cabal new-install raw-feldspar
 
 The installation can be sped up a bit (and the size of the installation reduced) by adding a flag to `language-c-quote` (a dependency of RAW-Feldspar):
 
-    cabal install --constraint="language-c-quote -full-haskell-antiquotes" raw-feldspar
+    cabal new-install --constraint="language-c-quote -full-haskell-antiquotes" raw-feldspar
 
-However, this flag should normally only be used when installing in a sandbox that has no other packages depending `language-c-quote`.
+However, this flag is less relevant now with Cabal's Nix-style local builds.
 
 ## Getting started
 
