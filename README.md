@@ -112,7 +112,7 @@ In order to turn a pure function such as `sumSq` into a runnable program, we can
 
 Note how the whole `sumSq` computation has been fused into a single loop without any array allocation.
 
-## External libraries
+## External libraries and uses of RAW-Feldspar
 
 ### Zeldspar
 
@@ -129,6 +129,10 @@ The repository contains many [examples](https://github.com/kmate/raw-feldspar-mc
 [feldspar-synch](https://github.com/emilaxelsson/feldspar-synch) is a library that extends Feldspar with Yampa-style synchronous streams.
 
 It contains a simple polyphonic synthesizer as a demonstration. The synthesizer may serve as a simple example of a complete (toy) application written in RAW-Feldspar. It also demonstrates how to make bindings to an external C library (the ALSA sound library).
+
+### feldspar-mpeg1-decoder
+
+[feldspar-mpeg1-decoder](https://github.com/mightynerd/feldspar-mpeg1-decoder) is a partially complete MPEG-1 video decoder written in RAW-Feldspar. See also the associated [masters thesis](https://odr.chalmers.se/bitstream/20.500.12380/301392/1/CSE%2020-66%20Heurlin%20Zwierzchowski.pdf).
 
 ## Why RAW-Feldspar?
 
