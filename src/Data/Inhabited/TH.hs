@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Data.Inhabited.TH where
 
 
@@ -7,6 +9,13 @@ import Language.Haskell.TH
 import Language.Syntactic.TH
 
 
+
+mkTupE :: [Exp] -> Exp
+#if __GLASGOW_HASKELL__ >= 810
+mkTupE = TupE . map Just
+#else
+mkTupE = TupE
+#endif
 
 inhabitedTupleInstances :: Int -> DecsQ
 inhabitedTupleInstances n = return
@@ -20,7 +29,7 @@ inhabitedTupleInstances n = return
             (mkName "example")
             [ Clause
                 []
-                (NormalB $ TupE $ map VarE $ replicate w (mkName "example"))
+                (NormalB $ mkTupE $ map VarE $ replicate w (mkName "example"))
                 []
             ]
         ]
