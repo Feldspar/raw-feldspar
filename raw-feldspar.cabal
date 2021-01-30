@@ -92,20 +92,20 @@ library
     ViewPatterns
 
   build-depends:
-    array,
+    array < 0.6,
     base < 5,
-    constraints,
-    containers,
-    data-default-class,
-    data-hash,
+    constraints < 0.12,
+    containers < 0.7,
+    data-default-class < 0.2,
+    data-hash < 0.3,
     imperative-edsl >= 0.8 && < 0.9,
-    language-c-quote,
-    mtl,
+    language-c-quote < 0.13,
+    mtl < 2.3,
     operational-alacarte,
     prelude-edsl >= 0.4,
     syntactic >= 3.8,
       -- That version fixes overlap bugs
-    template-haskell
+    template-haskell < 2.17
 
   if impl(ghc == 8.0.*)
     build-depends:
