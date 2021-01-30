@@ -1,5 +1,5 @@
 name:                raw-feldspar
-version:             0.3
+version:             0.3.1
 synopsis:            Resource-Aware Feldspar
 description:         An implementation of the Feldspar EDSL with focus on
                      resource-awareness.
