@@ -149,7 +149,8 @@ test-suite Compilation
     mtl,
     raw-feldspar
 
-  ghc-options: -Wno-simplifiable-class-constraints
+  if impl(ghc >= 8.0)
+    ghc-options: -Wno-simplifiable-class-constraints
 
 test-suite Semantics
   type: exitcode-stdio-1.0
@@ -172,7 +173,8 @@ test-suite Semantics
     tasty-quickcheck,
     tasty-th
 
-  ghc-options: -Wno-simplifiable-class-constraints
+  if impl(ghc >= 8.0)
+    ghc-options: -Wno-simplifiable-class-constraints
 
 test-suite Examples
   type: exitcode-stdio-1.0
@@ -204,5 +206,6 @@ test-suite Examples
     tasty-hunit,
     tasty-quickcheck
 
-  ghc-options: -Wno-simplifiable-class-constraints
+  if impl(ghc >= 8.0)
+    ghc-options: -Wno-simplifiable-class-constraints
 
