@@ -364,7 +364,7 @@ toPull vec = Pull (length vec) (vec!)
 
 -- | Take the head of a non-empty vector
 head :: Pully vec a => vec -> a
-head = (!0)
+head = (! 0)
 
 tail :: Pully vec a => vec -> Pull a
 tail = drop 1

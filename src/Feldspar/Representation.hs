@@ -237,8 +237,6 @@ instance Eval ExtraPrimitive
     evalSym (GuardVal _ msg) = \cond a ->
         if cond then a else error $ "Feldspar assertion failure: " ++ msg
 
-instance EvalEnv ExtraPrimitive env
-
 instance Equality ExtraPrimitive
   where
     equal DivBalanced    DivBalanced    = True
@@ -247,8 +245,6 @@ instance Equality ExtraPrimitive
 
     hash DivBalanced    = hashInt 1
     hash (GuardVal _ _) = hashInt 2
-
-instance StringTree ExtraPrimitive
 
 -- | For loop
 data ForLoop sig
@@ -261,10 +257,6 @@ instance Eval ForLoop
     evalSym ForLoop = \len init body ->
         foldl (flip body) init $ genericTake len [0..]
 
-instance EvalEnv ForLoop env
-
-instance StringTree ForLoop
-
 -- | Interaction with the IO layer
 data Unsafe sig
   where
@@ -275,13 +267,9 @@ instance Render Unsafe
   where
     renderSym (UnsafePerform _) = "UnsafePerform ..."
 
-instance StringTree Unsafe
-
 instance Eval Unsafe
   where
     evalSym s = error $ "eval: cannot evaluate unsafe operation " ++ renderSym s
-
-instance EvalEnv Unsafe env
 
 -- | 'equal' always returns 'False'
 instance Equality Unsafe
@@ -361,20 +349,11 @@ sugarSymFeldPrim
     => sub sig -> f
 sugarSymFeldPrim = sugarSymDecor $ ValT $ Single primTypeRep
 
--- | Evaluate a closed expression
-eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
-eval = evalClosed . desugar
-  -- Note that a `Syntax` constraint would rule out evaluating functions
-
 instance Imp.FreeExp Data
   where
     type FreePred Data = PrimType'
     constExp = sugarSymFeldPrim . Lit
     varExp   = sugarSymFeldPrim . FreeVar
-
-instance Imp.EvalExp Data
-  where
-    evalExp = eval
 
 
 
@@ -432,3 +411,32 @@ deriveEquality  ''ForLoop
 
 deriveSymbol ''Unsafe
 
+
+
+--------------------------------------------------------------------------------
+-- * Interpretation
+--------------------------------------------------------------------------------
+
+-- The stuff below depends on the TH-generated instances. From GHC 9, it seems
+-- that generated instances are only in scope after the splice. The alternative
+-- to move the splices up into the code is not possible (at least not easily)
+-- because of the mutual dependencies between the different types. (Definitions
+-- that occur after a splice are not in scope before the splice.)
+
+instance EvalEnv ExtraPrimitive env
+instance StringTree ExtraPrimitive
+
+instance EvalEnv ForLoop env
+instance StringTree ForLoop
+
+instance EvalEnv Unsafe env
+instance StringTree Unsafe
+
+-- | Evaluate a closed expression
+eval :: (Syntactic a, Domain a ~ FeldDomain) => a -> Internal a
+eval = evalClosed . desugar
+  -- Note that a `Syntax` constraint would rule out evaluating functions
+
+instance Imp.EvalExp Data
+  where
+    evalExp = eval
