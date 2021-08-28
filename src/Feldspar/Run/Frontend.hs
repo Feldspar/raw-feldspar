@@ -33,17 +33,14 @@ import Feldspar.Run.Representation
 --
 -- This is generally an unsafe operation. E.g. it can be used to make a
 -- reference to a data structure escape the scope of the data.
---
--- The 'IsPointer' class ensures that the operation is only possible for types
--- that are represented as pointers in C.
-unsafeSwap :: IsPointer a => a -> a -> Run ()
+unsafeSwap :: Ptr a -> Ptr a -> Run ()
 unsafeSwap a b = Run $ Imp.unsafeSwap a b
 
 -- | Like 'unsafeSwap' but for arrays. The why we cannot use 'unsafeSwap'
 -- directly is that 'Arr' cannot be made an instance of 'IsPointer'.
 unsafeSwapArr :: Arr a -> Arr a -> Run ()
 unsafeSwapArr arr1 arr2 = Run $ sequence_ $
-    zipListStruct Imp.unsafeSwap (unArr arr1) (unArr arr2)
+    zipListStruct Imp.unsafeSwapArr (unArr arr1) (unArr arr2)
   -- An alternative would be to make a new `IsPointer` class for Feldspar
 
 
@@ -66,7 +63,7 @@ feof = Run . Imp.feof
 
 class PrintfType r
   where
-    fprf :: Handle -> String -> [Imp.PrintfArg Data] -> r
+    fprf :: Handle -> String -> [Imp.PrintfArg Data PrimType'] -> r
 
 instance (a ~ ()) => PrintfType (Run a)
   where
