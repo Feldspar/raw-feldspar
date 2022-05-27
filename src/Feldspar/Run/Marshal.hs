@@ -23,12 +23,12 @@ newtype Parser a = Parser {runParser :: String -> (a, String)}
 
 instance Applicative Parser
   where
-    pure  = return
+    pure a = Parser $ \s -> (a,s)
     (<*>) = ap
 
 instance Monad Parser
   where
-    return a = Parser $ \s -> (a,s)
+    return = pure
     p >>= k  = Parser $ \s -> let (a,s') = runParser p s in runParser (k a) s'
 
 readParser :: forall a . (Read a, Typeable a) => Parser a

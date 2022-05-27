@@ -37,12 +37,12 @@ instance Functor Validated
 
 instance Applicative Validated
   where
-    pure  = return
+    pure  = Validated true
     (<*>) = ap
 
 instance Monad Validated
   where
-    return = Validated true
+    return = pure
     Validated valid a >>= k = Validated (valid && valid') b
       where
         Validated valid' b = k a

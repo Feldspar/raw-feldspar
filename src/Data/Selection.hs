@@ -23,7 +23,7 @@ data Selection a = Selection (a -> Bool)
 #if MIN_VERSION_base(4,11,0)
 instance Semigroup (Selection a)
   where
-    (<>) = mappend
+    (<>) = union
 #endif
 
 -- |
@@ -34,7 +34,7 @@ instance Semigroup (Selection a)
 instance Monoid (Selection a)
   where
     mempty  = empty
-    mappend = union
+    mappend = (<>)
 
 -- | Check whether a value is included in a selection
 includes :: Selection a -> a -> Bool

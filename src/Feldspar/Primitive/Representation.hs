@@ -9,7 +9,7 @@ module Feldspar.Primitive.Representation where
 
 
 import Data.Array
-import Data.Bits
+import Data.Bits (Bits (..))
 import Data.Complex
 import Data.Int
 import Data.Typeable

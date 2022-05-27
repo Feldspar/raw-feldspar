@@ -1,5 +1,5 @@
 name:                raw-feldspar
-version:             0.4
+version:             0.4.1
 synopsis:            Resource-Aware Feldspar
 description:         An implementation of the Feldspar EDSL with focus on
                      resource-awareness.
@@ -105,7 +105,7 @@ library
     prelude-edsl >= 0.4,
     syntactic >= 3.8,
       -- That version fixes overlap bugs
-    template-haskell < 2.18
+    template-haskell < 2.19
 
   if impl(ghc == 8.0.*)
     build-depends:
